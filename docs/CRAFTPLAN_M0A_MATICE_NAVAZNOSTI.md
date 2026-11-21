@@ -205,6 +205,10 @@
 | **R13 49+E** | [Novější ergonomický souhlas](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_KATALOG_FUNKCI.md#L47) chrání fungující úchopy; starý bugfix ≠ dnešní pokyn redesignu | T28 |
 | **R14 přenositelnost** | [Unknown extension round-trip + preference zařízení](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/DATOVY_FORMAT_A_PC_KOMPATIBILITA.md#L44) a [F38](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L79) ochrana vlastní práce při změně licence | T29 |
 
+### 6.2 Původní posudky a hranice důkazu pro M0-D
+
+Souhrny Claude/ChatGPT/Codex v PR #1/PR #2 **neprokazují pokrytí všech detailních podfunkcí**. Před rozhodnutím M0-D dohledat původní verze posudků v soukromém kontrolovaném prostředí, **neukládat soukromé přepisy veřejně**, nebo pořídit nový porovnatelný dokument: `technologický kandidát × typ dokumentu × přesné hodnoty/undo × vstup/pero × panorama/půdorys × hardware/Bluetooth × bezpečnost/soukromí × export/zálohy × Windows/iOS × licence/náklady`. Každou buňku označit `POSOUZENO`, `NEPOSOUZENO` nebo `NEOVĚŘENO`; hodnocení bez fyzického testu není experimentální PASS. **Tato poznámka nevybírá technologii ani nespouští zkoušky.**
+
 ### 6.3 Dodatečná kontrola Codexu CP3-01 až CP3-18: dopad na brány
 
 [Nezávislé review Codexu](https://github.com/zaplikj30-ui/CraftPlan/pull/3#issuecomment-7071031766) ověřovalo i kompletní návrhové kontrakty, ne pouze původních 14 oprav. Nezávazné číselné ID `CP3` používáme jen pro dohledání nálezu, **nejde o další funkční modul**. Detailní návrhové invarianty a scénáře `T31–T44` jsou v [kontraktu](CRAFTPLAN_M0A_NAVRH_KONTRAKTU.md).
@@ -214,11 +218,11 @@
 | **CP3-01** | Potvrzená revize, očekávaný předchůdce, média chráněná aktivním zápisem/zálohou/košem, Undo při chybě | M0-A návrh, M0-C technický důkaz; T31/T32 |
 | **CP3-02** | Záchranná záloha jediné revize, úplný graf/koš/rychlý podklad, obnova do čisté i používané instalace | M0-A návrh, M2 bez výjimky před nenahraditelnými daty; T33/T34 |
 | **CP3-03** | Samostatná verze lokálního schématu a přenosného manifestu, přijatelný výběr ZIP při chybném MIME | M0-A; T35 |
-| **CP3-04/05** | Veličina/jednotka/hodnota/původ vs. způsob přenosu a ID **konkrétního měřicího pole**, ne jen objekt | M0-A → M1/M5; T36/T37 |
-| **CP3-06/07** | Jednoznačná foto/EXIF transformace, kotvy a orientace celé scény panorama/sféra | M0-A návrh, renderer/stitch po GO; T38/T39 |
+| **CP3-04 + CP3-05** | Veličina/jednotka/hodnota/původ vs. způsob přenosu a ID **konkrétního měřicího pole**, ne jen objekt | M0-A → M1/M5; T36/T37 |
+| **CP3-06 + CP3-07** | Jednoznačná foto/EXIF transformace, kotvy a orientace celé scény panorama/sféra | M0-A návrh, renderer/stitch po GO; T38/T39 |
 | **CP3-08** | Lokální směr a referenční podlaha stěny, vazby při split/merge/Undo | M0-A návrh, M3c; T40 |
-| **CP3-09/10** | F35 schválení konkrétního obsahu/revize + jeden snapshot pro náhled a odeslaný soubor | M0-A → M3b/M4a; T41/T42 |
-| **CP3-11/12** | Centrální zámky zdroj/cíl/předek a ZIP jen aktuální vybraný podstrom a nutné přílohy | M0-A → M2/M4b; T43/T44 |
+| **CP3-09 + CP3-10** | F35 schválení konkrétního obsahu/revize + jeden snapshot pro náhled a odeslaný soubor | M0-A → M3b/M4a; T41/T42 |
+| **CP3-11 + CP3-12** | Centrální zámky zdroj/cíl/předek a ZIP jen aktuální vybraný podstrom a nutné přílohy | M0-A → M2/M4b; T43/T44 |
 | **CP3-13** | Prst/S Pen, diagnostika OFF/ON/FAULT, omezená historie a sdílení, konkrétní prahy HOTOVO | M1 fyzicky po GO; T02/T22 a rozhodnutí třídy zařízení |
 | **CP3-15** | Definice symbolu a její použitá verze, přenos vlastních zdrojových obrázků | M3a/M3b; T18/T44 |
 | **CP3-16** | F07 (jen srovnání odloženo), J7 1+1 kandidát, symboly F14, 8.4/8.5 od M1, F22/19/29 vazby | **Opraveno přímo v řádcích matice**, budoucí test dle etapy |
@@ -236,10 +240,6 @@
 | KMP/sdílená doména a nativní UI na platformách | Možné sdílení přesných pravidel, ale vyšší nároky na údržbu UI | T07/T31/T34 a nezávislý malý průchod Windows/iOS, pokud je port časově závazný |
 
 **Rozhodovací matice M0-D musí u každého kandidáta explicitně uvést:** zdroj, co je jen odborný odhad, co bylo **POSOUZENO** na papíře, co **NEPOSOUZENO**, co **NEOVĚŘENO** fyzicky; náklady licence, vývoje, hardware/SDK a údržby včetně projektového limitu 12 USD/měsíc. Společné rizikové případy: **T19/T42** zákaznická publikace, **T21/T40** stěny/nárysy, **T24/T38** výměna foto, **T27/T39** panorama/sféra, **T31–T35** uložení a přenos, **F03** konkrétní laser/protokol a fyzický S Pen. **Neznamená to napsat všechny prototypy**; před experimenty je nutné samostatné GO a uživatelem odsouhlasené priority první pracovní verze. Bez podkladů není žádný z kandidátů PASS.
-
-### 6.2 Původní posudky a hranice důkazu pro M0-D
-
-Souhrny Claude/ChatGPT/Codex v PR #1/PR #2 **neprokazují pokrytí všech detailních podfunkcí**. Před rozhodnutím M0-D dohledat původní verze posudků v soukromém kontrolovaném prostředí, **neukládat soukromé přepisy veřejně**, nebo pořídit nový porovnatelný dokument: `technologický kandidát × typ dokumentu × přesné hodnoty/undo × vstup/pero × panorama/půdorys × hardware/Bluetooth × bezpečnost/soukromí × export/zálohy × Windows/iOS × licence/náklady`. Každou buňku označit `POSOUZENO`, `NEPOSOUZENO` nebo `NEOVĚŘENO`; hodnocení bez fyzického testu není experimentální PASS. **Tato poznámka nevybírá technologii ani nespouští zkoušky.**
 
 ## 7. Kontrola při každé etapě – žádné „to doženeme později“
 
