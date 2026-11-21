@@ -1,0 +1,193 @@
+# CraftPlan – M0-A: matice návaznosti úplného zadání (bez ztráty nápadů)
+
+> **Stav:** Návrh pro kontrolu. **Není schválený rozsah implementace, není to nová zkrácená specifikace funkcí.**  
+> **Datum:** 22. 11. 2026 · **Podklad:** zdrojová dokumentace CraftPlan [PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1) (revize `837988f3e5712fe71a983307dc5417605b429d7b`) a schválený rámec plánu [PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2).  
+> **Pravidlo:** **Každý odkazovaný podrobný text je závazný zdroj rozsahu daného požadavku; název v tabulce jej NENAHRAZUJE.** Před implementací se čte celý detail, včetně novějších rozhodnutí. **Původní Zaměřovač 1 je zdroj zkušeností, ne cílový projekt ani zdroj automatických oprávnění.**
+
+## 1. Tři vrstvy požadavků (nejen 49)
+
+1. **49 jednotlivých historických kontrol** z první aplikace, zapsaných v [inventuře §4](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L89). Jsou to jen dílčí kontrakty a známá chování; u některých jde o staré chyby, které se do CraftPlanu automaticky nepřenášejí.
+2. **12 základních funkčních oblastí J1–J12**, viz [inventuru §2](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L21); popisují šířku celé budoucí aplikace.
+3. **39 rozpracovaných oblastí F01–F39**, z nichž mnohé už mají podrobná dohodnutá pravidla, viz [registr](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L11), [katalog](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_KATALOG_FUNKCI.md#L117) a [F01–F05 zadání](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_F01_F05_ZADANI.md#L7). Část je potvrzená, část výslovně odložená, část otevřený návrh.
+4. Nad tím existují **[živý návrh](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L1)**, **[registr návazností na v1](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_REGISTR_NAVAZNOSTI_V1.md#L1)**, **28 historických testů** a historická mapa dalších 44 oblastí zdrojů/testů. Ani tyto zdroje nejsou nahrazeny třemi tabulkami.
+
+**Označení vazeb M0**: `MĚR` přesná měření a jednotky; `ID` identity; `VAZ` vazby a topologie; `SOUŘ` souřadnice/projekce; `MÉD` původní média; `SAVE` uložení/obnova; `EDIT` příkazy/Undo/Redo; `REV` revize dokumentů; `EXPORT` přenos/výstup; `SEC` soukromí/oprávnění; `TEST` testy/diagnostika; `PORT` budoucí platformy. Ostatní zkratky jsou vysvětlující poznámky, ne rozkaz budovat nyní celou infrastrukturu.
+
+## 2. Dvanáct základních funkčních oblastí J1–J12
+
+| Oblast | Zachovaný původní cíl (otevřít celý detail) | Etapa / stav (pracovní mapa) |
+|---|---|---|
+| **J1** | [Zakázky a strom složek, podsložky, adresy, hledání, třídění, zámky, hromadné přesuny a kopie](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L25) | M2 |
+| **J2** | [Foto, video, PDF, zvuk, textové/kreslené/foto poznámky a přílohy, originály a editovatelné anotace](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L26) | M2–M3 |
+| **J3** | [Fotografický editor: kóty/čáry/šipky/úhly, řetězce, kruh, elipsa, lichoběžník, obdélník, plochy, volná ruka, symboly; **při otočení kóty se číselný popisek automaticky převrátí do vzpřímené čitelné orientace**](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L27) | M1–M3 |
+| **J4** | [Gesta prstem/perem, úchopy konců/středu/textu, lupa, výběr, magnet/mřížka, zoom, posun, styly, Undo/Redo](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L28) | M1+ |
+| **J5** | [Galerie a režim prohlížení bez editace, rychlé miniatury, označení upravených fotografií](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L29) | M2 |
+| **J6** | [Bluetooth laser Bosch: aktivní kóta, historie, párování, přesné jednotky; ruční vstup vždy dostupný](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L30) | M5 |
+| **J7** | [Lokální offline save, jedna aktuální + jedna předchozí bezpečná verze, obnova, koš, přerušení, originály](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L31) | M0–M2 |
+| **J8** | [Rozlišení import/export editovatelného ZIP vs zákaznické PDF/JPG/ZIP; původní média nepoškozená](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L32) | M4 + záloha M2 |
+| **J9** | [Podpora telefonů/tabletů různých značek a výkonů; prst, S Pen, jiné pero, myš/klávesnice podle fáze](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L33) | M1+ |
+| **J10** | [Kotlin + Compose pro první Android/offline prototyp; přenositelnost domény pro Windows/iOS](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L34) | ROZPOR: technický směr neplatí, otevřeno M0-D |
+| **J11** | [Bezpečná budoucí sync telefon–tablet, Google Disk pro sync a oddělenou obnovitelnou zálohu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L35) | Pozdější B1/B2 |
+| **J12** | [Čeština, první další jazyk angličtina, různé jednotky a locale; offline nápověda](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L36) | M1 připravenost; pak další jazyky |
+
+**Pozor J10:** Starší tvrzení o schváleném Kotlin+Compose je **překonáno novějším výslovným rozhodnutím vlastníka**. Technologie není vybrána; M0-D je rozhodovací brána. Totéž platí pro staré formulace v AGENTS/START_ZDE/stromu vývoje v PR #1.
+
+## 3. Všechny F01–F39, každý se zdrojovým detailem
+
+| ID | Původní podrobně rozpracované téma | Vliv na M0, který nesmíme opomenout | Realizace / stav – pracovní mapa, ne GO |
+|---|---|---|---|
+| **F01** | [Vodorovné otočné 360° panorama místnosti s editovatelnými kótami a přirozeným zoomem](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L17) | SOUŘ, MÉD, ID | Později; riziko/úhly v M0 |
+| **F02** | [Plná sférická 360° fotografie se všesměrovým rozhlížením a kótami](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L32) | SOUŘ, MÉD, ID | Později; riziko/sféra v M0 |
+| **F03** | [Postupná podpora co nejvíce laserových dálkoměrů různých značek](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L40) | MĚR, ID | M5; protokol ověřit v M0 |
+| **F04** | [Samostatný půdorys s inteligentním kreslením stěn, přichytáváním a pomocnými vodítky](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L53) | SOUŘ, VAZ, MĚR | M3c; topologie v M0 |
+| **F05** | [Vnořená část F04: práce s vybranou stěnou (nárys, fotky, kóty, detaily)](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L69) | SOUŘ, VAZ, MÉD | M3c (vnořená F04); vazby v M0 |
+| **F06** | [Prostorový pohled na zaměřenou místnost a případné jednoduché vybavení](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L82) | SOUŘ, VAZ | Později; jen závislost na F04/F05 |
+| **F07** | [Porovnání dvou fotografií vedle sebe; propojení fotografie s místem na půdorysu — ODLOŽENO](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L91) | VAZ; ale neimplementovat | ODLOŽENO |
+| **F08** | [Karta zákazníka → zakázky → složky a podklady; adresy v ČR i zahraničí](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L96) | ID, VAZ, SAVE | M1 rychlé zaměření / M2 zakázky |
+| **F09** | [Výměna fotografie se srovnáním kót (zvláštní dočasný režim)](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L106) | SOUŘ, ID, MÉD | Později; transformace v M0 |
+| **F10** | [Automatické návrhy nových kót na fotografii, přirozené AI příkazy, hlas/text a pokusné srovnání popisků](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L115) | MĚR, EDIT, VALID | Později; oddělená validace/příkazy |
+| **F11** | [Sečíst existující kóty a z výsledku vytvořit novou kótu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L145) | MĚR, VAZ | M3+; přesné výpočty v M0 |
+| **F12** | [Vlastní jednoduchý poznámkový blok s odškrtávacími úkoly (checklist)](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L154) | ID, SAVE | Později; ID/uložení v M0 |
+| **F13** | [Diktování čísla kóty a hlasové zopakování výsledku](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L167) | MĚR, VALID | Později; hodnoty/validace v M0 |
+| **F14** | [Programově rozšiřitelná knihovna odborných výkresových symbolů](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L178) | EDIT, ID | M3+; rozšiřitelné typy v M0 |
+| **F15** | [Galerie souborů v zakázce/složce jako ve Windows – přepínatelné zobrazení](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L190) | MÉD, SAVE, ID | M2; galerie |
+| **F16** | [Nastavení → Přizpůsobení nástrojů (zobrazit/skrýt jednotlivé funkce)](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L198) | ID, STAV | M2+; stav nastavení |
+| **F17** | [Automatické řízení výkonu vykreslování bez povinného přepínání režimů](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L204) | RENDER, TEST | M1+; výkon |
+| **F18** | [Světlý, tmavý a systémový vzhled aplikace](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L213) | ZOBRAZENÍ | M2+; vzhled |
+| **F19** | [Velké/skládací displeje, rotace a možnost vysouvací boční galerie](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L221) | SOUŘ, EDIT | M1+; displeje a souřadnice |
+| **F20** | [Prst a S Pen + myš/klávesnice na Android tabletu; další platformy později](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L229) | EDIT, TEST | M1+; vstupní zařízení |
+| **F21** | [Připravenost na jazyky a přesná data od první verze; další systémy později](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L237) | LOCALE, PORT | M1 příprava / port později |
+| **F22** | [Nyní samostatně, v budoucnu možnost společného modulárního systému](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L247) | PORT, ID | Samostatné projekty; integrace později |
+| **F23** | [Skříňky umisťované ke stěnám, jednoduchý 2D/3D náhled v Konfigurátoru](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L256) | pouze budoucí rozhraní | JINÝ PROJEKT (Konfigurátor) |
+| **F24** | [Cenová kalkulace a nabídky v Konfigurátoru–Nářezáku](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L265) | pouze případná integrace | JINÝ PROJEKT (Konfigurátor) |
+| **F25** | [Výroba a montáž = část Konfigurátoru–Nářezáku](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L272) | oddělit produkty | JINÝ PROJEKT (Konfigurátor) |
+| **F26** | [Experimentální funkce = vyzkoušení ergonomie a ovládání, ne nestabilního kódu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L280) | TEST, STAV | Později; bezpečné testovací funkce |
+| **F27** | [Zpoplatnění v budoucnu – několik variant, žádná zatím nevybraná](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L290) | ARCH; bez volby | OTEVŘENO; monetizace později |
+| **F28** | [Veřejné vydání až po ověření spolehlivého Androidu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L300) | TEST, DATA | Vydání až po ověření |
+| **F29** | [Důležitý PDF export a běžný tisk; TV až do budoucna](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L308) | EXPORT, ID | Minimálně s M3b F35; plně M4a |
+| **F30** | [Budoucí zámek a mezinárodně rozšiřitelné QR žádosti o platbu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L318) | SEC, MONEY | Později |
+| **F31** | [Ostatní měřicí pomůcky a hmatová odezva – odloženo](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L328) | pouze rozšíření modelu | ODLOŽENO |
+| **F32** | [Historie starých verzí zakázky – není potřeba nyní](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L337) | nemodelovat plnou historii | ODLOŽENO (bez historie všech zakázek) |
+| **F33** | [Pracovní čas u zákazníka/zakázky: Start v aplikaci, ovládání z horní lišty](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L345) | ID, SAVE | Později; čas u zakázky |
+| **F34** | [Faktura přímo v aplikaci – materiál, práce, cesta a další položky](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L359) | MONEY, ID, REV | Později; účetní a peněžní přesnost |
+| **F35** | [Instalační plány – orientační šablona před návrhem a přesný plán po návrhu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L370) | VAZ, REV, EXPORT, MĚR | M3b + minimum M4a / M3d |
+| **F36** | [Zákaznický režim Zaměřovače: stav zakázky, podklady, připomínky a fotografie](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L382) | SEC, ID, REV | Později; účet/role po GO |
+| **F37** | [Přímé sdílení vybraných podkladů: okótované fotografie, zaměření, návrhy a PDF e-mailem](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L394) | EXPORT, SEC | Malé sdílení s F35; další M4a |
+| **F38** | [Osobní/promo přístup zdarma – dočasný i trvalý; otevřená monetizace](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L400) | LIC, SEC | OTEVŘENO; licence později |
+| **F39** | [Diagnostika s užitečnými daty o příčinách; automatický tester až později v TESTOVACÍ APK](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L407) | TEST, DIAG | M1 malá diagnostika / velký autotest odložen |
+
+**Povinné křížové kontroly:** F05 je vnořená část F04; F07/F31/F32 zůstávají odložené; F23/F24/F25 patří primárně jinému samostatnému projektu; F35 má **orientační a konkrétní fázi** a pro první použitelnou fázi potřebuje současný časný PDF export/sdílení; F39 znamená **malou volitelnou diagnostiku už M1**, nikoli velký autotester hned. F01/F02 musí v M0 dostat různé souřadnicové kontrakty (panorama/sféra), ne společné pixely obrazovky. Další přesná omezení jsou v původních odkazech a nesmějí se odhadovat z názvu.
+
+## 4. Všech 49 původních dílčích kontrol
+
+| ID | Původní kontrolní požadavek – zdrojový detail | Důsledek pro M0 | Pracovní etapa |
+|---|---|---|---|
+| **1.1** | [Zvětšit pouze vzhled bílých úchopových kroužků. Dotykovou oblast a citlivost neměnit.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L94) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.2** | [Kroužky mají být poloprůhledné a nemají překrývat žluté čáry nebo hroty.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L95) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.3** | [Uchopením středu čáry nebo kóty přesunout celý objekt.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L96) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.4** | [Uchopením koncového bodu přesouvat jen daný konec.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L97) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.5** | [Opravit magnetické přichytávání, aby šly body snadno oddělit.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L98) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.6** | [Vypnutí přichytávání musí vypnout všechny jeho režimy.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L99) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.7** | [Text přidaný k šipce zobrazovat nad její čárou.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L100) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **1.8** | [Zachovat přesnou lupu při umisťování a přesouvání bodů.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L101) | EDIT, SOUŘ | M1/M3 podle nástroje |
+| **2.1** | [Plocha: čtyři nezávisle pohyblivé rohy, nepravidelné tvary a rozměry stran.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L104) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.2** | [Plocha: prostředním úchopem přesouvat celý tvar.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L105) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.3** | [Obdélník ponechat jako samostatný jednoduchý nástroj.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L106) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.4** | [Kruh: přesun za střed, změna velikosti za obvod, průměr Ø / poloměr R.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L107) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.5** | [Elipsa: přesouvání celku a dvě nezávisle upravitelné osy.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L108) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.6** | [Lomená čára: jednotlivé vrcholy spojené rovnými úsečkami, včetně jejich úprav.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L109) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.7** | [Volná ruka musí plynule kopírovat pohyb prstu nebo S Penu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L110) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **2.8** | [Inteligentní kreslení: samostatný nástroj pro narovnání ručního náčrtu půdorysu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L111) | EDIT, GEOM, MĚR | M3a/M3c; jádro M0 |
+| **3.1** | [Dimenzní řetězec: zobrazovat rozměr každého jednotlivého úseku.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L114) | GEOM, MĚR | M3a; MĚR již M0 |
+| **3.2** | [Kumulativní řetězec: zobrazovat vzdálenosti od společného počátečního bodu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L115) | GEOM, MĚR | M3a; MĚR již M0 |
+| **3.3** | [Oba řetězce: odlišné ikony, přidávání, přesouvání a mazání bodů.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L116) | GEOM, MĚR | M3a; MĚR již M0 |
+| **3.4** | [Oba řetězce: ruční zadávání délek a přenos měření z laseru Bosch.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L117) | GEOM, MĚR | M3a; MĚR již M0 |
+| **3.5** | [Úhel: společný vrchol a dvě upravitelná ramena podle ImageMeteru.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L118) | GEOM, MĚR | M3a; MĚR již M0 |
+| **3.6** | [Sklon čáry: zachovat i naši současnou variantu zobrazení úhlu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L119) | GEOM, MĚR | M3a; MĚR již M0 |
+| **4.1** | [Prázdná poznámka: ponechat výchozí text „Klikněte pro zadání textu“.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L122) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.2** | [Po vložení fotografie zobrazovat fotografii místo výchozího textu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L123) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.3** | [Vlastní text a fotografie se zobrazují a přesouvají společně.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L124) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.4** | [U hlasové poznámky zobrazit malou ikonu mikrofonu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L125) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.5** | [Klepnutím na text i fotografii otevřít stejnou úplnou nabídku poznámky.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L126) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.6** | [Zachovat fotografie, videa, hlasové nahrávky a další přílohy.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L127) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.7** | [Spojovací šipka: v klidu pouze žlutý hrot, bez viditelné tečky.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L128) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.8** | [Při přesouvání hrotu zobrazit větší bílý úchop; hrot přesouvat samostatně.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L129) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **4.9** | [Po prvním povolení mikrofonu automaticky začít nahrávat bez druhého klepnutí.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L130) | MÉD, VAZ, ID | M3a, média M2; jádro M0 |
+| **5.1** | [V galerii zobrazovat fotografie se všemi kótami, poznámkami a symboly.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L133) | SAVE, EDIT, MÉD | M2; viewer a dokumenty M0 |
+| **5.2** | [V galerii zamknout úpravy objektů, aby šlo bezpečně listovat prstem.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L134) | SAVE, EDIT, MÉD | M2; viewer a dokumenty M0 |
+| **5.3** | [Po otevření editoru znovu umožnit běžné úpravy všech objektů.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L135) | SAVE, EDIT, MÉD | M2; viewer a dokumenty M0 |
+| **5.4** | [Stejné chování zajistit i ve druhém prohlížeči fotografií.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L136) | SAVE, EDIT, MÉD | M2; viewer a dokumenty M0 |
+| **5.5** | [Po návratu z editoru zobrazovat aktuálně uložené anotace.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L137) | SAVE, EDIT, MÉD | M2; viewer a dokumenty M0 |
+| **6.1** | [Rozšířit knihovnu symbolů pro elektroinstalaci, půdorysy a další použití.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L140) | EDIT, TYP | M3a |
+| **6.2** | [Přidat přehledné kategorie a vyhledávání symbolů.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L141) | EDIT, TYP | M3a |
+| **6.3** | [Přidat naposledy použité symboly.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L142) | EDIT, TYP | M3a |
+| **6.4** | [Umožnit vlastní text u symbolu a zachovat rychlé předvolby.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L143) | EDIT, TYP | M3a |
+| **7.1** | [Opravit skutečný přenos naměřených hodnot z Bosch GLM 100-25 C.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L146) | MĚR, VALID | M5 (není automaticky oprava v1) |
+| **7.2** | [Přenášet hodnoty do právě aktivní kóty nebo rozměrového pole.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L147) | MĚR, VALID | M5 (není automaticky oprava v1) |
+| **7.3** | [Zprovoznit historii naměřených hodnot.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L148) | MĚR, VALID | M5 (není automaticky oprava v1) |
+| **7.4** | [Zjednodušit nalezení laseru a jeho opětovné připojení.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L149) | MĚR, VALID | M5 (není automaticky oprava v1) |
+| **8.1** | [Odstranit duplicitní export z rozbalené nástrojové lišty.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L152) | EXPORT, SAVE, ID | M4, ochrana dat od M0 |
+| **8.2** | [Zachovat ostatní možnosti exportu.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L153) | EXPORT, SAVE, ID | M4, ochrana dat od M0 |
+| **8.3** | [Přidat export celé zvolené složky včetně podsložek a příloh.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L154) | EXPORT, SAVE, ID | M4, ochrana dat od M0 |
+| **8.4** | [Při aktualizaci zachovat uložené zakázky, fotografie, kóty a poznámky.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L155) | EXPORT, SAVE, ID | M4, ochrana dat od M0 |
+| **8.5** | [Zachovat dosavadní funkční ovládání všude, kde nebyla požadována změna.](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L156) | EXPORT, SAVE, ID | M4, ochrana dat od M0 |
+
+**Vysvětlení:** Tato tabulka není pokyn „zkopírovat bugfixy v1 do v2“. Zachovává požadavky na ovládání a bezpečnost; pro nový CraftPlan se konkrétní chování nově testuje. Jakákoliv starší podrobnost může být překonána pozdějším výslovným rozhodnutím vlastníka a musí být v takovém případě označena jako **ROZPOR/NAHRAZENO**, nikoli smazána bez stopy.
+
+## 5. Všech 28 historických uživatelských testů jako referenční scénáře
+
+| Číslo | Předmět původního testu | Odkaz na inventuru a její původní detail |
+|---|---|---|
+| 1 | Šipka | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L164) |
+| 2 | Čára | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L165) |
+| 3 | Lomená čára | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L166) |
+| 4 | Dimenzní řetězec | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L167) |
+| 5 | Kumulativní řetězec | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L168) |
+| 6 | Úhel | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L169) |
+| 7 | Plocha → pozdější finální název Lichoběžník | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L170) |
+| 8 | Obdélník | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L171) |
+| 9 | Kruh **i elipsa** | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L172) |
+| 10 | Volná ruka | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L173) |
+| 11 | Poznámka | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L174) |
+| 12 | Symbol | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L175) |
+| 13 | Laser Bosch a historie měření | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L176) |
+| 14 | Zpět a Znovu | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L177) |
+| 15 | Úprava spodní lišty nástrojů | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L178) |
+| 16 | Magnetické přichytávání a úchopy kót | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L179) |
+| 17 | Barva a tloušťka čar | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L180) |
+| 18 | Směřovat (správný název!) | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L181) |
+| 19 | Fotografie: přiblížení, posun, přizpůsobení | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L182) |
+| 20 | Procházení fotografií | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L183) |
+| 21 | Zamykání souborů a složek | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L184) |
+| 22 | Koš a obnovení souborů | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L185) |
+| 23 | Vyhledávání souborů a poznámek | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L186) |
+| 24 | Řazení souborů | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L187) |
+| 25 | Přejmenování a přesouvání souborů + další schválené funkce | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L188) |
+| 26 | Export ZIP, struktura obsahu a pojmenování | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L189) |
+| 27 | Import ZIP / obnovení zálohy | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L190) |
+| 28 | Zachování dat po restartu aplikace | [Inventura/test a odkaz](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L191) |
+
+**NOT RUN:** Žádný z uvedených 28 historických testů nebyl touto dokumentační prací znovu spuštěn na CraftPlanu. Starší PASS/FAIL ani videa nejsou důkazem nové aplikace. Před implementací nástroje projít **původní detail testu** a nové návrhy, včetně odlišných pravidel prstu/S Penu, úchopů, názvů „Lichoběžník“ a „Směřovat“. Dalších **44 historických oblastí** je orientační mapa k vyhledání rizik, nikoli 44 testů PASS pro CraftPlan.
+
+## 6. Kontrola při každé etapě – žádné „to doženeme později“
+
+Při vstupu do každé etapy **nechat pro každý dotčený požadavek odpovědět**:
+
+- Jaký je **aktuální detailní zdroj** v CraftPlanu a jaká je jeho schválenost? Nestačí věta v roadmapě.
+- Co musí být **v datovém modelu už nyní** a co je teprve samotná budoucí funkce? Bez předčasného programování celé funkce.
+- Je funkce **v implementaci / schválená do etapy / budoucí / odložená / mimo CraftPlan**? Nerozhodnuto není „zrušeno“ a odloženo neznamená automaticky „programovat“.
+- Které **závislosti na jiných funkcích** a na bezpečnosti dat/testech musí být splněny? Zejména F35 ↔ PDF/sdílení, F04 ↔ F05, M1 ↔ M2 záloha, F01/F02 ↔ souřadnice.
+- Před prohlášením HOTOVO znovu projít **všechna dotčená ID a celý původní text**. Novější rozhodnutí vlastníka zapisovat s datem a zdrojem.
+
+**Akceptační podmínka M0-A:** všechny J1–J12, F01–F39 a 49 dílčích kontrol mají dohledatelný primární zdroj a návrhový dopad; 28 starých testů a 44 historických oblastí jsou dohledatelné. **To ještě není rozhodnutí o podrobnostech každé funkce ani potvrzení runtime**, tyto matice mají zabránit ztrátě znalostí. Přidávat lze další podrobné zdroje i nové ID bez ztráty starých vazeb.
+
+## 7. Zdroje a bezpečnostní hranice
+
+- [Hlavní plán stavby – PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2) (samostatný draft, vlastníkem schválený rámec bez merge).
+- [Úplná dokumentace a katalog – PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1) (samostatný draft; přesné texty stále ve větvi).
+- [Živý návrh CraftPlanu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L1).
+- [Inventura, 49 detailů, 28 testů a 44 oblastí](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L1).
+- [Registr F01–F39](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L1).
+- [Registr vazeb na Zaměřovač 1](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_REGISTR_NAVAZNOSTI_V1.md#L1).
+
+**NEMĚNIT:** Starý Zaměřovač 1, jeho data, produkční prostředí; bez samostatného GO žádná implementace, CI, HOME, APK, merge ani výdaj. Technologii ani renderer M0-A nevybírá.
