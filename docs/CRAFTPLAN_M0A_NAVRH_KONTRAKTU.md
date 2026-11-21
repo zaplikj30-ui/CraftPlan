@@ -9,7 +9,7 @@
 
 Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_MATICE_NAVAZNOSTI.md)**: **12 J-oblastí, všech 39 F01–F39, všech 49 historických dílčích kontrol a 28 historických uživatelských testů**, dále [živý návrh](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md), [registr dalších návazností](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_REGISTR_NAVAZNOSTI_V1.md) a původní detaily. **Matice zachovává odkazy; její krátký název nenahrazuje úplné podrobné funkční zadání.** Budoucí funkce nemusejí vzniknout hned, ale jejich **nároky na identity, souřadnice, měření, média, vazby a obnovu** nesmí budoucí vývoj nutit bourat základy.
 
-**Výslovně posoudit:** F01/F02 panoramata a sféry, F03 lasery, F04/F05 půdorys a nárys, F09 výměnu podkladové fotografie, F11 odvozené kóty, F35 instalační plány, F36 oprávnění zákazníků a F37 sdílení. F07/F31/F32 jsou odložené, F23/F24/F25 patří Konfigurátoru–Nářezáku; nic z toho nepřebírat jako implementační GO.
+**Výslovně posoudit:** F01/F02 panoramata a sféry, F03 lasery, F04/F05 půdorys a nárys, F09 výměnu podkladové fotografie, F11 odvozené kóty, F35 instalační plány, F36 oprávnění zákazníků a F37 sdílení. samostatné porovnání dvou fotografií F07, F31 a F32 jsou odložené; vazba fotografie na stěnu patří do F04/F05, F23/F24/F25 patří Konfigurátoru–Nářezáku; nic z toho nepřebírat jako implementační GO.
 
 ## 2. Rozlišení stavů tvrzení
 
@@ -105,7 +105,7 @@ Zachovat tři **oddělené** budoucí scénáře: (1) prosté české diktován�
 | **F02 plná sféra** | Referenční směr, dva úhly či ekvivalent, póly, krytí a orientace sféry; 360°×180° fotografie není prostorový model kuchyně | Pohled kamery a zoom |
 | **F04 půdorys** | Vrcholy, úseky, stabilní ID stěn, topologie a **skutečné měřítko jen při doloženém měření**. U neokótované skici přiznat neznámou škálu | Magnetická vodítka, zoom, pan |
 | **F05 nárys stěny** | Lokální prostor pohledu na stěnu + explicitní identita stěny, polohy oken/dveří a detailních médií; při dělení stěny zachovat vazby či označit k ručnímu rozhodnutí | Výběr a poloha UI panelu |
-| **F35 instalace** | Editovatelný plán se značkami, měřenými hodnotami, ID zakázky, stavem a revizí; zvlášť vydaný PDF otisk | Přiblížení a rozvržení PDF |
+| **F35 instalace** | Editovatelný plán se značkami, měřenými hodnotami, **nepovinným ID zakázky (orientační šablona i bez ní)**, stavem a revizí; zvlášť vydaný PDF otisk | Přiblížení a rozvržení PDF |
 
 **F09 výměna fotografie – přesně dva potvrzené manuální režimy:** (1) **kóty jsou pevné, pohybuje se nová fotografie**, nebo (2) **fotografie je pevná a všechny kóty se dočasně přesouvají společně**. Pracovní změna zahrnuje ID původního i náhradního originálu a oddělenou vratnou transformaci. **Hotovo** potvrdí jeden validovaný Undo/Redo příkaz a vrátí **samostatné úchopy jednotlivých objektů**, není to trvalá skupina. **Zrušit** vrátí původní obraz, kotvy a hodnoty; **oba originály zůstávají bezpečně uchované**. Nevydávat výpočet perspektivy za potvrzenou reálnou míru. [F09](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L106).
 
