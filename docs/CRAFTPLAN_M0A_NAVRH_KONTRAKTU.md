@@ -38,6 +38,24 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 **Příklady vazeb:** `zakázka → dokument FOTO → původní médium + anotace kóty → měření`; `půdorys → stěna → nárys + dveře/okna/fotopoznámky`. Rychlý podklad může existovat i mimo zakázku.
 
+### 3.1 Další typové hranice pro budoucí funkce – nepředbíhat jejich implementaci
+
+**F14 knihovny symbolů:** rozlišit **definici vestavěného odborného symbolu**, **definici uživatelského obrázkového symbolu** a **vložení/instanci symbolu do dokumentu**. Definice má stabilní identitu nezávislou na pořadí katalogu; každá instance má své vlastní ID, polohu, vzhled a odkaz na konkrétní definici. Vestavěnou definici uživatel nepřepisuje; uživatelská knihovna je oddělená. Pokud definice chybí nebo byla odstraněna z katalogu, uložená instance a původní importované médium se **nesmějí tiše ztratit**, zobrazí se bezpečná náhrada/oznámení a opravitelné přiřazení. **KANDIDÁTNÍ bezpečná vstupní hranice:** import ověřených JPG/PNG/WebP jako neaktivních obrazových dat, kontrola deklarovaného i skutečného typu/limitů a bezpečné dekódování; **nepřijímat spustitelný HTML/SVG/JS obsah jako obyčejnou značku**. Konkrétní nabídka značek, jejich licencování a vizuální podoba patří až do F14. [Podrobná F14](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L178).
+
+**Více médií v jedné poznámce:** jedna poznámka má vlastní ID a může mít **seřazených více fotografických příloh** se samostatnými ID; jejich editovatelnost/vazby a originální bajty nezávisí na první náhledové fotografii. Náhled „stoh s počtem“ je zobrazovací pravidlo, nikoli jiný objekt. Samostatná hlasová příloha zůstává jiným typem média. [Historické rozhodnutí D](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/ROZHODNUTI_A_NAPADY_Z_TESTU.md#L40).
+
+**Hromadná práce a jednotlivý editovatelný export:** M2 bude potřebovat jednoznačně vymezenou množinu vybraných ID pro **kopírovat / přesunout / smazat / ZIP**, včetně kontroly zámků jednotlivých položek i cílové složky; částečný úspěch nesmí být skrytý. Vybraná kopie dostane nové ID, přesun zachová původní; ZIP jedné fotografie zahrne originál, editovatelné anotace a všechny její přílohy, s verzí a bezpečným opětovným importem jako **kopie nebo jiná výslovná volba**, ne tajný přepis. Historicky schválené UI výběru a odznak „upravené foto“ jsou odlišné prezentační požadavky. [A–C](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/ROZHODNUTI_A_NAPADY_Z_TESTU.md#L14).
+
+**F08 adresy a původ údajů:** kontaktní/fakturační adresa **zákazníka**, adresa **zakázky** a nepovinná adresa **fotografie** jsou rozdílné údaje. Případný návrh GPS/geokódování či registru musí mít zdroj, stav **NAVRŽENO vs. UŽIVATELEM POTVRZENO**, správný cíl a možnost odmítnout. Změna návrhu nesmí bez potvrzení přepsat ruční opravu; žádná povinná GPS ani síťové geokódování v M1. [F08](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L96).
+
+**F33/F34 – budoucí čas a peníze nejsou geometrická míra:** model musí dovolovat samostatně identifikované úseky práce/pauzy a potvrzený Stop **konkrétního aktivního časovače** včetně bezpečného chování po restartu, oddělený Start/Stop případné GPS jízdy a vždy dostupnou **ručně potvrzenou vzdálenost dopravy**. Cena má mít **přesnou částku, měnu, schválená pravidla zaokrouhlení a původ sazby/položky**; vydaná faktura uchová **neměnný otisk odběratele, adresy, položek, cen, stavu, data a revize**, ne živé hodnoty změněné pozdější úpravou zákazníka/ceníku. Konkrétní časovač, fakturační UI, předpisy a GPS adapter jsou pozdější rozhodnutí. [F33](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L345) · [F34](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L359).
+
+### 3.2 Schválené ovládací detaily mimo čísla F/49
+
+**Nesmí se zaměnit** (1) zkratka pro **rychlé opakování posledního úspěšného přidání v přehledu**, (2) **jednorázové kreslení** a (3) samostatný **dlouhým stiskem aktivovaný opakovaný kreslicí nástroj**. Opakování poslední akce nevytváří zbytečný trvalý odkaz na předchozí zakázku; při nevhodném kontextu nic tajně nevložit. **Duplikace celé kóty je odložena**, ne implementační požadavek. Dlouhý stisk může kolidovat s přeskupováním ikon a musí dostat pozdější fyzický UX test. [Novější rozhodnutí v živém návrhu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L310).
+
+**Úchopy E / regresní chování:** koncový/rohový úchop upravuje jen konec/roh, střed přesouvá celek, popisek se přesouvá samostatně; při překryvu zón má přednost konec. Nepřepisovat nyní uživatelsky vyhovující ergonomii jen podle starého slovesa „opravit“. Čitelnost rotovaného textu kóty je zobrazovací pravidlo bez změny míry. Pozdější oddělené testy prst/S Pen, citlivost, „Lichoběžník“ vs. „Obdélník“ a správný název „Směřovat“. [Historické E](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/ROZHODNUTI_A_NAPADY_Z_TESTU.md#L47) · [Novější potvrzení](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_KATALOG_FUNKCI.md#L47).
+
 ## 4. Přesná čísla, jednotky a měřicí kontext
 
 **POTVRZENÉ:** číselný údaj a původ nejsou odvozené z pixelů, délky kreslené úsečky ani zaokrouhleného popisku. Pro každé měření uchovat veličinu (délka/plocha/úhel…), jednotku, přesnou hodnotu, původ `RUČNÍ/LASER/VÝPOČET/IMPORT`, ID a stav ověření. Bluetooth samo nezaručuje, že jednotka a údaj jsou správné.
@@ -47,12 +65,18 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 **Návrh stavů (OTEVŘENO pro názvy/přechody):** `NEZMĚŘENO`, `ZADÁNO`, `OVĚŘENO`, `NEJASNÁ JEDNOTKA`, `NEPŘIŘAZENO`. Česká čárka a anglická tečka se zpracují pouze podle jednoznačně známého locale; **vnitřní formát dat na locale nespoléhá**. Převody a výpočty mají definovaná pravidla přesnosti, hranic a vědomého zaokrouhlování; zobrazení v jiné jednotce nikdy potichu nemění uloženou hodnotu.
 
 - Posunutí kóty o 20 pixelů mění její geometrické kotvy, **ne naměřenou míru**.
-- Součet F11 dává novou **odvozenou** hodnotu s odkazy na zdrojová měření, ne nové fyzické měření.
+- **F11 je jednorázově potvrzený snímek součtu 2–N uživatelem vybraných existujících kót**, nikoli živá formule: vytvořená kóta dostává **vlastní stabilní ID, přesně spočtenou potvrzenou hodnotu, jednotku, plnou editovatelnost a Undo/Redo**. ID vstupních kót lze uchovat jen jako **doložení původu**, ne jako automatickou závislost. **Pozdější změna nebo smazání zdrojové kóty NESMÍ změnit výsledek**, ledaže vlastník později výslovně schválí vědomý přepočet. Nabízená poloha nové kóty je pouze vizuální návrh; uživatel upravuje umístění/úchopy, nikoli původní naměřená čísla. [F11](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L145).
 - Neslučitelné veličiny (např. délka + úhel), neznámá jednotka, `NaN`, nekonečno a mimo-rozsahové hodnoty se odmítnou.
 - Opožděná hodnota laseru se nesmí přiřadit jiné právě vybrané kótě; příjem měření a vzdálené spuštění měřidla jsou **oddělené schopnosti**.
 - Při změně topologie F04 se nesmí z měřené délky vytvořit dva odhady délek z kresby.
 
 **TEST PŘIPRAVIT:** `850,5 mm` po uložení/reopen; přesný převod `1/16 in ↔ 1,5875 mm`; velké plochy a zlomky; několikeré opakované zobrazení v jiných jednotkách bez driftu; odmítnutí neznámé jednotky z laseru.
+
+### 4.1 Budoucí hlas/AI – návrh nikdy není potvrzené měření
+
+Rozlišit **(a) dočasný návrh grafické kóty**, **(b) uživatelem potvrzený editovatelný grafický objekt**, **(c) samostatně potvrzenou přesnou naměřenou/ručně zadanou hodnotu**. Minimální průchod: povel či rozpoznaná hrana → dočasný návrh (možná bez hodnoty) → náhled/kontrola jednotky a bodů → **potvrdit / opravit / odmítnout** → validovaný běžný příkaz editoru → Undo/Redo/save. Odmítnutí nebo chyba nikdy nezapisují dokončenou kótu. **Bez skutečné hodnoty zůstane „NEZMĚŘENO“, nikoli nula, odhad či hodnota z pixelů.**
+
+Zachovat tři **oddělené** budoucí scénáře: (1) prosté české diktování skutečné hodnoty s hlasovým zopakováním čísla a vědomým potvrzením (otevřeno přímé umístění A vs. dočasný zásobník B), (2) AI navrhne grafické umístění, ale číslo pochází **výhradně od uživatele**, (3) „Okótuj místnost“ navrhne **nové grafické kóty bez skutečných hodnot**. AI nesmí neomezeně měnit ani mazat hotová data a každý povel musí projít stejnými oprávněními a validací jako ruční editor; běžný editor musí fungovat bez AI/sítě. Žádný AI model, server či mikrofon nyní. [Živý návrh](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L337).
 
 ## 5. Trvalé souřadnice pro různé podklady
 
@@ -67,7 +91,11 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 | **F05 nárys stěny** | Lokální prostor pohledu na stěnu + explicitní identita stěny, polohy oken/dveří a detailních médií; při dělení stěny zachovat vazby či označit k ručnímu rozhodnutí | Výběr a poloha UI panelu |
 | **F35 instalace** | Editovatelný plán se značkami, měřenými hodnotami, ID zakázky, stavem a revizí; zvlášť vydaný PDF otisk | Přiblížení a rozvržení PDF |
 
-**F09 výměna fotografie:** anotace mají zachovatelné kotvy a oddělenou transformaci nového podkladu. Srovnat novou fotografii s kótami, aniž se mění přesné hodnoty; po „Hotovo“ se vrací běžné samostatné editace. **F01/F02 se musí později testovat na švu, nikoli jen na jedné ploché fotografii.**
+**F09 výměna fotografie – přesně dva potvrzené manuální režimy:** (1) **kóty jsou pevné, pohybuje se nová fotografie**, nebo (2) **fotografie je pevná a všechny kóty se dočasně přesouvají společně**. Pracovní změna zahrnuje ID původního i náhradního originálu a oddělenou vratnou transformaci. **Hotovo** potvrdí jeden validovaný Undo/Redo příkaz a vrátí **samostatné úchopy jednotlivých objektů**, není to trvalá skupina. **Zrušit** vrátí původní obraz, kotvy a hodnoty; **oba originály zůstávají bezpečně uchované**. Nevydávat výpočet perspektivy za potvrzenou reálnou míru. [F09](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L106).
+
+**F01/F02 – původní a odvozená média:** samostatné identifikované **zdrojové fotografie → odvozené/poskládané panoramatické médium → dokument a kotvy s definovanou projekcí**; navíc možnost **importovat už hotové panorama** bez zdrojových dílčích snímků. **Částečně pořízená sféra** musí přiznat neúplné pokrytí a nepřisuzovat anotace neexistujícím oblastem. Kotvy se zachovají v editoru, prohlížeči i exportu, přes šev a póly; původní jednotlivé fotografie nejsou destruktivně přepsány výstupem. Konkrétní stitching a projekci posoudit experimentem, nikoli vybrat teď. F02 není 3D model místnosti. [F01/F02](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L17).
+
+**F04/F05 – tři různé pravdy:** **náčrtná/topologická geometrie stěn**, **samostatné skutečné měřené hodnoty** a **stavební prvek (okno/dveře) s jedinou identitou sdílenou půdorysem a jedním či více nárysy**; ostatní fotografie a přílohy mají vlastní ID a vazby. **Změna potvrzené kóty ze 3 m na 4 m NESMÍ bez explicitního budoucího pravidla sama přestavět zbytek půdorysu**. Okno/dveře se nesmí stát dvěma konfliktními nezávislými kopiemi. Ke stěně může existovat **více současných nárysů, kotovaných fotografií i detailních příloh**. Vložení rohu/rozdělení stěny musí zachovat ostatní měření a vazby nebo je označit jako nejednoznačné k vědomému rozhodnutí. Žádný automatický solver/3D nyní. [F04/F05](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_F01_F05_ZADANI.md#L42).
 
 ## 6. Ukládání a obnova – návrhová bezpečnostní smlouva
 
@@ -91,11 +119,19 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 Undo/Redo vrací validované editační příkazy; **není** náhradou zálohování, obnovy po pádu či koše. **OTEVŘENO:** zda a jaký rozsah Undo/Redo přetrvá restart. Nepřidávat automaticky neomezenou historii plných zakázek; F32 je odložená. **Revize již vydaného instalačního dokumentu F35** jsou jiný důležitý případ, ne plná historie zakázky.
 
+### 6.4 F39 – pasivní malá diagnostika od první M1 kóty
+
+Diagnostika je **volitelná OFF/ON, pasivní a jednosměrná**: editor směrem k ní poskytuje pouze bezpečně pojmenované události, **diagnostika nesmí zpětně měnit gesto, příkaz, stav ani výsledek uložení**. Zachytit podle možností společnou **časovou osu** se sémantickými ID akcí (např. `KOTA_BEGIN`, `KOTA_COMMIT`, `UNDO`, `SAVE_START`, `SAVE_CONFIRMED`, `REOPEN`), čas dotyku, výpočtu, renderu, potvrzeného save/reopen a omezené ukazatele janku/paměti/CPU. **Whitelist bez hodnot měření, zákaznických ID, textů, souřadnic, GPS, fotografií a médií.** Žádný podrobný log každého pointermove.
+
+Malý ohraničený buffer v paměti, měření bez blokujícího I/O v UI vlákně; případný zápis až dávkově mimo kritickou cestu. Plný/poškozený buffer, plný disk, chyba časování nebo sdílení logu nesmí blokovat editor, potvrdit falešné uložení ani smazat platná data – **přestat logovat bezpečně**. Ručně vyvolaný bezpečný přehled/sdílení se souhlasem uživatele, **bez automatického uploadu**. Povinně porovnat stejné úlohy OFF vs. ON včetně závady logování; při výrazné regresi diagnostiku nepovažovat za splněnou. Pokročilý profiler a samostatná TESTOVACÍ APK zůstávají odložené. [F39](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L407).
+
 ## 7. Minimální přenosná záloha M2 – kontrakt uzavřít v M0-A
 
 Definovat **verzovaný manifest** včetně všech ID, vazeb, přesných měření, původních bajtů médií a kontroly úplnosti/integrity; záloha se nesmí označit jako hotová, dokud celý výstup není úplný. **OTEVŘENO:** konkrétní archivní formát, kontrolní součty/hash, struktura manifestu a ochrana osobních údajů; zatím nic neukládat na cloud či veřejný GitHub.
 
 Obnova: ověřit verzi, integritu, vazby, počet/média, místo na disku a zda už existuje jiná platná práce **před jakýmkoli ničivým přepsáním**. Vadný, neúplný, nepodporovaný nebo na disk nevejdoucí archiv musí být odmítnut bez ztráty posledního platného stavu. **M2 HOTOVO:** úplná záloha → validace → obnova na čisté instalaci/odděleném zařízení → porovnání všech objektů a originálních bajtů; pak negativní testy s existující prací.
+
+**NEPŘÁTELSKÝ ARCHIV JE NEDŮVĚRYHODNÝ VSTUP:** import a obnova z externího ZIP/manifestu nesmí slepě věřit jménům, typu ani tvrzené velikosti. Odmítnout/bezpečně zpracovat **cesty mimo cílové místo (../, absolutní cesty), symlinky, duplicitní názvy i ID, kolidující cesty, cizí/nepodporované typy, podvržené vazby, extrémní počty záznamů, abnormální velikosti a rozbalovací poměr (ZIP bomb)**. **KANDIDÁTNÍ minimální hranice:** izolované omezené čtení do dočasného prostoru, jednoznačná normalizace a validace všech cest a vazeb, limity počtu/bajtů/hloubky/času, bezpečné dekódování médií, kontrola integrity a konzistentní validace **před zveřejněním jediného objektu**. Na chybě zachovat existující práci i originály; žádné spouštění obsahu archivu a žádný automatický import HTML/JS. Konkrétní limity/manifest/hash a atomické publikování jsou **OTEVŘENO pro M0 návrh a případný schválený experiment**, nikoli pro dnešní implementaci. [Historická kompatibilita](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/DATOVY_FORMAT_A_PC_KOMPATIBILITA.md#L44).
 
 Lokální crash recovery řeší pád aplikace; přenosná záloha ztrátu telefonu; M4 plný editovatelný přenos; B2 až později synchronizaci. **Ani dvě místní kopie nejsou ochrana před ztrátou zařízení.**
 
@@ -106,6 +142,12 @@ Dvě fáze: **(a) ORIENTAČNÍ** šablona před návrhem, která už v M3b musí
 ## 9. Verze, import, přenositelnost a soukromí
 
 Každý dokument/záloha má rozpoznatelnou verzi formátu. Migrace starších souborů se testuje na kopii; při nepodporovaném novějším formátu se nesmějí neznámé objekty či naměřené hodnoty potichu zahodit. **Formát dat nesmí být závislý na jediném rendereru ani pouze na JVM**. Import ze Zaměřovače 1 je samostatný pozdější projekt M4c **pouze z kopie**, bez úpravy v1.
+
+**Neznámá rozšiřující pole:** pokud čtenář rozpozná bezpečnou známou verzi a podporovaný kontejner rozšíření, ale jeho obsah neumí zobrazit, musí jej při round-tripu **beze ztráty zachovat nebo bezpečně odmítnout editovatelný zápis**; nikdy tiše nesmazat neznámé hodnoty. **Data zakázky ≠ místní nastavení zařízení:** jazyk, poloha panelů, UI barvy a jiné lokální preference telefonu se při importu zakázky nesmějí automaticky přepsat. [Historický datový kontrakt](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/DATOVY_FORMAT_A_PC_KOMPATIBILITA.md#L44).
+
+**Viditelnost a publikace jsou čtyři oddělené věci:** (1) **existence** objektu/kóty/poznámky v editovatelném projektu, (2) jeho **dočasná viditelnost v pracovním pohledu** (F37), (3) **vědomě vybraný obsah a náhled konkrétního PDF/ZIP/exportu** (F29/F37), (4) **budoucí zveřejněná revize konkrétnímu autorizovanému zákazníkovi** (F36). Výchozí stav **nic nesdílet**. Skrytá kóta dál existuje, schování tlačítka/nástroje F16 je pouze preference UI a **nemění obsah dokumentu ani práva**. Export musí explicitně určit, co zahrnuje, a nezveřejnit interní poznámky, skryté položky či přílohy jen proto, že zůstávají v projektu; pro editovatelnou zálohu naopak musí být jasně řečeno, že zahrnuje vše. Zákaznická publikace jen schválená revize a oprávněné ID/role, s možností odvolání; žádný zákaznický server nyní. [F16](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L198) · [F36/F37](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L383).
+
+**Budoucí licence/přístup F38:** omezení funkce nebo změna oprávnění **nesmí zničit ani učinit neobnovitelná vlastní data**, zásadní export/obnova vlastních souborů musí mít samostatně vymezenou bezpečnou cestu. Přístup k funkci, vlastní zakázce a cizím zákaznickým datům jsou odlišná práva. Nezakládat licenční ani autentizační server v M0. [F38](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L79).
 
 Před M0-D u každého vážného kandidáta porovnat výkon Android editoru, bezpečnost dat, možnost budoucího Windows/iOS/iPadOS portu, Bluetooth a další hardware, licence, náklady a dlouhodobou údržbu. Žádný framework nyní není schválen.
 
@@ -131,8 +173,22 @@ Veřejný repozitář nesmí obsahovat skutečné zakázky, zákaznické fotogra
 | T14 | F35 orientační → konkrétní → schválená revize PDF | Správný stav/datum/revize, vydané PDF nepřepsáno |
 | T15 | Migrace/otevření jiné verze dokumentu | Neznámá data se neztratí, bezpečné odmítnutí nebo migrace |
 | T16 | Srovnání technologie pro 2D editor | Stejné podklady, měřený výkon, paměť, rizika a náklady |
+| T17 | F11 součet dvou a více kót → potvrdit novou → změnit zdrojovou | Nová kóta zachová přesnou potvrzenou hodnotu a své ID, zdroj se změní nezávisle; Undo funguje |
+| T18 | F14 vložený symbol, smazat/přejmenovat definici z knihovny, bezpečný JPG/PNG/WebP import | Instance a originální obrázek zůstanou, chybějící definice je přiznána; škodlivý typ odmítnut |
+| T19 | F16 skrýt nástroj vs. F37 skrýt objekt vs. vydat export vs. F36 zveřejnit | Existence dat a oprávnění se nemění; obsah exportu přesně podle potvrzeného výběru, žádný únik |
+| T20 | F10/F13 návrh hlas/AI s uživatelskou hodnotou vs. nezměřená grafická kóta | Zrušení bez zápisu, žádná nula/odhad z pixelů, potvrzení validovaným příkazem a Undo |
+| T21 | F04/F05 kóta 3→4 m, rozdělená stěna, společné okno, 2 nárysy, fotodetaily | Bez automatického přestavění a dvojího okna; zachované či přiznané nejednoznačné vazby |
+| T22 | F39 diagnostika OFF/ON/FAULT při gestech, save a plném logu | Editor, bajty dat i výsledek uložení nezávislé na diagnostice; změřená přijatelná režie |
+| T23 | Úmyslně škodlivý ZIP: ../, absolutní cesta, symlink, duplicitní ID, ZIP bomb | Omezené odmítnutí bez zápisu mimo izolované místo a bez ztráty existujících dat |
+| T24 | F09 pevné kóty vs. pevná fotografie, Hotovo/Zrušit/Undo | Dvě samostatné módy, oba originály nedotčené, žádné trvalé seskupení kót |
+| T25 | F08 GPS návrh adresy po ruční opravě, adresa zákazníka ≠ zakázky ≠ fotky | Bez automatického přepisu a záměny cíle, bez povinné polohové služby |
+| T26 | F33 přerušený timer/Stop, jízda zvlášť, ruční km; F34 změna zákazníka po vydání | Žádný Stop nesprávného timeru, žádný přepis ceny/částek ani vydané faktury |
+| T27 | F01/F02 dílčí zdrojové fotky / hotový import / částečná sféra | Zachování originálů, kotvení a projekce, přiznané neúplné pokrytí |
+| T28 | STARÉ 1.1–1.8 vs. poslední schválená ergonomie, historické A–E | Žádný nevyžádaný redesign fungujících úchopů; fyzický regresní důkaz až později |
+| T29 | M4 round-trip s neznámými rozšiřujícími poli a odlišnými lokálními preferencemi | Neznámé kompatibilní pole zachováno nebo bezpečně odmítnuto, cílové UI prefs nedotčené |
+| T30 | Hromadný přesun se zámky, ZIP jedné fotky s přílohami, poznámka s více fotkami | ID, zámky, všechna média a editovatelný import zachované; bez skrytého částečného úspěchu |
 
-**T01–T16 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
+**T01–T30 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
 
 ## 11. Otevřené otázky pro nezávislé DESIGN/SECURITY review
 
@@ -144,6 +200,8 @@ Veřejný repozitář nesmí obsahovat skutečné zakázky, zákaznické fotogra
 6. Definovat verze/migrace a způsob práce s neznámými typy bez ztráty dat.
 7. Uzavřít bezpečnostní přechody a revize F35, včetně zákaznického PDF a kontroly před vydáním.
 8. Porovnat celý návrh s **[maticí 12+39+49+28 a detailními zdroji](CRAFTPLAN_M0A_MATICE_NAVAZNOSTI.md)**; při chybě doplnit a znovu posoudit.
+9. **Před M1 návrhově uzavřít**: hranici potvrzené/nezměřené kóty a Undo, jednorázový součet F11, konvence symbolů/instancí, viditelnosti a exportu, kontrolu vstupů neověřeného archivu, diagnostickou izolaci a identitu médií. Návrh testů T17–T30 je nyní pouze `NOT RUN`.
+10. **Odložené do konkrétních funkčních etap:** grafické kolekce symbolů, OCR/AI model, hlasový backend, účetní/časovací UI, klientský portál, GPS, finální stitching a serverové role/licence. Budoucí technologické posudky mají pokrýt všechny klíčové typy dokumentů a vstupy; ne jen fotoeditor.
 
 **Neuzavřené otázky nejsou automaticky vyřešené přítomností této dokumentace.** Autor + nezávislý kontrolor musí rozhodnout, které lze vyřešit návrhově a které vyžadují samostatně povolené technické ověření; bez něj se neuděluje neopodstatněné APPROVE DESIGN.
 
