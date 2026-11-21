@@ -95,7 +95,7 @@ Android aplikace (Kotlin / Jetpack Compose)
 ## 4. Pravidlo práce: jeden malý funkční balík → ověření → další
 
 1. **Před zadáním:** koordinátor přečte právě potřebné části [inventury](ZAMEROVAC_2_INVENTURA_POZADAVKU.md), [porovnání s v1](ZAMEROVAC_2_POROVNANI_S_V1.md), [datové ústavy](ZAMEROVAC_2_USTAVA_DAT.md), aktuální GitHub HEAD/base, [AGENTS](../AGENTS.md) a [#42](https://github.com/zaplikj30-ui/Zamerovac-android/issues/42). Dohodne jedno konkrétní očekávané chování a bezpečné hranice.
-2. **Jedna práce = izolovaná větev/draft PR:** popsat vstup/výstup, testy, starou referenci a rizika, zvolit vhodnou AI/prostředí. V2 se nezapisuje přímo do stávající produkční v1; samostatný repozitář a **jiný package ID/datový prostor** až po příslušném GO.
+2. **Jedna práce = izolovaná větev/draft PR:** popsat vstup/výstup, testy, starou referenci a rizika, zvolit vhodnou AI/prostředí. V2 se nezapisuje přímo do stávající produkční v1; **samostatný repozitář CraftPlan již existuje**, nový Android projekt a **jiné package ID/datový prostor** až po příslušném implementačním GO.
 3. **Programátor:** implementace, vlastní pozitivní/negativní/hranové testy, opravy nálezů, retesty a **důkladné vlastní SOURCE/SECURITY review celého kumulativního diffu na finálním SHA**. Záznam v PR: SHA/base, PASS/FAIL/SKIP/NOT RUN/BLOCKED, skutečné důkazy, rizika. Šablona: [ZADAVANI_A_KONTROLA.md](ZADAVANI_A_KONTROLA.md).
 4. **Jiný nezávislý kontrolor:** nastupuje teprve po dokončené autorské bráně; výsledek APPROVE SOURCE / CHANGES REQUIRED / STOP. Není fyzický test. Známý opravitelný FAIL znamená vrátit autorovi, ne sloučit.
 5. **Majitel:** schvaluje zásadní technologii, architekturu, merge, APK a výdaje. **Build ≠ vydaná APK ≠ test na Androidu.** Žádné HOME; cloudový test jen podle platného RUN GO/rozpočtu.
@@ -107,7 +107,7 @@ Android aplikace (Kotlin / Jetpack Compose)
 |---|---|---|---|
 | **1 – TEĎ** | Dokončit **M0**: krátký kontrakt základních objektů, souřadnic, přesné kóty, uložení a obnovení; ověřit vůči skutečným funkcím a chybám v1 | Jeden malý testovatelný návrh, vysvětlené riziko a co neprogramovat | **GO pouze pro dokumentační návrh a jeho kontrolu** |
 | **2 – PAK** | Nezávislé **DESIGN/SECURITY review** základů, zejména SQLite/Room/obnova/původní bajty a hranice editoru; vyhodnotit i jiné jednoduché možnosti | APPROVE DESIGN / CHANGES REQUIRED / STOP | **ČEKÁ**, bez tohoto nedělat rozsáhlou implementaci |
-| **3 – PO GO** | **M1 jediný malý věrný prototyp** Kotlin+Compose + od začátku jednoduchá diagnostika; nic dalšího | Měřitelná funkce foto–kóta–uložení/obnova, regression, výkon, chyby a skutečný Android | **ZATÍM NESPUŠTĚNO**, kód/repo/CI/APK samostatné GO |
+| **3 – PO GO** | **M1 jediný malý věrný prototyp** Kotlin+Compose + od začátku jednoduchá diagnostika; nic dalšího | Měřitelná funkce foto–kóta–uložení/obnova, regression, výkon, chyby a skutečný Android | **ZATÍM NESPUŠTĚNO**, kód/CI/APK samostatné GO |
 
 **Nejvyšší riziko:** přepsat nebo ztratit potvrzenou práci, zhoršit plynulost kót, poškodit originální média nebo zaměnit CI za fyzický test. Každá etapa se musí umět zastavit nebo vrátit; jednička zůstává oddělená.
 
