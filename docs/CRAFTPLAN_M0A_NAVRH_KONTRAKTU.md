@@ -54,11 +54,11 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 **F33/F34 – budoucí čas a peníze nejsou geometrická míra:** model musí dovolovat samostatně identifikované úseky práce/pauzy a potvrzený Stop **konkrétního aktivního časovače** včetně bezpečného chování po restartu, oddělený Start/Stop případné GPS jízdy a vždy dostupnou **ručně potvrzenou vzdálenost dopravy**. Cena má mít **přesnou částku, měnu, schválená pravidla zaokrouhlení a původ sazby/položky**; vydaná faktura uchová **neměnný otisk odběratele, adresy, položek, cen, stavu, data a revize**, ne živé hodnoty změněné pozdější úpravou zákazníka/ceníku. Konkrétní časovač, fakturační UI, předpisy a GPS adapter jsou pozdější rozhodnutí. [F33](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L345) · [F34](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L359).
 
-### 3.3 Zámky a zapisující příkazy – CP3-11
+### 3.2 Zámky a zapisující příkazy – CP3-11
 
 **Zámek složky je pravidlo ochrany práce, nikoli pouhá šedá ikona.** Jeden logický kontrolní bod při každé operaci, která mění obsah/umístění: ověřit příslušný **zdroj, cílový kontejner a všechny relevantní zamčené předky**, včetně samostatné editace/přesunu, vícenásobného výběru, přesunu do koše, obnovy z koše a importu/restore do již existujícího stromu. Při zámku včetně kolize s jiným objektem bezpečně odmítnout/požádat o odemčení; neprovádět skrytý částečný zápis, anebo jasně předem popsat a po akci přesně hlásit každou úspěšnou/neúspěšnou položku, s možností bezpečného Undo. Povolený export ZIP nesmí znamenat možnost obejít ochranu proti změně obsahu. Zámek složky **není** zabezpečení aplikace F30 ani síťová role F36. [Historické testy 21/25](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/REKONSTRUKCE_TESTU_21_28.md#L63).
 
-### 3.2 Schválené ovládací detaily mimo čísla F/49
+### 3.3 Schválené ovládací detaily mimo čísla F/49
 
 **Nesmí se zaměnit** (1) zkratka pro **rychlé opakování posledního úspěšného přidání v přehledu**, (2) **jednorázové kreslení** a (3) samostatný **dlouhým stiskem aktivovaný opakovaný kreslicí nástroj**. Opakování poslední akce nevytváří zbytečný trvalý odkaz na předchozí zakázku; při nevhodném kontextu nic tajně nevložit. **Duplikace celé kóty je odložena**, ne implementační požadavek. Dlouhý stisk může kolidovat s přeskupováním ikon a musí dostat pozdější fyzický UX test. [Novější rozhodnutí v živém návrhu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L310).
 
@@ -80,7 +80,7 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 **TEST PŘIPRAVIT:** `850,5 mm` po uložení/reopen; přesný převod `1/16 in ↔ 1,5875 mm`; velké plochy a zlomky; několikeré opakované zobrazení v jiných jednotkách bez driftu; odmítnutí neznámé jednotky z laseru.
 
-### 4.0 Sémantika hodnoty a jejího cíle – dopracování CP3-04/05
+### 4.1 Sémantika hodnoty a jejího cíle – dopracování CP3-04/05
 
 **Samostatné údaje, které nesmějí splynout:** (1) druh veličiny `LENGTH/AREA/ANGLE/TIME/MONEY/...` (samotná délka není obrazová délka), (2) přesné číslo **nebo chybějící číslo**, (3) jednotka této veličiny, (4) **původ skutečného měření** (ruční odečet, identita přístroje / model a protokol, nebo uživatelsky potvrzený výpočet), (5) **cesta vstupu** (psáno, diktováno, importováno, předáno přes Bluetooth) a původní nepozměněná přijatá reprezentace, (6) identita zdrojové události a původního výpočtu, (7) validační stav čísla/jednotky a **samostatně** stav přiřazení a odborného ověření. **Import není automaticky původ měření.** Stav `NEZMĚŘENO` není 0; nula je přípustná pouze jako výslovně zadaná, veličinově platná **číselná hodnota**. Nepřijmout neznámou jednotku, dvojznačný desetinný vstup či aritmetický overflow jako „0“.
 
@@ -88,7 +88,7 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 **Událost laseru cílí na konkrétní měřicí POLE, ne jen kótu:** `dokument ID + objekt ID + stabilní ID/typ měřicího pole + očekávaná verze/kontext požadavku`; rozlišit délku jednotlivého úseku dimenzního řetězce, úsek od nuly kumulativního řetězce, rameno, šířku/výšku, průměr Ø vs. poloměr R a další správně typovaná pole. Přijmout jen po jednoznačné validaci typu veličiny, jednotky, stále platného cíle a potvrzení vhodnou uživatelskou akcí/předem schválenou politikou. **Změna aktivního pole i na témže objektu**, rozdělení segmentu, opožděná zpráva, reconnect/duplicita a nezáměrná změna stránky nesmějí přesměrovat hodnotu; nepřiřazený údaj lze ponechat v bezpečné historii měření, pokud ji pozdější kontrakt výslovně dovolí, jinak odmítnout s vysvětlením. Ruční zadání vždy zůstává. **Příjem a vzdálené spuštění** jsou nezávislé schopnosti konkrétního přístroje/protokolu/firmwaru/OS. [F03](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_LASERY_F03_NAVRH.md#L30).
 
-### 4.1 Budoucí hlas/AI – návrh nikdy není potvrzené měření
+### 4.2 Budoucí hlas/AI – návrh nikdy není potvrzené měření
 
 Rozlišit **(a) dočasný návrh grafické kóty**, **(b) uživatelem potvrzený editovatelný grafický objekt**, **(c) samostatně potvrzenou přesnou naměřenou/ručně zadanou hodnotu**. Minimální průchod: povel či rozpoznaná hrana → dočasný návrh (možná bez hodnoty) → náhled/kontrola jednotky a bodů → **potvrdit / opravit / odmítnout** → validovaný běžný příkaz editoru → Undo/Redo/save. Odmítnutí nebo chyba nikdy nezapisují dokončenou kótu. **Bez skutečné hodnoty zůstane „NEZMĚŘENO“, nikoli nula, odhad či hodnota z pixelů.**
 
@@ -151,7 +151,7 @@ Undo/Redo vrací validované editační příkazy; **není** náhradou zálohov�
 
 Diagnostika je **volitelná OFF/ON, pasivní a jednosměrná**: editor směrem k ní poskytuje pouze bezpečně pojmenované události, **diagnostika nesmí zpětně měnit gesto, příkaz, stav ani výsledek uložení**. Zachytit podle možností společnou **časovou osu** se sémantickými ID akcí (např. `KOTA_BEGIN`, `KOTA_COMMIT`, `UNDO`, `SAVE_START`, `SAVE_CONFIRMED`, `REOPEN`), čas dotyku, výpočtu, renderu, potvrzeného save/reopen a omezené ukazatele janku/paměti/CPU. **Whitelist bez hodnot měření, zákaznických ID, textů, souřadnic, GPS, fotografií a médií.** Žádný podrobný log každého pointermove.
 
-Malý ohraničený buffer v paměti, měření bez blokujícího I/O v UI vlákně; případný zápis až dávkově mimo kritickou cestu. Plný/poškozený buffer, plný disk, chyba časování nebo sdílení logu nesmí blokovat editor, potvrdit falešné uložení ani smazat platná data – **přestat logovat bezpečně**. Ručně vyvolaný bezpečný přehled/sdílení se souhlasem uživatele, **bez automatického uploadu**. Povinně porovnat stejné úlohy OFF vs. ON včetně závady logování; při výrazné regresi diagnostiku nepovažovat za splněnou. Pokročilý profiler a samostatná TESTOVACÍ APK zůstávají odložené. [F39](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L407).
+Malý ohraničený buffer v paměti, měření bez blokujícího I/O v UI vlákně; případný zápis až dávkově mimo kritickou cestu. Plný/poškozený buffer, plný disk, chyba časování nebo sdílení logu nesmí blokovat editor, potvrdit falešné uložení ani smazat platná data – **přestat logovat bezpečně**. Ručně vyvolaný bezpečný přehled/sdílení se souhlasem uživatele, **bez automatického uploadu**. Povinně porovnat stejné úlohy OFF vs. ON včetně závady logování; při výrazné regresi diagnostiku nepovažovat za splněnou. **Záznam omezené historie diagnostických sezení:** oproti čistě pomíjivému kruhovému bufferu se pro uživatelem zapnuté sezení vede **omezený a bezpečně potvrzený souhrn** i po restartu, se sémantickými ID bez soukromých hodnot. Uživatel může vybrat **více sezení**, ručně zobrazit/sdílet pouze vybrané přehledy a hromadně je smazat; výpadek diagnostiky nebo plný disk **nesmí** změnit chování uložení zakázky, může nejvýše ztratit ještě nepotvrzenou diagnostickou událost a zobrazit omezení. **OTEVŘENO:** maximální velikost/retence logů, přesná UI podoba vlaječky/panelu, samostatná potvrzovací politika pro diagnostický souhrn. T22 zahrnout do restartu, poruchy logu i OFF/ON s totožnou zátěží. Pokročilý profiler a samostatná TESTOVACÍ APK zůstávají odložené. [F39](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_NEDORESENE_NAPADY.md#L407).
 
 ### 6.5 Atomický význam revize a chybové fáze – CP3-01
 
@@ -260,8 +260,22 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T28 | STARÉ 1.1–1.8 vs. poslední schválená ergonomie, historické A–E | Žádný nevyžádaný redesign fungujících úchopů; fyzický regresní důkaz až později |
 | T29 | M4 round-trip s neznámými rozšiřujícími poli a odlišnými lokálními preferencemi | Neznámé kompatibilní pole zachováno nebo bezpečně odmítnuto, cílové UI prefs nedotčené |
 | T30 | Hromadný přesun se zámky, ZIP jedné fotky s přílohami, poznámka s více fotkami | ID, zámky, všechna média a editovatelný import zachované; bez skrytého částečného úspěchu |
+| T31 | Revize media+metadata: fail mezi přípravou/potvrzením/GC, save zpožděný vs. novější, běžící záloha | Po reopen pouze poslední plně potvrzená revize, chráněné originály zůstaly; rozdíl pád procesu vs. power-cut doložit zvlášť |
+| T32 | Undo/Redo: zrušení gesta, save error, nová editace po Undo, víceobjektová změna | Žádný falešný `ULOŽENO`, neplatné Redo se nevrátí, celý graf objektů se vrací konzistentně |
+| T33 | M2 záloha během souběžné změny/koše a GC, rychlý podklad, vydané PDF, vlastní symboly | Vše ze stejného potvrzeného snapshotu; souběžná úprava neodpojila bajty ani ID |
+| T34 | Obnova na čisté instalaci a do existující práce s kolizí ID; externí zařízení offline | Původní ID na čisté, v cílové práci odmítnutí či vědomá kopie s úplným remapem; originál nepotřebný k obnově; ochrana soukromí |
+| T35 | Lokální schema vs. ZIP verze, falešný MIME v Android pickeru, starší/novější manifest | Validní ZIP lze vědomě vybrat; neznámé rozšíření zachováno nebo bezpečně odmítnuto, bez změny lokálních preferencí |
+| T36 | Měřicí číslo 0 vs. NEZMĚŘENO, 1/16 in, přesnost zdroje, plocha nepravidelného Lichoběžníku | Nula se nezamění za absenci; 1/16 in přesné, plocha bez dostatku údajů označena neurčená, ne falešně spočtena |
+| T37 | Laser: jiné pole stejné kóty, Ø/R, koncový úsek, změna kontextu, duplicitní reconnect | Hodnota se nepřipojí k jiné straně/poli; bezpečně nepřiřazeno či odmítnuto, ruční cesta funkční |
+| T38 | EXIF všech 1–8, zrcadlení, crop, další rozlišení, editor/galerie/PDF, více výměn F09 | Stejné kotvy a čísla po round-tripu, žádné dvojí otočení/zrcadlení; ruční perspektivní korekce možná |
+| T39 | Panorama F01/F02: celý objekt přes šev/pól, edit vs. viewer, nové přepočítání/stitch, chybějící pokrytí | Kotva přemapována se zdrojem nebo označena k opravě, jinak bez ztráty/nezáměrného posunu |
+| T40 | F04/F05 šikmá stěna, obrátil se lokální směr, split+merge, okno, 2 nárysy a fotodetaily | Stejná strana/výška a ID, nejednoznačné případy přiznány, multiobjektové Undo a reopen úplné |
+| T41 | F35 orientační bez zakázky → kopie → schválení obsahu → změna → neúspěšné PDF | Schválení zůstane jen původní neměnné revizi, změna je neschválená, chybné PDF není vydané |
+| T42 | F37/F36 zákaznický náhled vs. skutečný soubor při současné editaci, externí příspěvek | Stejný neměnný vybraný obsah, žádné interní anotace/GPS/přílohy mimo výběr; příspěvek nemění řemeslníkova data |
+| T43 | Zámek: jediný přesun, dávka, restore, import a koš v zamčené vnořené složce | Zdroj, cíl i zamčení předků kontrolováno jednotně, výsledek/částečný výsledek pravdivý |
+| T44 | Export ZIP vybrané fotky/složky po přemístění jiné fotky ven; symbol s novou verzí katalogu | Z archivu nevytékají cizí/historické soubory, editovatelné přílohy a přesná podoba symbolu se zachovají |
 
-**T01–T30 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
+**T01–T44 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
 
 ## 11. Otevřené otázky pro nezávislé DESIGN/SECURITY review
 
@@ -277,6 +291,9 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 10. **Odložené do konkrétních funkčních etap:** grafické kolekce symbolů, OCR/AI model, hlasový backend, účetní/časovací UI, klientský portál, GPS, finální stitching a serverové role/licence. Budoucí technologické posudky mají pokrýt všechny klíčové typy dokumentů a vstupy; ne jen fotoeditor.
 
 **Neuzavřené otázky nejsou automaticky vyřešené přítomností této dokumentace.** Autor + nezávislý kontrolor musí rozhodnout, které lze vyřešit návrhově a které vyžadují samostatně povolené technické ověření; bez něj se neuděluje neopodstatněné APPROVE DESIGN.
+
+11. **Návrhové doplnění CP3-01 až CP3-18 (jen skutečně existující ID z posudku):** zvolit konkrétní počet uchovávaných revizí, skutečný durable commit, schválenou číselnou přesnost/rozsahy, EXIF konvenci, archivní limity a požadavky na soukromí; až poté nezávislé M0-B review kompletního kontraktu. T31–T44 = `NOT RUN`, nejsou slíbené výsledky.
+12. **M1 diagnostika a výkon:** pro cílová fyzická zařízení a zátěž explicitně určit p95/p99 input→visible, frame jank, dobu potvrzeného uložení, paměť a přijatelnou režii OFF/ON. Vlastník určí minimální podporovanou třídu telefonu/tabletu a potřebu pera; naměřené prahy až po odpovídajícím GO. Prst/S Pen vyžadují skutečný Android, myš/klávesnice odpovídající pozdější fyzický scénář.
 
 ## 12. Hranice a další kroky
 
