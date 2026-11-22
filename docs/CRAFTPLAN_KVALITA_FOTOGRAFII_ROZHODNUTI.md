@@ -53,7 +53,7 @@ Vlastník výslovně rozhodl: **originální soubory se nikdy nemění.**
 
 | ID | Scénář | Očekávání |
 |---|---|---|
-| FOTO-K01 | Nastavit focení Úsporná, import Plná; zavřít a znovu otevřít nastavení | Volby jsou dvě nezávislé, zachované |
+| FOTO-K01 | Na čisté instalaci ověřit výchozí **Plná při focení / Plná při importu / Jen do aplikace**; potom změnit focení na Úsporná, ponechat import Plná, zavřít a znovu otevřít nastavení | Tři volby mají potvrzený výchozí stav, jsou nezávislé a změny se zachovají; aplikace při výchozím focení nepřidává snímek do galerie |
 | FOTO-K02 | Otevřít focení, jednorázově vybrat Plná, potvrdit fotografii, příště fotit znovu | Nový vstup vychází z původního výchozího nastavení, ne z jednorázové volby |
 | FOTO-K03 | Import existujícího obrázku ve Střední a Úsporné kvalitě | Zdrojový soubor a jeho bajty mimo aplikaci beze změny, pracovní kopie je odlišná a správně označená |
 | FOTO-K04 | Zvolit Plná pro již poškozený/zmenšený vstup | Aplikace nevymýšlí chybějící obrazové detaily |
