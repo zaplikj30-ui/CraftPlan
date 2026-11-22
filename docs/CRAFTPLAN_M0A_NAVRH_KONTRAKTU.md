@@ -156,6 +156,17 @@ Každá stěna má trvalé ID a určenou **orientaci z referenčního počáteč
 
 ### 6.1.1 Konkrétní význam potvrzení, konfliktu a crash recovery – NÁVRH, NOT RUN
 
+**SCHVÁLENO VLASTNÍKEM 22. 11. 2026 – PĚT ZÁVAZNÝCH PRAVIDEL ULOŽENÍ (produktové chování, nikoli fyzický PASS):**
+
+1. **JEDEN CELEK:** potvrzení fotografie, jejích kót, poznámek, všech povinných příloh a jejich vazeb je **jedno logické úplné potvrzení revize**. Uživatel nesmí vidět poloviční uloženou revizi; metadata a externí mediální soubory mohou fyzicky vznikat postupně pouze jako nepublikované, kontrolované kroky.
+2. **PRAVDIVÉ ULOŽENO:** stav `ULOŽENO` pouze po úspěšném a ověřeném dokončení celé revize a dostupnosti všech slíbených médií. Samotná fotografie na disku, zobrazený náhled ani jen databázový zápis nejsou důkazem úplného potvrzení.
+3. **CHYBA BEZ ZTRÁTY ROZPRACOVANÉ PRÁCE:** při plném disku nebo selhání za běhu aplikace ponechat rozepsanou fotografii/kóty/poznámky dostupné v editoru, označit `NEULOŽENO`, nabídnout `Zkusit znovu`. Nepřepisovat předchozí potvrzenou verzi. Je-li zařízení/OS ukončí celý proces, není přítomnost nepotvrzených RAM změn garantována; to řeší odděleně následující pravidlo.
+4. **PÁD A NÁVRAT:** po novém spuštění otevřít **nejnovější validní potvrzenou revizi**; pokud jsou technicky bezpečně zachránitelné novější nepotvrzené změny, nabídnout jejich **nedestruktivní obnovení** s jasným označením, co bylo či nebylo potvrzeno. Nikdy neslibovat záchranu neuložených RAM dat bez prokázané perzistence.
+5. **POSLEDNÍ PLATNÁ VERZE SE AUTOMATICKY NEMAŽE:** žádný úklid pro uvolnění místa nebo recovery nesmí zničit jedinou stále potřebnou funkční revizi či její mediální soubory. Odstranit až po důkazu nedosažitelnosti ze všech chráněných potvrzených/recovery/koš/zálohových stavů.
+
+**Technické provedení zůstává k cílenému nezávislému DESIGN/SECURITY review a budoucímu schválenému fyzickému testu** (DB+media, fsync/rename a výpadek napájení); těchto pět schválených UX zásad samo o sobě nepředstavuje runtime test ani GO.
+
+
 1. Dokument má neměnné documentId, poslední potvrzenou revizi R0 a pro připravovaný zápis R1 očekávaného předchůdce R0. Editace kóty nepřepisuje ani znovu nekomprimuje fotografii.
 2. Připravit nové médium do izolovaného místa, dokončit zápis a ověřit skutečnou velikost, obsah a dostupnost. Připraveno nebo viditelný náhled není potvrzená revize.
 3. Nové ověřené médium bezpečně zpřístupnit stabilním odkazem. Potom jedním autoritativním potvrzením zveřejnit celý model, vazby a revizní ukazatel R1. Současné zápisy pro tentýž dokument serializovat nebo odmítnout, jestliže očekávaný R0 už není aktuální. Opožděný writer nesmí přepsat novější R2.
