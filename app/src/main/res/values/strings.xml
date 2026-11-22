@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CraftPlan</string>
+    <string name="open_sample">Otevřít testovací fotografii</string>
+    <string name="sample_title">Testovací fotografie</string>
+    <string name="back_to_start">Zpět</string>
+    <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>
+    <string name="sample_description">Syntetický snímek dílenského stolu.</string>
+</resources>
