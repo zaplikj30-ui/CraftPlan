@@ -69,6 +69,10 @@ Vlastník výslovně rozhodl: **originální soubory se nikdy nemění.**
 
 **Všechny testy NOT RUN.** Nejde o nové PASS ani povolení experimentů.
 
+**Sjednocení po kontrolách (22. 11. 2026, bez nové produktové volby):** [PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) nyní návrhově rozlišuje **externí zdroj / interně uchovaný plný originál / pracovní kopii**, samostatný stav zápisu v aplikaci a galerii, revize a skutečně obnovitelná média. Testy **T45–T47** doplňují FOTO-K01–13; pozdější záloha musí fungovat **bez přístupu k původnímu telefonu**, ale nesmí slibovat neexistující plný zdroj. Fotografie v galerii sama **není záloha zakázky** a může podle nastavení telefonu vstupovat do jeho systémového zálohování či synchronizace. O konkrétní dostupnosti/ochraně soukromí je nutné uživatele pravdivě informovat. Zápis v M0-A nezaručuje implementaci ani funkční test.
+
+**Výslovně nerozhodnuto a neodvozovat automaticky:** (1) předvolené místo ukládání a kvalitativní profil při první instalaci, (2) přesná garance zálohovatelnosti a následné obnovy *plného* originálu ve všech režimech, (3) bezpečná životnost plného mezisouboru, pokud jej kamera skutečně vytvoří před zmenšením, (4) konkrétní systémové API a atomické/chybové stavy galerie. Před implementací M1 a přenosnou zálohou M2 se tyto hranice musejí uzavřít s vlastníkem a vyhodnotit v DESIGN/SECURITY review změněných návrhů. Nezměněný externí originál nikdy automaticky nepřepisovat ani ničit.
+
 ## 5. Návaznosti a hranice
 
 - [PR #4 – UX rozhodnutí](https://github.com/zaplikj30-ui/CraftPlan/pull/4): budoucí odkaz do UX registru; nový funkční požadavek na dvě volby a jednorázové přepnutí.
