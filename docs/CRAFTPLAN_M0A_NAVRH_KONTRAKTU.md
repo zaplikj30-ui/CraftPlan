@@ -80,6 +80,14 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 **TEST PŘIPRAVIT:** `0 mm` jako výslovné číslo ≠ `NEZMĚŘENO`; `850,5 mm` po uložení/reopen; přesný převod `1/16 in ↔ 1,5875 mm`; velké plochy a zlomky; několikeré opakované zobrazení v jiných jednotkách bez driftu; odmítnutí neznámé jednotky z laseru.
 
+### 4.0.1 VÝSLOVNĚ SCHVÁLENO – čtyři pravidla přesnosti M1 (22. 11. 2026)
+
+**Produktová rozhodnutí vlastníka – SCHVÁLENA všechna čtyři:** (1) ukládat bez nechtěného zaokrouhlování, např. `850,5 mm` zůstane přesně `850.5 mm` jako kanonické číslo; (2) převádět exaktně, např. `1/16 in = 1.5875 mm`, bez opakovaného driftu; (3) vždy zachovat **původní zadaný text/hodnotu a původní jednotku** (`85 cm` zůstává dohledatelné jako původní vstup vedle přesných `850 mm`); (4) **výslovná `0 mm` je platná hodnota, `NEZMĚŘENO` je nepřítomnost čísla**, nikdy je nezaměňovat.
+
+**Schválený technologicky neutrální datový význam:** typovaná veličina `LENGTH` v M1, kanonická přesná desetinná reprezentace v **mm** (serializovatelný přesný číslicový řetězec, ne Float/Double ani vizuálně zaokrouhlený popisek), současně původní vstup/jednotka, zdroj, stav potvrzení a stabilní vazba k měřicímu poli. Přepnutí UI jednotek nemění kanonická čísla; čárka v českém vstupu se při validaci bezpečně normalizuje pro interní text. Zpracování zlomku, který nemá **konečný přesný desetinný výsledek**, stále vyžaduje zvláštní pravidlo (zachovat exaktní výraz, nebo odmítnout s vysvětlením); **nikdy nevymýšlet přesnou hodnotu zaokrouhlením**. Technické hranice 0–1e9 mm, 18 významných číslic a 12 desetinných míst jsou pouze autorský kandidát k nezávislé kontrole, **nejsou schváleným uživatelským limitem**, ani se nevybírá databáze či numerická knihovna.
+
+**Důkaz až později:** round-trip save/reopen, přepínání mm↔cm↔in, export/ZIP obnova, `0` vs. `NEZMĚŘENO`, přetečení a odmítnutí vadného vstupu; T07 a K03 zatím NOT RUN.
+
 ### 4.1 Sémantika hodnoty a jejího cíle – dopracování CP3-04/05
 
 **Samostatné údaje, které nesmějí splynout:** (1) druh veličiny `LENGTH/AREA/ANGLE/TIME/MONEY/...` (samotná délka není obrazová délka), (2) přesné číslo **nebo chybějící číslo**, (3) jednotka této veličiny, (4) **původ skutečného měření** (ruční odečet, identita přístroje / model a protokol, nebo uživatelsky potvrzený výpočet), (5) **cesta vstupu** (psáno, diktováno, importováno, předáno přes Bluetooth) a původní nepozměněná přijatá reprezentace, (6) identita zdrojové události a původního výpočtu, (7) validační stav čísla/jednotky a **samostatně** stav přiřazení a odborného ověření. **Import není automaticky původ měření.** Stav `NEZMĚŘENO` není 0; nula je přípustná pouze jako výslovně zadaná, veličinově platná **číselná hodnota**. Nepřijmout neznámou jednotku, dvojznačný desetinný vstup či aritmetický overflow jako „0“.
