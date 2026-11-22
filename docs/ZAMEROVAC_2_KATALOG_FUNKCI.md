@@ -14,7 +14,7 @@
 
 - ☐ **D01** Přesná čísla, metrické/imperiální jednotky a geometrie oddělené od obrazu. Hodnotu laseru nikdy neodvozovat z pixelů. [Vize](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/VIZE_A_PLAN.md)
 - ☐ **D02** Stabilní identifikátory zakázka–složka–dokument–foto–anotace–médium; vazby nepřepisovat ani neduplikovat. [Ústava dat](ZAMEROVAC_2_USTAVA_DAT.md)
-- ☐ **D03** Původní bajty fotografií/videa/zvuku bez změn; editovatelné anotace zvlášť; bezpečná oprávnění. [Datový kontrakt](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/DATOVY_FORMAT_A_PC_KOMPATIBILITA.md)
+- ☐ **D03** Existující původní bajty fotografií/videa/zvuku **nikdy nepoškozovat**; editovatelné anotace zvlášť, bezpečná oprávnění. Novější [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6) dovoluje vědomě vytvořit jen pracovní fotografii nižší kvality; garance obnovy **plného** zdroje stále OTEVŘENA, zmenšeninu nevydávat za originál. [Datový kontrakt](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/DATOVY_FORMAT_A_PC_KOMPATIBILITA.md)
 - ☐ **D04** Lokální offline ukládání, potvrzený transakční stav, obnova při pádu/plném disku, předchozí bezpečný stav, neztrácet starší zakázky. [Ústava dat](ZAMEROVAC_2_USTAVA_DAT.md)
 - ☐ **D05** Undo/Redo oddělit od běžných záloh, koše, historie variant a budoucí synchronizace. [#221](https://github.com/zaplikj30-ui/Zamerovac-android/issues/221)
 - ☐ **D06** Samostatná diagnostika **od M1**: přesunutelná vlaječka, zap/vyp, historie sezení, vybrat více, sdílet a hromadně mazat; nesbírat údaje zákazníků. [Porovnání §4](ZAMEROVAC_2_POROVNANI_S_V1.md)
