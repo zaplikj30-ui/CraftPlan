@@ -1,6 +1,30 @@
-# CraftPlan – M0: srovnatelné technologické posouzení před výběrem technologie
+# CraftPlan – M0: technologické posouzení a rozhodnutí M0-D
 
-**Datum:** 22. 11. 2026. **Stav:** technologicky neutrální rešerše a srovnávací zadání M0; **nejde o výběr frameworku, rendereru, databáze či licence**. Důkazy: aktuální oficiální veřejná dokumentace a označené odborné úsudky; fyzický Android, S Pen, buildy, benchmarky, testy i experimenty **NOT RUN**.
+**Datum:** 22. 11. 2026. **Stav:** původní technologicky neutrální rešerše doplněná o **novější rozhodnutí M0-D pro první M1 v §0**. Historická označení „NEVYBRÁNO“ a „k rozhodnutí“ v dalších srovnávacích částech zachycují **stav před rozhodnutím**, nikoli aktuální volbu; rozsah neověřených rizik ani testovacích bran se tím nekrátí. Fyzický Android, S Pen, buildy, benchmarky, testy i experimenty **NOT RUN**.
+
+## 0. M0-D – výchozí technologie pro první M1 (rozhodnutí vlastníka 22. 11. 2026)
+
+**Rozhodnuto pro první funkční offline Android editor; návrhový výběr, nikoli implementační nebo testovací GO.** Vlastník po předběžném souhlasu s doporučením, cíleném technologickém posudku a uzavření bezpečnostních nálezů požádal v aktuální konverzaci M0-D konečně dokončit. Platné produktové pořadí: **nejprve opravdu fungující Android 13+**, starší Androidy až následně ověřovat a případně zpřístupnit bez zbytečného omezení moderních funkcí. Toto rozhodnutí nepovoluje programování, sestavení, experiment, APK, GitHub Actions, HOME runner, placené služby ani merge.
+
+| Rozhodovací oblast | Výchozí volba M0-D pro první M1 | Výslovná hranice |
+|---|---|---|
+| Platforma a jazyk | **Nativní Android + Kotlin** | Samostatný CraftPlan; bez převzetí kódu/dat Zaměřovače 1 |
+| Běžné UI | **Jetpack Compose** pro úvodní obrazovky, později galerii/zakázky, adaptivní lišty a nastavení | Neudržovat dvě paralelní implementace editoru |
+| Interaktivní editor | **Jeden nativní Android `View/Canvas`**, vložený do Compose přes `AndroidView` | Pera, palm rejection, hit-test, gesta/pan/zoom ve View; přesné kóty, identita, příkazy, Undo/Redo, revize a uložení nezávislé na UI/rendereru |
+| Ukládání | **Room 2.8.5 + `BundledSQLiteDriver` z `androidx.sqlite:sqlite-bundled:2.7.1`** jako zvolený počáteční technologický základ; fotografie/přílohy jako soukromé aplikační soubory | Volba knihovny **nedokazuje** trvanlivost. Podmínky PR #3 §6 a PR #5 §3.3.2: finálně dostupné trvalé mediální bajty **před** publikací celého modelu/revizního ukazatele, přesný `ULOŽENO`, ochrana R0 a recovery. Konkrétní SQLite journal/sync, souborové bariéry, licence a behavior po power-cut **NOT RUN / brána před autoritativními daty** |
+| Android pro první vývoj | **Priorita Android 13+ / API 33+** na moderním telefonu a tabletu se S Penem; **`minSdk=33` je dočasně zvolený vývojový limit prvního syntetického sestavení**, ne konečné produktové minimum | Android 12 a případně 11/10 zůstávají kandidáty pro pozdější rozumnou podporu **v jediné aplikaci** po ověření skutečných zařízení, nákladů, kompatibility a ochrany dat. S `minSdk=33` se nynější sestava na starších systémech **nenainstaluje**; otevřená architektura sama starší OS nepodporuje |
+| SDK a závislosti | Připravený Codex cloud má JDK 17/21 a Android SDK API 36. **`compileSdk=36` a předběžně `targetSdk=36`** pro první schválený projekt jako posouzený směr | Skutečnou kompatibilitu závislostí a pravidla distribuce ověřit při povoleném projektu; žádné další SDK ani frameworky předem bez důvodu |
+| Budoucí zařízení/platformy | Android telefon/tablet jako první; po ověřené B2 synchronizaci případně jednoduchý **Windows prohlížeč**, později jeho rozvoj; iOS/iPadOS poslední | Zatím žádný cloud, účet, Windows/iOS kód; zachovat identity, přesné hodnoty a revize, nepřestavovat nyní na multiplatformní framework |
+
+**Důvod volby:** cílené [technologické posouzení](https://github.com/zaplikj30-ui/CraftPlan/pull/5#issuecomment-7085350000) nenašlo pro první syntetický M1 technický P0/P1 blokér; hybrid poskytuje přímé Android perové události a oddělené běžné UI. Jednodušší **Kotlin Views-only** zůstává prokazatelným fallbackem, *pokud* konkrétní integrace Compose/View bude problém; přechod by byl nové vědomé rozhodnutí, nikoli tichá změna. Flutter, Qt, Compose-only editor a KMP nejsou pro první M1 vybrány; jejich historická srovnání a budoucí cíle zůstávají zachovány.
+
+**Bezpečnost a otevřené brány se výběrem nemění:** [PR #3 cílené APPROVE DESIGN](https://github.com/zaplikj30-ui/CraftPlan/pull/3#issuecomment-7083900532) a [PR #6 tři RESOLVED / APPROVE DESIGN](https://github.com/zaplikj30-ui/CraftPlan/pull/6#issuecomment-7086407968) potvrzují návrh, nikoli skutečně trvalý save/EXIF/ZIP restore. Schválené jsou dvě kvality s výchozím `Plná/Plná`, pouze **jedna autoritativní interní fotoverze**, ochrana mezimédia a celé revize; žádný automatický druhý soubor v systémové Galerii. **Systémový Android cloud Auto Backup a D2D/ROZ-47 se nesmí považovat za schválený produkční způsob přenosu či obnovy**; oddělený test K14 a volba pravidel jsou otevřené, vlastní přenosná M2 ZIP záloha zůstává povinným budoucím cílem. Pro první M1 používat pouze syntetická nahraditelná data; nenahraditelné zákaznické zakázky nepovolit bez skutečně ověřeného bezpečného uložení a pozdější M2 obnovy. Důkaz fyzické trvanlivosti a právní/licenční kontrola potřebných verzí nesmějí být vydávány za hotové.
+
+**Nejbližší implementační záměr – vyžaduje samostatné výslovné GO M1:** nejmenší vertikální řez: syntetická foto → jednoznačná přesná kóta včetně rozdílu `NEZMĚŘENO` versus `0 mm` → dotyk/pero a manipulace → Undo/Redo → pravdivé uložení kompletní revize → úplné zavření a otevření se stejnými ID, hodnotami, kotvami a skutečně uloženými obrazovými bajty. Zkouška jednoduché chyby R1 musí zachovat poslední platnou R0; náročné power-cut scénáře jsou samostatná pozdější ověřovací brána, ne důvod odkládat první syntetický řez. Nepřidávat nyní galerii zakázek, cloud, laser, video nebo M2 ZIP do prvního řezu, ale zachovat jejich schválené návaznosti.
+
+**Status:** technologický směr **M0-D VYBRÁN PRO M1**; fyzické důkazy, konkrétní backup/D2D rozhodnutí a implementační GO **OTEVŘENO/NOT RUN**. Není to „HOTOVO celé M0“ ani „GO M1“. Podklad priorizace Androidu 13+ a starších zařízení: [pozdější výslovné rozhodnutí vlastníka](https://github.com/zaplikj30-ui/CraftPlan/pull/5#issuecomment-7085620315).
+
+---
 
 ## 1. Zdroje pravdy a hranice
 
@@ -286,4 +310,4 @@ Vlastník upřednostňuje **vyzkoušet skutečný systémový přenos mezi telef
 - **M0-C:** jen po výslovném GO vlastníka vybrané scénáře se syntetickými daty a předem definovanými zařízeními/rozpočtem; nyní NOT RUN.
 - **M0-D:** vlastník teprve na základě srovnatelných důkazů či výslovně přijatých rizik rozhodne o UI, rendereru, ukládání a prvním schváleném malém M1 úkolu.
 
-**Závěr:** Připravený technologický rozcestník a společné požadavky k nezávislé oponentuře; žádná finální technologie, renderer či úložiště nejsou vybrány, Android aplikace nebyla vytvořena a žádná podmínka M0-D není tímto textem automaticky splněna.
+**Historický závěr před rozhodnutím M0-D:** tento dokument původně končil bez vybrané technologie. **Aktuální rozhodnutí v §0 nově vybírá výchozí technologický směr pro první M1**; bezpečnostní a testovací brány, návrhová nezávislá kontrola případných změn a výslovné implementační GO zůstávají. Android aplikace dosud nebyla vytvořena a runtime testy jsou NOT RUN.
