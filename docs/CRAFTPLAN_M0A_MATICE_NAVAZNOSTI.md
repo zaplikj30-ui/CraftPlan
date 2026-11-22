@@ -1,7 +1,7 @@
 # CraftPlan – M0-A: matice návaznosti úplného zadání (bez ztráty nápadů)
 
 > **Stav:** Návrh pro kontrolu. **Není schválený rozsah implementace, není to nová zkrácená specifikace funkcí.**  
-> **Datum:** 22. 11. 2026 · **Podklad:** zdrojová dokumentace CraftPlan [PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1) (revize `837988f3e5712fe71a983307dc5417605b429d7b`) a schválený rámec plánu [PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2).  
+> **Datum:** 22. 11. 2026 · **Podklad:** zdrojová dokumentace CraftPlan [PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1) (historická kontrolovaná revize `837988f3e5712fe71a983307dc5417605b429d7b`; **aktuální znění PR #1 se mezitím změnilo**) a schválený rámec plánu [PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2).  
 > **Pravidlo:** **Každý odkazovaný podrobný text je zdroj pro vyhodnocení rozsahu a stavu daného požadavku, nikoliv automatické schválení všech jeho historických částí. Závazné je pouze výslovně potvrzené chování v nejnovějším rozhodnutí vlastníka; otevřené, odložené a nahrazené části označit podle stavu. Název v tabulce úplnou specifikaci NENAHRAZUJE.** Před implementací se čte celý detail, včetně novějších rozhodnutí. **Původní Zaměřovač 1 je zdroj zkušeností, ne cílový projekt ani zdroj automatických oprávnění.**
 
 ## 1. Tři vrstvy požadavků (nejen 49)
@@ -26,11 +26,11 @@
 | **J7** | [Lokální offline save, jedna aktuální + jedna předchozí bezpečná verze, obnova, koš, přerušení, originály](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L31) | **CÍL POTVRZEN:** bezpečný save/restore od M1, záloha M2; konkrétní 1+1 je pouze **KANDIDÁT K OVĚŘENÍ** |
 | **J8** | [Rozlišení import/export editovatelného ZIP vs zákaznické PDF/JPG/ZIP; původní média nepoškozená](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L32) | M4 + záloha M2 |
 | **J9** | [Podpora telefonů/tabletů různých značek a výkonů; prst, S Pen, jiné pero, myš/klávesnice podle fáze](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L33) | M1+ |
-| **J10** | [Kotlin + Compose pro první Android/offline prototyp; přenositelnost domény pro Windows/iOS](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L34) | ROZPOR: technický směr neplatí, otevřeno M0-D |
-| **J11** | [Bezpečná budoucí sync telefon–tablet, Google Disk pro sync a oddělenou obnovitelnou zálohu](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L35) | Pozdější B1/B2 |
+| **J10** | [Historický návrh Kotlin+Compose; aktuálně technologie i renderer NEVYBRÁNY; zachovat budoucí přenositelnost Windows/iOS](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L34) | ROZPOR: technický směr neplatí, otevřeno M0-D |
+| **J11** | [Budoucí sync telefon–tablet; Google Disk možný kandidát; **ověřitelná přenosná záloha M2 je oddělená od B2**](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L35) | **M0 identity/revize → M2 přenosná záloha → pozdější B1/B2** |
 | **J12** | [Čeština, první další jazyk angličtina, různé jednotky a locale; offline nápověda](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_INVENTURA_POZADAVKU.md#L36) | M1 připravenost; pak další jazyky |
 
-**Pozor J10:** Starší tvrzení o schváleném Kotlin+Compose je **překonáno novějším výslovným rozhodnutím vlastníka**. Technologie není vybrána; M0-D je rozhodovací brána. Totéž platí pro staré formulace v AGENTS/START_ZDE/stromu vývoje v PR #1.
+**Pozor J10:** Starší tvrzení o schváleném Kotlin+Compose je **překonáno novějším výslovným rozhodnutím vlastníka**. Technologie není vybrána; M0-D je rozhodovací brána. Historické formulace v AGENTS/START_ZDE/stromu vývoje v PR #1 byly opraveny; konkrétní framework/renderer stále vybírá až M0-D.
 
 ## 3. Všechny F01–F39, každý se zdrojovým detailem
 
@@ -243,6 +243,28 @@ Souhrny Claude/ChatGPT/Codex v PR #1/PR #2 **neprokazují pokrytí všech detail
 
 **Rozhodovací matice M0-D musí u každého kandidáta explicitně uvést:** zdroj, co je jen odborný odhad, co bylo **POSOUZENO** na papíře, co **NEPOSOUZENO**, co **NEOVĚŘENO** fyzicky; náklady licence, vývoje, hardware/SDK a údržby včetně projektového limitu 12 USD/měsíc. Společné rizikové případy: **T19/T42** zákaznická publikace, **T21/T40** stěny/nárysy, **T24/T38** výměna foto, **T27/T39** panorama/sféra, **T31–T35** uložení a přenos, **F03** konkrétní laser/protokol a fyzický S Pen. **Neznamená to napsat všechny prototypy**; před experimenty je nutné samostatné GO a uživatelem odsouhlasené priority první pracovní verze. Bez podkladů není žádný z kandidátů PASS.
 
+### 6.5 Novější UX a fotografie – kontrolní delta M0-A (22. 11. 2026)
+
+Tato **delta-matice doplňuje, nikoli nahrazuje J1–J12/F01–F39/49/28**. Novější uživatelská rozhodnutí [PR #4](https://github.com/zaplikj30-ui/CraftPlan/pull/4) a [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6) se musí propojit s kontraktem v tomto PR. **Testy zatím NOT RUN.**
+
+| Rozhodnutí | M0-A základ / otevřená hranice | Etapa / test |
+|---|---|---|
+| **PR #6 foto kvalita a místo uložení** | ID a role zdroje, originálu, odvozeniny a náhledu; dostupnost galerie a dvě různá potvrzení; **garance plného zdroje a výchozí režim instalace OTEVŘENÉ** | M1 foto, M2 záloha; T45–T47, FOTO-K01–13 |
+| **UX-100/ROZ-24 koš** | Revize, ID, zámky, chráněná média, automatické trvalé mazání výchozí OFF; první záloha včetně koše | M2 koš, automatika zvlášť; T43/T48 |
+| **UX-101 hlas F10/F13** | Relace návrhů a stav jednotlivých neověřených čísel, jedno „Potvrdit vše“, bezpečné přerušení | Budoucí hlas; T20/T49 |
+| **UX-45/46 laser F03** | Jednotka ze zprávy/protokolu vs. zapamatovaný uživatelský předpoklad, identita cílového pole | M5; T11/T37/T50 |
+| **ROZ-11–19 Rychlá zaměření** | Stejný typ stromu jako zakázka; přesun ID zachová, kopie přidělí nová a přemapuje vazby | M2; T30/T51 |
+| **UX-80/82, ROZ-23, PDF** | Jeden potvrzený snapshot pro náhled/export; „čistá“ fotografie nemusí znamenat plný originál; skryté poznámky a GPS jen po vědomém rozhodnutí | M3b/M4; T19/T42/T52 |
+| **VIDEO-01–03** | Video má vlastní ID, stav neúplný/dokončený, médium a integritu; plný disk nesmí potvrdit chybný soubor | Před implementací přiřadit k M2/M3; T53 |
+| **UX-95/97 a ROZ-09** | Zámek popisků výchozí odemčeno a zapamatovaný globálně, Undo po restartu není povinné; potvrzená data ano | M1; T01/T02/T32 |
+| **UX-39/47 systémová gesta** | Klávesnice, Zpět, dotyk od okraje a pero nesmějí potvrdit chybný příkaz | M1; T02/T08 |
+| **F09/ROZ-07 výměna foto** | Trvalé kotvy a explicitní transformace, nejasné mapování zůstává označené | Pozdější editor; T24/T38/T47 |
+| **ROZ-08/22/39 PDF** | Volitelná titulní strana, výchozí A4, možnost A3, řazení souvisejících dokumentů | M3b/M4a; T42/T52 |
+| **Android soukromí** | Systémový backup telefonu ≠ ověřená přenosná záloha; žádný nečekaný upload zákaznických médií | M1/M2; T54 |
+| **J11/B2 budoucí synchronizace** | Stabilní ID/revize, konfliktní ochrana a oddělené historické zálohy; žádné cloudové fronty v M1 | M0 připravenost → B2 |
+
+**Otevřené brány:** garance plného originálu a výchozí volba ukládání snímků, fyzická odolnost po výpadku napájení, minimální slabší Android, limity výkonu, jednotky specifických laserů, pravidla budoucí retence a zařazení videa. Nezaměňovat koncept, schválený UX směr ani připravený test za PASS.
+
 ## 7. Kontrola při každé etapě – žádné „to doženeme později“
 
 Při vstupu do každé etapy **nechat pro každý dotčený požadavek odpovědět**:
@@ -253,7 +275,7 @@ Při vstupu do každé etapy **nechat pro každý dotčený požadavek odpověd�
 - Které **závislosti na jiných funkcích** a na bezpečnosti dat/testech musí být splněny? Zejména F35 ↔ PDF/sdílení, F04 ↔ F05, M1 ↔ M2 záloha, F01/F02 ↔ souřadnice.
 - Před prohlášením HOTOVO znovu projít **všechna dotčená ID, doplňková rozhodnutí X-A až X-QR, R01–R14, všech 16 CP3 a N01/N02, celou příslušnou původní specifikaci a novější schválené výjimky; T01–T44 mít návrhově připravené**. Rozpor mezi starým zněním a novým výslovně značit `UPŘESNĚNO` nebo `NAHRAZENO` s datem a zdrojem. Historický test jedničky není fyzický PASS CraftPlanu.
 
-**JEDNOTNÁ akceptační brána M0-A (N01, nikoli `HOTOVO` tohoto PR):** (1) doložit všechny původní primární požadavky **J1–J12 (12), F01–F39 (39), historické body 1.1–8.5 (49) a testy 1–28 (28), dohromady 128**, včetně 44 historických oblastí; (2) zkontrolovat novější mimoseznamová rozhodnutí **X-A až X-QR**, všechny původní nálezy **R01–R14** a všech **16 skutečně existujících CP3-01 až CP3-13, CP3-15, CP3-16 a CP3-18**, zvlášť **CP3-01/02** (pravdivé potvrzení revize, chráněná média a konzistentní obnovitelná záloha), **CP3-13/N02** (gesta prst/S Pen a volitelná perzistentní diagnostika) a **N01** (úplnost této brány); (3) mít **T01–T44** s jednoznačnými očekáváními a stavem **PŘIPRAVENO / NOT RUN**, nikoliv vymyšleným PASS; (4) **návrhově uzavřít** minimální bezpečnostní invarianty a otevřené kontrakty přesnosti, typu a pole měření, originálů/identit, foto/EXIF/panoramat/stěn, Undo po restartu, bezpečného save, konzistentního manifestu/snapshotu zálohy, bezpečného importu a soukromí. Každé dosud nezvolené konkrétní pravidlo zůstává `OTEVŘENO` a **blokuje tvrzení `HOTOVO M0-A`**, nevyřizuje se odškrtnutím matice. **Následuje nezávislé M0-B DESIGN/SECURITY review konečného návrhu; experimenty M0-C, výběr technologie M0-D i M1 mají vlastní samostatné GO.** Technické/fyzické důkazy (power-cut, Android/S Pen, reálný ZIP/restore, výkon) jsou `NOT RUN` až do příslušného povoleného ověření; jejich nespouštění dnes není nedostatkem této čistě dokumentační změny.
+**JEDNOTNÁ akceptační brána M0-A (N01, nikoli `HOTOVO` tohoto PR):** (1) doložit všechny původní primární požadavky **J1–J12 (12), F01–F39 (39), historické body 1.1–8.5 (49) a testy 1–28 (28), dohromady 128**, včetně 44 historických oblastí; (2) zkontrolovat novější mimoseznamová rozhodnutí **X-A až X-QR**, všechny původní nálezy **R01–R14** a všech **16 skutečně existujících CP3-01 až CP3-13, CP3-15, CP3-16 a CP3-18**, zvlášť **CP3-01/02** (pravdivé potvrzení revize, chráněná média a konzistentní obnovitelná záloha), **CP3-13/N02** (gesta prst/S Pen a volitelná perzistentní diagnostika) a **N01** (úplnost této brány); (3) mít **T01–T54** s jednoznačnými očekáváními a stavem **PŘIPRAVENO / NOT RUN**, nikoliv vymyšleným PASS; (4) **návrhově uzavřít** minimální bezpečnostní invarianty a otevřené kontrakty přesnosti, typu a pole měření, originálů/identit, foto/EXIF/panoramat/stěn, Undo po restartu, bezpečného save, konzistentního manifestu/snapshotu zálohy, bezpečného importu a soukromí. Každé dosud nezvolené konkrétní pravidlo zůstává `OTEVŘENO` a **blokuje tvrzení `HOTOVO M0-A`**, nevyřizuje se odškrtnutím matice. **Následuje nezávislé M0-B DESIGN/SECURITY review konečného návrhu; experimenty M0-C, výběr technologie M0-D i M1 mají vlastní samostatné GO.** Technické/fyzické důkazy (power-cut, Android/S Pen, reálný ZIP/restore, výkon) jsou `NOT RUN` až do příslušného povoleného ověření; jejich nespouštění dnes není nedostatkem této čistě dokumentační změny.
 
 ## 8. Zdroje a bezpečnostní hranice
 
