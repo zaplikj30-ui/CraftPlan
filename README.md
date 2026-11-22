@@ -13,7 +13,7 @@
 
 ## Aktuální hranice
 
-První plánovaný celek: **Android, Kotlin + Jetpack Compose, čistě offline fotografie → přesná editovatelná kóta → Undo/Redo → uložení a obnova**, s malou bezpečnou diagnostikou od začátku. Konkrétní technologie ukládání se teprve ověří; první implementace a APK nejsou schválené ani hotové.
+První plánovaný celek: **Android, technologie dosud NEVYBRÁNA, čistě offline fotografie → přesná editovatelná kóta → Undo/Redo → uložení a obnova**, s malou bezpečnou diagnostikou od začátku. Historický Kotlin + Jetpack Compose je pouze kandidát. Aktuální zdroje: [plán PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2), [M0-A PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3), [UX PR #4](https://github.com/zaplikj30-ui/CraftPlan/pull/4), [technologie PR #5](https://github.com/zaplikj30-ui/CraftPlan/pull/5), [fotografie PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6). Přenosná záloha a prokázaná obnova patří do M2 před nenahraditelné zakázky; implementace ani APK nejsou schválené.
 
 Repozitář je **PUBLIC**, proto nepřidávej žádné přístupové údaje, soukromé fotografie ani zákaznická data. GitHub-hosted Actions smí být použity jen podle aktuálních podmínek a samostatně schváleného workflow; **HOME runner zůstává RETIRED**.
 
