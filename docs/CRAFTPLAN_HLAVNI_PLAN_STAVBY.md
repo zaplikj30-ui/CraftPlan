@@ -93,6 +93,8 @@ Sepsat výsledky, **srovnatelné odhady budoucího portu a dlouhodobé náklady 
 
 **M0 HOTOVO** = sjednocené ověřitelné kontrakty a testy; **žádný nevyřešený kritický bezpečnostní rozpor včetně trvalosti save, obnovy a fotografie**; nezávislé návrhové review **změněných revizí**; výsledky případných povolených experimentů nebo výslovně přijatá neblokující neověřená rizika; dokumentované rozhodnutí vlastníka; konkrétní zadání prvního malého M1 úkolu. Dosavadní posudky [PR #5](https://github.com/zaplikj30-ui/CraftPlan/pull/5) jsou výchozí nálezy, ne automatické schválení po opravách.
 
+**SCHVÁLENÁ přesnost M1 – 22. 11. 2026 (PR #4 ROZ-42, PR #3 §4.0.1):** přesná kanonická desetinná reprezentace délky v mm bez zaokrouhlení uložení, exaktní převody včetně `1/16 in = 1.5875 mm`, zachování původního zadání/jednotky a oddělení platné `0 mm` od `NEZMĚŘENO`. Typovaná veličina a původ měření se nepřepíší podle pixelů. Konkrétní číselné limity a API jsou **nepotvrzené technické návrhy** pro cílené nezávislé review; žádný runtime PASS ani výběr databáze.
+
 ## 4. M1 – první skutečný offline pracovní celek
 
 **NOVĚ SCHVÁLENÝ PRODUKTOVÝ KONTRAKT SAVE/RECOVERY (22. 11. 2026; PR #3 §6.1.1, PR #4 ROZ-41):** fotografie, kóty, poznámky a potřebné přílohy tvoří jediné logické potvrzení; `ULOŽENO` teprve po ověření úplné revize. Chyba zápisu v běžícím editoru zachová rozpracované změny se stavem `NEULOŽENO` a akcí `Zkusit znovu`; po pádu otevřít poslední validní potvrzenou revizi a bezpečně zachránitelné novější rozpracované změny případně nabídnout k nedestruktivní obnově. **Nikdy automaticky nesmazat poslední funkční potvrzenou práci kvůli místu.** Fyzické garance procesu/power-cut a přesné implementační řešení NOT RUN; bez dalšího GO nedeklarovat testovací PASS.
