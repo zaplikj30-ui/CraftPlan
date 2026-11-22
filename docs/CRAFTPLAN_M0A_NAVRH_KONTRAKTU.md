@@ -27,7 +27,7 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 | **Dokument** | ID, typ (FOTO, PANORAMA, SFÉRA, PŮDORYS, NÁRYS, INSTALAČNÍ PLÁN), verze formátu a vazby | FOTO M1 |
 | **Médium** | Stabilní ID; rozlišit **externí nezměněný zdroj při importu**, **jedinou autoritativní fotografii uloženou v CraftPlanu ve zvolené kvalitě** a technické dočasné/obnovitelné náhledy. Evidovat původ, zvolenou kvalitu, rozměry, orientaci/EXIF transformaci, integritu a dostupnost. Plnou původní kvalitu neslibovat tam, kde byla zvolena zmenšenina. Nedestruktivní zacházení s existujícími zdroji platí vždy. Pro M1 jedno trvalé obrazové médium na fotografii, nikoli povinný druhý skrytý plný originál. | M1 |
 | **Anotace/grafický objekt** | ID, typ, geometrie, styl, dokument a odkazy; kóta není pouhá popsaná pixelová čára | M1 |
-| **Měření** | ID, **přesná** hodnota + jednotka + veličina + zdroj + stav ověření; povinně uchovat původní zadaný zápis a jednotku, nulu oddělit od NEZMĚŘENO | M1 |
+| **Měření / měřicí pole** | Stabilní ID kóty/pole a samostatný `valuePresence` (`ABSENT`/`PRESENT`); `ABSENT=NEZMĚŘENO` uchovává geometrickou kótu **bez číselné hodnoty, jednotky a původního číselného vstupu**; `PRESENT` uchovává přesný `ExactLengthMm` + veličinu/jednotku + původní text/jednotku + zdroj/ověření podle §4.1.3. Platná výslovná `0 mm` je `PRESENT`, nikdy `ABSENT`. | M1 |
 | **Událost měřidla** | Původ, čas/pořadí, jednotka, validace, identita cílové kóty pro bezpečné přiřazení | F03/M5 |
 | **Kotva/reference** | Vazba na ID média, objektu, dokumentu, stěny, rohu či úseku; nejasnost se nesmí tiše vyřešit špatně | M0+ |
 | **Stěna/roh/úsek/nárys** | Identita a topologie půdorysu; F05 je vnořená část F04, ne samostatný produkt | M3c |
