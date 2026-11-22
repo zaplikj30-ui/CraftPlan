@@ -17,8 +17,8 @@
 ## Jaký stav má projekt
 
 - **Zvolen nový název CraftPlan a samostatný PUBLIC repozitář.** Původní Zaměřovač 1 se neklonuje a neruší.
-- **První etapou je M0** (přesný a bezpečný datový návrh), pak po samostatném GO **M1** (fotografie – kóta – gesta – Undo/Redo – uložení – obnova – jednoduchá diagnostika), čistě offline.
-- **Kotlin + Jetpack Compose** je schválený směr prvního prototypu, **SQLite/Room kandidát k ověření**. Ani technologie, databáze či fyzické funkce nejsou dokončené.
+- **První etapou je M0** ([aktuální plán M0–M5, PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2); [kontrakty M0-A, PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3)), pak po samostatném GO **M1** (fotografie – kóta – gesta – Undo/Redo – uložení – obnova – jednoduchá diagnostika), čistě offline.
+- **Aktuální rozhodnutí vlastníka 22. 11. 2026: technologie, renderer ani databáze nejsou vybrány.** Historické Kotlin/Compose je jen kandidát, stejně jako SQLite/Room nebo jednoduché souborové uložení. [Technologické srovnání PR #5](https://github.com/zaplikj30-ui/CraftPlan/pull/5). Žádný fyzický test ani implementace zatím neproběhly.
 - **Nápad ≠ souhlas s implementací ≠ kód ≠ PASS na Androidu.** Každé nové rozhodnutí zapisovat sem s původem a datem, starší v1 dokumenty nikdy nepřebírat jako příkazy.
 - **Žádné Actions, merge, APK ani nákupy** bez samostatného schválení. HOME runner je RETIRED.
 
