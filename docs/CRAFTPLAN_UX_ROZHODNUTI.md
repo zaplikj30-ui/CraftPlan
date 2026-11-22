@@ -16,6 +16,12 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 
 **Příklad použití pravidla:** U rychlého tlačítka otevření nástrojů (UX-35) lze nejprve ponechat známé `+`, pak navrhnout a prakticky ověřit vlastní srozumitelnou ikonu. Rozhoduje použitelnost a identita CraftPlanu, ne povinná odlišnost za každou cenu. Konkurenční reference **není zdrojem automatických schválení funkcí, implementace či testovacího PASS**.
 
+## Technologická zásada: přednost hotovým osvědčeným řešením
+
+**POTVRZENO / VÝSLOVNĚ PŘIPOMENUTO vlastníkem 22. 11. 2026:** CraftPlan má **přednostně používat již existující, osvědčené, udržované technologie, knihovny a systémové možnosti**. Nevyvíjet vlastní náhrady databáze, synchronizační infrastruktury, grafického enginu/rendereru, formátů či jiných složitých subsystémů, **pokud vhodné dostupné řešení splní funkční, bezpečnostní, výkonové, licenční, nákladové a offline požadavky**. Vlastní aplikaci, doménová pravidla pro přesné kóty, zvláštní interakce a nutné propojení komponent samozřejmě naprogramovat lze; nejde o zákaz vlastního aplikačního kódu ani o povinnost přejímat cizí kód. Preferovat co nejmenší vlastní integrační vrstvu, nepřidávat infrastrukturu „pro jistotu“.
+
+**Starší doložený zdroj:** [Živý návrh CraftPlanu, § 1, bod 3](https://github.com/zaplikj30-ui/CraftPlan/blob/docs/craftplan-start-20261121/docs/ZAMEROVAC_2_ZIVY_NAVRH.md) již stanovuje: „Nepsat vlastní databázi, synchronizační infrastrukturu ani renderer, pokud standardní vhodná možnost obstojí.“ Ověření skutečné vhodnosti je součást M0 a případných samostatně schválených experimentů; žádná technologie ani renderer zatím nebyly **definitivně vybrány**. Toto potvrzení **není GO k implementaci, testovacímu buildu, GitHub Actions ani výdajům**. Starší formulace o Kotlin + Compose jako schváleném směru nejsou novým schválením technologie a musejí se posuzovat vůči novějšímu rozhodnutí vlastníka.
+
 ## Potvrzené směry a preference vlastníka
 
 | ID | Funkce / rozhodnutí | Stav a hranice |
