@@ -18,6 +18,21 @@
 - Původní Zaměřovač 1, jeho data, běhy a produkční prostředí jsou **NEMĚNIT**. Konfigurátor–Nářezák a Převaděč spojitosti zůstávají samostatnými produkty.
 - Veřejný GitHub neobsahuje zákaznická data, soukromé fotografie, hesla ani tokeny. Žádné neodsouhlasené merge, Actions, HOME, buildy, APK ani výdaje (projektový limit 12 USD/měsíc).
 
+### Pravidlo technologie: nejdříve hotová a dlouhodobě udržitelná řešení
+
+**VÝSLOVNÉ ROZHODNUTÍ vlastníka 22. 11. 2026 – závazné pro celý CraftPlan a všechny vývojové etapy.** Před vlastním programováním jakékoli významné technické součásti **nejdříve prohledat aktuální internet, oficiální dokumentaci a dostupné, již funkční a udržované technologie / knihovny / systémová API**. Neomezuje se to na Kotlin ani na databázi: pravidlo platí pro **UI, gesta, kreslení, soubory, sdílení, export/import, fotografie, PDF, přesné hodnoty, lokální ukládání, přenosné zálohy, obnovení, cloud a synchronizaci, práci na pozadí, Bluetooth, budoucí Windows/iOS a další součásti**. Nepsat vlastní grafický engine, databázi, synchronizační infrastrukturu, přenosový protokol ani jiné složité základy, **pokud vhodné hotové řešení splní naše požadavky**. Jde o prevenci křehkých, těžko opravitelných řešení a pozdějšího velkého přepisování, nikoli o zákaz vlastního kódu pro specifické funkce CraftPlanu.
+
+**Povinný rozhodovací postup pro autora a koordinátora, navazující na `AGENTS.md`:**
+
+1. **Nejdříve požadavky a závislosti:** určit, co musí daná funkce skutečně dělat nyní a co nesmí znemožnit později; rozlišit přenos/sdílení, obnovitelnou zálohu, lokální databázi a synchronizaci více zařízení jako **různé problémy**.
+2. **Průzkum hotových možností:** porovnat zpravidla 2–3 realistické kandidáty včetně systémového řešení, pokud existuje. Doložit **oficiální zdroje, stáří a stav údržby, kompatibilitu Android + realistické budoucí Windows/iOS/iPadOS, stabilitu API, licenci, bezpečnost, podporu offline, oprávnění a náklady**; žádná volba pouze podle popularity.
+3. **Vyhodnotit celkový dopad:** co kandidát řeší hotově, co musíme doprogramovat, jak se testuje, jak zabráníme ztrátě či tichému přepisu přesných měr, fotek a vazeb, jaký je postup opravy, migrace a případné **výměny komponenty bez přepsání celé aplikace**. Srovnat i údržbu, závislost na dodavateli a provozní limit **12 USD/měsíc**.
+4. **Rozhodnutí a brána:** zaznamenat výběr, nevýhody, neověřené body a zkušební scénáře. Vlastní komplexní řešení povolit **jen s konkrétním zdůvodněním**, že hotové varianty nevyhovují nebo by byly prokazatelně horší. **Žádný výběr, implementace, build, Actions, připojení placené služby, použití zákaznických dat ani experiment bez příslušného GO vlastníka.**
+
+**Zpřesnění častého nedorozumění:** [SQLite](https://www.sqlite.org/index.html) je lokální databáze a například Android Room nad ní staví knihovní vrstvu; **SQLite sama o sobě neznamená synchronizaci dvou zařízení**. Pro sdílení souboru lze prověřit hotové [Android Sharesheet](https://developer.android.com/training/sharing/send) a [Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files). Pro pozdější zálohování či sync jsou kandidáty [Google Drive API](https://developers.google.com/workspace/drive/api/guides/appdata), [Firestore s offline podporou](https://firebase.google.com/docs/firestore/manage-data/enable-offline), [PowerSync](https://powersync.com/), [Couchbase Lite](https://docs.couchbase.com/couchbase-lite/current/) a pro plánování úloh [WorkManager](https://developer.android.com/develop/background-work/background-tasks/persistent). **Jde o příklady existujících možností, ne schválený výběr ani doklad, že jsou bezpečné pro datový model CraftPlanu.** Například synchronizace s pravidlem „poslední zápis vyhrává“ nesmí bez vlastních validačních/konfliktních pravidel tiše přepsat platné měření; fotografie a přílohy vyžadují zvláštní kontrolu integrity. Prvně ověřit přenosnou zálohu a obnovu, automatickou synchronizaci nepředbíhat.
+
+**Stav:** zásada **POTVRZENO**, konkrétní technologie / databáze / renderer / způsob synchronizace **NEVYBRÁNY**. Průzkum existujících nástrojů je podklad, **nikoli test nebo GO**. U každé budoucí etapy se toto pravidlo uplatní znovu podle aktuálního stavu technologií.
+
 ## 2. Přehled navrženého pořadí
 
 | Etapa | Malý ověřitelný výstup | Závislost / poznámka |
