@@ -20,11 +20,20 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val density = resources.displayMetrics.density
-    var onAnchor: (PhotoAnchor) -> Unit = {}
+    private data class DimensionDrag(
+        val pointerId: Int,
+        val start: PhotoAnchor,
+        val end: PhotoAnchor? = null,
+    )
+
+    private var dimensionDrag: DimensionDrag? = null
+    private var placingDimension = false
+    var onDimension: (DimensionPlacement.Complete) -> Unit = {}
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
             if (field != value) {
                 field = value
+                clearDimensionDrag()
                 invalidate()
             }
         }
@@ -66,7 +75,18 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        clearDimensionDrag()
         viewport.fit(width, height)
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) clearDimensionDrag()
+    }
+
+    override fun onDetachedFromWindow() {
+        clearDimensionDrag()
+        super.onDetachedFromWindow()
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -83,18 +103,24 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.drawBitmap(photo, null, photoBounds, paint)
         canvas.clipRect(photoBounds)
         when (val current = placement) {
-            is DimensionPlacement.AwaitingSecond -> drawAnchor(canvas, current.start)
-            is DimensionPlacement.Complete -> drawDimension(canvas, current.dimension)
+            is DimensionPlacement.Ready -> dimensionDrag?.let { draft ->
+                val end = draft.end
+                if (end == null || end == draft.start) drawAnchor(canvas, draft.start)
+                else drawDimension(canvas, draft.start, end)
+            }
+            is DimensionPlacement.Complete -> {
+                drawDimension(canvas, current.dimension.start, current.dimension.end)
+            }
             else -> Unit
         }
         canvas.restoreToCount(saveCount)
     }
 
-    private fun drawDimension(canvas: Canvas, dimension: PhotoDimension) {
-        val x1 = viewport.screenX(dimension.start)
-        val y1 = viewport.screenY(dimension.start)
-        val dx = viewport.screenX(dimension.end) - x1
-        val dy = viewport.screenY(dimension.end) - y1
+    private fun drawDimension(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor) {
+        val x1 = viewport.screenX(start)
+        val y1 = viewport.screenY(start)
+        val dx = viewport.screenX(end) - x1
+        val dy = viewport.screenY(end) - y1
         val length = hypot(dx, dy)
         canvas.save()
         canvas.translate(x1, y1)
@@ -114,8 +140,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         canvas.restore()
 
-        drawAnchor(canvas, dimension.start)
-        drawAnchor(canvas, dimension.end)
+        drawAnchor(canvas, start)
+        drawAnchor(canvas, end)
         drawUnmeasuredMarker(canvas, x1 + dx / 2f, y1 + dy / 2f)
     }
 
@@ -136,24 +162,28 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(x, y - 12f * density)
         canvas.scale(density, density)
-        overlayPaint.color = Color.rgb(232, 183, 108)
-        canvas.drawRoundRect(-11f, -4f, 11f, 4f, 1.5f, 1.5f, overlayPaint)
-        overlayPaint.color = Color.rgb(60, 40, 24)
+        overlayPaint.color = Color.rgb(65, 72, 77)
+        canvas.drawRoundRect(-14f, -5f, 14f, 5f, 1.5f, 1.5f, overlayPaint)
+        overlayPaint.color = Color.rgb(198, 204, 208)
+        canvas.drawRoundRect(-13f, -4f, 13f, 4f, 1f, 1f, overlayPaint)
+        overlayPaint.color = Color.rgb(53, 61, 66)
         overlayPaint.strokeWidth = 1f
-        for (tick in -8..4 step 4) {
-            canvas.drawLine(tick.toFloat(), -4f, tick.toFloat(), -1f, overlayPaint)
+        for (tick in -10..10 step 4) {
+            val bottom = if (tick == -10 || tick == 2 || tick == 10) 1f else -1f
+            canvas.drawLine(tick.toFloat(), -4f, tick.toFloat(), bottom, overlayPaint)
         }
-        canvas.rotate(-30f, 8f, 0f)
-        overlayPaint.color = Color.rgb(232, 183, 108)
-        canvas.drawRoundRect(7f, -4f, 19f, 4f, 1.5f, 1.5f, overlayPaint)
-        overlayPaint.color = Color.rgb(60, 40, 24)
-        canvas.drawCircle(8f, 0f, 1f, overlayPaint)
-        canvas.drawLine(13f, -4f, 13f, -1f, overlayPaint)
-        canvas.drawLine(16f, -4f, 16f, -1f, overlayPaint)
         canvas.restore()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            placingDimension = placement is DimensionPlacement.Ready
+        }
+        if (placingDimension) {
+            handleDimensionTouch(event)
+            return true
+        }
+
         scaleDetector.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -175,11 +205,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 if (clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop) {
                     performClick()
-                    if (placement is DimensionPlacement.AwaitingFirst ||
-                        placement is DimensionPlacement.AwaitingSecond
-                    ) {
-                        viewport.toPhotoAnchor(event.x, event.y)?.let(onAnchor)
-                    }
                 }
                 clickCandidate = false
                 activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -190,6 +215,49 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
         }
         return true
+    }
+
+    private fun handleDimensionTouch(event: MotionEvent) {
+        if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
+            clearDimensionDrag()
+            return
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                dimensionDrag = viewport.toPhotoAnchor(event.x, event.y)?.let { start ->
+                    DimensionDrag(event.getPointerId(0), start)
+                }
+                invalidate()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val draft = dimensionDrag ?: return
+                val index = event.findPointerIndex(draft.pointerId)
+                if (index < 0) {
+                    clearDimensionDrag()
+                    return
+                }
+                dimensionDrag = draft.copy(
+                    end = viewport.toPhotoAnchor(event.getX(index), event.getY(index)),
+                )
+                invalidate()
+            }
+            MotionEvent.ACTION_UP -> {
+                val draft = dimensionDrag
+                clearDimensionDrag()
+                val ready = placement as? DimensionPlacement.Ready ?: return
+                if (draft == null || event.getPointerId(0) != draft.pointerId) return
+
+                val end = viewport.dragEnd(draft.start, event.x, event.y, touchSlop)
+                ready.finishDrag(draft.start, end)?.let(onDimension)
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> clearDimensionDrag()
+        }
+    }
+
+    private fun clearDimensionDrag() {
+        if (dimensionDrag == null) return
+        dimensionDrag = null
+        invalidate()
     }
 
     override fun performClick(): Boolean = super.performClick()

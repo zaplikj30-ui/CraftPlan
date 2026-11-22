@@ -7,7 +7,6 @@
     <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>
     <string name="sample_description">Syntetický snímek dílenského stolu.</string>
     <string name="add_dimension">Přidat kótu</string>
-    <string name="place_first_anchor">Klepni na fotografii pro první bod kóty.</string>
-    <string name="place_second_anchor">Klepni na fotografii pro druhý bod kóty.</string>
+    <string name="drag_dimension">Táhni po fotografii od prvního bodu k druhému.</string>
     <string name="dimension_unmeasured">NEZMĚŘENO</string>
 </resources>

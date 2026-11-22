@@ -32,17 +32,11 @@ internal data class PhotoDimension(
 
 internal sealed interface DimensionPlacement {
     data object Idle : DimensionPlacement
-    data class AwaitingFirst(val photoId: PhotoId) : DimensionPlacement
-    data class AwaitingSecond(val photoId: PhotoId, val start: PhotoAnchor) : DimensionPlacement
-    data class Complete(val dimension: PhotoDimension) : DimensionPlacement
-
-    fun place(anchor: PhotoAnchor): DimensionPlacement = when (this) {
-        Idle, is Complete -> this
-        is AwaitingFirst -> AwaitingSecond(photoId, anchor)
-        is AwaitingSecond -> if (anchor == start) {
-            this
-        } else {
-            Complete(PhotoDimension(UUID.randomUUID(), photoId, start, anchor))
-        }
+    data class Ready(val photoId: PhotoId) : DimensionPlacement {
+        fun finishDrag(start: PhotoAnchor, end: PhotoAnchor?): Complete? =
+            if (end == null || end == start) null
+            else Complete(PhotoDimension(UUID.randomUUID(), photoId, start, end))
     }
+
+    data class Complete(val dimension: PhotoDimension) : DimensionPlacement
 }

@@ -2,27 +2,48 @@ package cz.craftplan.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 class PhotoDimensionTest {
     @Test
-    fun placementCreatesOneUnmeasuredDimensionForThePhoto() {
+    fun completingDragUsesTheReleasePositionAndKeepsDimensionUnmeasured() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
         val photoId = PhotoId.SYNTHETIC_WORKBENCH
-        val start = PhotoAnchor(0.25f, 0.5f)
-        val end = PhotoAnchor(0.75f, 0.5f)
-        val first = DimensionPlacement.AwaitingFirst(photoId)
-        val second = first.place(start) as DimensionPlacement.AwaitingSecond
+        val ready = DimensionPlacement.Ready(photoId)
+        val start = requireNotNull(viewport.toPhotoAnchor(150f, 300f))
+        val end = viewport.dragEnd(start, 450f, 350f, touchSlop = 8)
+        val dimension = requireNotNull(ready.finishDrag(start, end)).dimension
 
-        assertSame(second, second.place(start))
-        val complete = second.place(end) as DimensionPlacement.Complete
-        assertEquals(photoId, complete.dimension.photoId)
-        assertEquals(start, complete.dimension.start)
-        assertEquals(end, complete.dimension.end)
-        assertEquals(MeasurementState.UNMEASURED, complete.dimension.measurementState)
-        val later = complete.place(PhotoAnchor(0.5f, 0.5f)) as DimensionPlacement.Complete
-        assertSame(complete, later)
-        assertEquals(complete.dimension.id, later.dimension.id)
+        assertEquals(photoId, dimension.photoId)
+        assertEquals(PhotoAnchor(0.25f, 0.5f), dimension.start)
+        assertEquals(PhotoAnchor(0.75f, 0.625f), dimension.end)
+        assertEquals(MeasurementState.UNMEASURED, dimension.measurementState)
+    }
+
+    @Test
+    fun tapsAndShortDragsDoNotCompleteADimension() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        val ready = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
+        val start = requireNotNull(viewport.toPhotoAnchor(150f, 300f))
+
+        assertNull(ready.finishDrag(start, start))
+        assertNull(ready.finishDrag(start, viewport.dragEnd(start, 150f, 300f, touchSlop = 8)))
+        assertNull(ready.finishDrag(start, viewport.dragEnd(start, 154f, 304f, touchSlop = 8)))
+        assertEquals(PhotoAnchor(0.27f, 0.5f), viewport.dragEnd(start, 162f, 300f, touchSlop = 8))
+    }
+
+    @Test
+    fun releasingOutsideTheVisiblePhotoDoesNotCompleteADimension() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        val ready = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
+        val start = requireNotNull(viewport.toPhotoAnchor(150f, 300f))
+        assertNull(ready.finishDrag(start, viewport.dragEnd(start, 150f, 90f, touchSlop = 8)))
+
+        viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
+        assertNull(ready.finishDrag(start, viewport.dragEnd(start, 610f, 300f, touchSlop = 8)))
     }
 
     @Test

@@ -1,5 +1,7 @@
 package cz.craftplan.app
 
+import kotlin.math.hypot
+
 /**
  * Maps image coordinates to the viewport for display. Lengths and document coordinates
  * are independent of this transform.
@@ -38,11 +40,19 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     }
 
     fun toPhotoAnchor(x: Float, y: Float): PhotoAnchor? {
-        if (width <= 0 || height <= 0) return null
+        if (width <= 0 || height <= 0 || x !in 0f..width.toFloat() || y !in 0f..height.toFloat()) {
+            return null
+        }
 
         val u = (x - left) / (imageWidth * scale)
         val v = (y - top) / (imageHeight * scale)
         return if (u in 0f..1f && v in 0f..1f) PhotoAnchor(u, v) else null
+    }
+
+    fun dragEnd(start: PhotoAnchor, x: Float, y: Float, touchSlop: Int): PhotoAnchor? {
+        val end = toPhotoAnchor(x, y) ?: return null
+        val distance = hypot(x - screenX(start), y - screenY(start))
+        return end.takeIf { distance >= touchSlop }
     }
 
     fun screenX(anchor: PhotoAnchor): Float = left + anchor.u * (imageWidth * scale)

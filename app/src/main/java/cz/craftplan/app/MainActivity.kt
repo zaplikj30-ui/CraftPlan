@@ -71,9 +71,13 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 modifier = screen,
                 placement = editorState.placement,
                 onStartDimension = {
-                    editorState.placement = DimensionPlacement.AwaitingFirst(PhotoId.SYNTHETIC_WORKBENCH)
+                    editorState.placement = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
                 },
-                onAnchor = { anchor -> editorState.placement = editorState.placement.place(anchor) },
+                onDimension = { result ->
+                    if (editorState.placement is DimensionPlacement.Ready) {
+                        editorState.placement = result
+                    }
+                },
                 onClose = closePhoto,
             )
         } else {
@@ -96,7 +100,7 @@ private fun SamplePhoto(
     modifier: Modifier,
     placement: DimensionPlacement,
     onStartDimension: () -> Unit,
-    onAnchor: (PhotoAnchor) -> Unit,
+    onDimension: (DimensionPlacement.Complete) -> Unit,
     onClose: () -> Unit,
 ) {
     Column(modifier = modifier) {
@@ -123,8 +127,7 @@ private fun SamplePhoto(
                 }
                 val hint = when (placement) {
                     DimensionPlacement.Idle -> R.string.photo_gestures
-                    is DimensionPlacement.AwaitingFirst -> R.string.place_first_anchor
-                    is DimensionPlacement.AwaitingSecond -> R.string.place_second_anchor
+                    is DimensionPlacement.Ready -> R.string.drag_dimension
                     is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
                         MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
                     }
@@ -141,7 +144,7 @@ private fun SamplePhoto(
             factory = { context -> PhotoEditorView(context) },
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
-                view.onAnchor = onAnchor
+                view.onDimension = onDimension
                 view.placement = placement
             },
         )
