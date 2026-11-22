@@ -253,6 +253,18 @@ Lokální crash recovery řeší pád aplikace; přenosná záloha ztrátu telef
 
 **SOUKROMÍ / VÝSLOVNÉ ROZHODNUTÍ VLASTNÍKA 22. 11. 2026:** ZIP je bez hesla a povinného šifrování. Žádné automatické odesílání, publikování, upload nebo cloud. Cíl vybírá sám uživatel přes `Uložit` (Android dokumentový výběr) nebo `Sdílet` (systémová nabídka; WhatsApp, Google Disk apod. podle dostupnosti). Na exportu srozumitelně uvést, že kdo získá nešifrovaný soubor, může číst fotografie, poznámky, přílohy, zákaznické údaje i EXIF/GPS, pokud jsou součástí archivu. Záloha není anonymizovaný zákaznický PDF export a integrita SHA-256 není šifrování. V aplikaci zůstávají data podle možností OS soukromá; žádná skutečná zákaznická data na veřejný GitHub. Případné heslo až jako samostatná budoucí VOLITELNÁ funkce, nikoli nynější M2 blokátor.
 
+### 7.1.0 SCHVÁLENO – pět produktových pravidel obnovy M2 (22. 11. 2026)
+
+**Vlastník výslovně schválil všech pět pravidel v návaznosti na ROZ-44:**
+
+1. **ČISTÁ INSTALACE:** z vědomě vybraného ZIP obnovit úplnou zahrnutou množinu zakázek, rychlých zaměření, složek, fotografií, editovatelných kót a přesných měření, poznámek a příloh. Původní ID a vazby zachovat, skutečně uložená kanonická média obnovit byte-for-byte; externí historický plný originál se neslibuje, pokud jej CraftPlan neuchovával.
+2. **INSTALACE S EXISTUJÍCÍ PRACÍ:** nikdy neprovést tichý přepis/merge; nabídnout výslovnou volbu `Importovat jako kopii`, zachovat dosavadní práci a pro nový strom systematicky přemapovat **všechna kolidující i vkládaná ID, vzájemné vazby, revize, odkazy na média a symboly**. Nepotvrzená volba = beze změny. Případná budoucí synchronizace B2 není obnova M2.
+3. **VADNÝ ZIP:** poškozený/neúplný/nepodporovaný/škodlivý ZIP odmítnout s konkrétním srozumitelným vysvětlením, **bez ztráty či úpravy stávajících dat**. Bezpečnostní validace cest, identit, manifestu, hash a omezení ZIP bomb zůstává povinná.
+4. **NEDOSTATEK MÍSTA:** před zveřejněním zkontrolovat kapacitu a při nedostatku místa nedestruktivně zastavit/odmítnout obnovu; nikdy nemazat starší práci ani nepublikovat neúplnou obnovenou složku. Dočasně zapsaná neautoritativní data řešit bezpečným stagingem; fyzický atomický postup k review.
+5. **VOLITELNÝ KOŠ:** pokud `trashIncluded=true` a manifest obsahuje úplný Koš, obnovit jej s vazbami a chráněnými médii; pokud Koš zahrnut nebyl, výslovně ukázat, že položky Koše nejsou v této záloze dostupné, a nepředstírat jejich obnovitelnost.
+
+**Stále platí dřívější schválené nastavení:** běžný nešifrovaný ZIP bez hesla, jen uživatelské Uložit/Sdílet, žádný automatický upload; při první záloze Koš předvolen ZAHRNOUT, následně pamatovat poslední výslovnou volbu. **Produktové chování schváleno, technická bezpečnost obsluhy nedůvěryhodných archivů a cross-device restore dosud NOT RUN**. Není schválený žádný nový numerický limit archivu, DB/API ani implementační GO.
+
 ### 7.1.1 Minimální přenosný manifest, kontrola a obnova – NÁVRH M0-A
 
 Jeden uživatelem vědomě vytvořený archiv vychází ze snapshotu jedné potvrzené revize. Minimální manifest:
@@ -337,7 +349,7 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T10 | Rozdělení F04 stěny a navázaný F05 nárys | Identita a naměřená délka zachované či vazba jasně nevyřešená |
 | T11 | Laser – zpožděný údaj, nejasná jednotka | Nikdy nevložit do špatné kóty |
 | T12 | Kompletní přenosná záloha, obnova na čisté instalaci bez přístupu k původnímu telefonu | Stejná data, ID, jednotky, vazby a skutečně garantované zahrnuté bajty (plný zdroj jen tam, kde byl uchován); jasně odlišná pracovní kopie |
-| T13 | Poškozená/neúplná/starší či novější záloha; existující práce | Bez tichého zničení platné práce |
+| T13 | ROZ-44 obnova ZIP: čistá instalace, existující práce → vědomé Importovat jako kopii (všechna ID/revize/vazby přemapovány), vadný nebo škodlivý ZIP, plný disk, Koš zahrnut/vynechán | Z úplného platného snapshotu všechny zahrnuté objekty/editovatelné kóty/média a stejná přesná měření; existující práce nikdy nepřepsána; vadný/neúplný nebo na disk nevejdoucí archiv odmítnut nedestruktivně; Koš správně obnoven nebo výslovně oznámen jako vynechaný |
 | T14 | F35 orientační → konkrétní → schválená revize PDF | Správný stav/datum/revize, vydané PDF nepřepsáno |
 | T15 | Migrace/otevření jiné verze dokumentu | Neznámá data se neztratí, bezpečné odmítnutí nebo migrace |
 | T16 | Srovnání technologie pro 2D editor | Stejné podklady, měřený výkon, paměť, rizika a náklady |
