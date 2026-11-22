@@ -88,19 +88,19 @@
 
 **Pravidlo malých zkoušek:** porovnávat nejdříve písemné podklady a existující udržované komponenty; pokud mezi kandidáty zbývá rozhodující nejistota, navrhnout jeden či několik **malých, předem srovnatelných, zvlášť povolených** experimentů, ne tři celé aplikace. U každého uvést zařízení, syntetická vstupní data, prahové hodnoty či důvod pro pozdější kalibraci, následky neúspěchu a rozhodnutí **POKRAČOVAT / ZMĚNIT SMĚR / STOP**. Návrhové posouzení neuděluje GO k experimentu.
 
-**Bezpečnost a soukromí:** při technické volbě zohlednit i případnou systémovou zálohu Androidu, její rozsah a možnost nechtěné synchronizace soukromých souborů. [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6) neznamená, že uložení do galerie je přenosná záloha; u různých profilů fotografií nesmí žádná technologie tiše slibovat neexistující plný originál.
+**Bezpečnost a soukromí:** při technické volbě ověřit systémové Android zálohy a případné nečekané přenosy dat. Nový [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6) vyžaduje **jen jednu uloženou fotoverzi v aplikaci ve zvolené kvalitě**, bez automatického druhého originálu v systémové Galerii; externí importní zdroj se nemění. M2 přenosná záloha obnovuje skutečně uložené interní bajty, nikoliv neexistující plný externí originál.
 
 ## 5. Shodné testy k budoucímu GO – všechny NOT RUN
 
 | ID | Scénář | Požadovaný důkaz |
 |---|---|---|
-| K01 | Syntetická foto se všemi EXIF 1–8, kóta/save/kill/reopen, otočení během tahu; **PR #6: kvalita/místo uložení a stav skutečného plného zdroje** | Identické přesné hodnoty a kotvy, originál byte-for-byte jen tam, kde je plný zdroj skutečně garantovaný; jinde pravdivě doložená pracovní odvozenina, žádný falešný save |
+| K01 | Syntetické foto EXIF 1–8, kóta/save/kill/reopen, otočení během tahu, PR #6 tři úrovně kvality a jedna interní uložená verze | Identické přesné hodnoty a kotvy, bajty autoritativní fotoverze beze změn při save/reopen, nepřítomnost dalšího automatického snímku v systémové Galerii; bez falešného save |
 | K02 | 1/20/50/200 kót, 100/1000 tahů; dotyk konec/střed/popisek/lupa/zoom, prst a samostatně S Pen; diagnostika OFF/ON | P95/P99 input→obraz, jank, RAM, výkon, baterie, velikost aplikace, správná gesta; prahy stanovit až z cílového fyzického telefonu |
 | K03 | Převody mm/cm/palce včetně 1/16, nula vs. NEZMĚŘENO, výpočet ploch a změna jednotky | Bez ztráty přesnosti, zaokrouhlení jen dle kontraktu, původní hodnota a zdroj zachované |
 | K04 | Pád, plný disk, přerušení mezi uložením média a metadata, ztracená příloha, opožděná revize | Poslední potvrzená práce nezmizí; žádné tiché přepsání, error/recovery pravdivé |
 | K05 | Rychlá zaměření: kopírovat/přesunout vnořený strom, stejně pojmenované složky a soubory, koš, obnovit | Všechny stabilní ID/vazby/média, skutečné potvrzení cíle, žádná duplikace při přesunu |
 | K06 | Úplná přenosná záloha včetně prvního Koše, podle podpory i velkého videa, obnova na čistém zařízení **bez přístupu k původnímu telefonu**, chybný ZIP a plný disk | Konzistentní inventář všech skutečně obnovitelných médií/jejich deklarované kvality, bezpečné odmítnutí neúplného importu, žádná ztráta existujících dat; **plný originál jen pokud skutečně zahrnut** |
-| K07 | Foto → náhled OK/Znovu/Storno → editor; režimy kvality a dva cíle uložení PR #6; společná kamera foto/video, přehrání, audio, import | Bezpoškozený skutečně existující zdroj, správné potvrzení aplikace vs. galerie, dostupné ovládání, kodeky/oprávnění a stabilita i na slabším Androidu |
+| K07 | Foto → náhled OK/Znovu/Storno → editor; tři kvality jediné interní fotoverze, společná kamera foto/video, přehrání, audio a import | Jediné potvrzené uložení v CraftPlanu, žádné automatické publikování do Galerie; bezpoškozený externí importní zdroj, kodeky/oprávnění a stabilita na slabším Androidu |
 | K08 | Referenční hotové panorama a šev; malý scénář půdorys–stěna–nárys, později prostorové zobrazení | Trvalé kotvy, topologie, souřadnice, Undo a návaznosti; nepsat nyní všechny moduly |
 | K09 | Jednoznačný/nejistý Bluetooth laserový údaj, jednotka, cílové pole, zpoždění/duplicita | Žádná hodnota v nesprávném poli; hardware/protokol fyzicky až po GO |
 | K10 | Český hlas 850/580, šum, nejasná jednotka, rozpracované kóty, společná kontrola a obnovení | Nepotvrzené hodnoty viditelně neověřené, oprava bez tiché chyby, užitečné offline chování reálně doložené |
