@@ -173,7 +173,7 @@ Jeden konkrétní fyzicky dostupný model/firmware a telefon: nejprve ruční za
 
 ## 10. Otevřená rozhodnutí a známé rozpory
 
-1. **Technologie:** starší AGENTS/START_ZDE/Strom vývoje a další dokumenty PR #1 mluví o schváleném Kotlin + Compose prototypu. **Novější výslovné rozhodnutí vlastníka: definitivní technologie ani první renderer nejsou vybrány.** Tyto dokumenty bude třeba **po schválení nového rozhodnutí** sjednotit v kontrolované změně; nynější draft to sám potichu nemění.
+1. **Technologie:** historická tvrzení v AGENTS/START_ZDE/Stromu vývoje a dalších dokumentech PR #1 byla v tomto kole dokumentačních oprav **výslovně aktualizována**: nejnovější rozhodnutí vlastníka stanoví **žádná technologie, renderer ani DB zatím NEVYBRÁNY**. Kotlin/Compose je kandidát, ne GO. [Aktuální PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1).
 2. **Pořadí M2–M5:** původní strom dokumentoval starší pořadí; po pozdějším souhlasu vlastníka je tento návrh **aktuální pracovní pořadí** s minimální přenosnou zálohou v M2 před nenahraditelnými zakázkami a časným F35. Konkrétní rozsah pozdějších podetap i případný významný odklad zůstávají předmětem samostatného rozhodnutí vlastníka.
 3. **Reprezentace míry:** mikrometry a přesný text jsou **kandidáti k porovnání**, ne uzavřený datový formát; včetně zlomkových palců, ploch a možného přetečení.
 4. **Undo/Redo v M1:** podle novějšího ROZ-09 se historie Undo/Redo **nemusí zachovat po restartu**; poslední potvrzené objekty ano. Otevřené jsou technické limity, podrobnosti zálohy, ochrana originálů a výchozí místo fotografií dle PR #6, cílové slabší zařízení, termín iOS/Windows a pozdější pořadí F35/F04/F05/F03/F01.
