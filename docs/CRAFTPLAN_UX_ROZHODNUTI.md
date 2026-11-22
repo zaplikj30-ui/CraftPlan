@@ -163,6 +163,84 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **Zámek celé geometrie kóty:** vlastník se na jeho smysl ptá, zatím ho neschválil. **Není součástí UX-23**; případná potřeba hromadného zámku anotací se posoudí odděleně a až podle zkušeností s editorem.
 
+## Navazující rozhodnutí vlastníka – 22. 11. 2026 (ROZ-01 až ROZ-40 a video)
+
+**Stav:** novější výslovné funkční volby vlastníka v navazující projektové konverzaci 22. 11. 2026. Čísla **ROZ-01 až ROZ-40 jsou čísla otázek této konverzace**, **NE** původní F01–F39, UX-01–UX-99 ani původních 49 kontrol; pouze umožňují dohledat každou odpověď. Rozhodnutí aktualizují UX-57–UX-99 a F08/F09/F12/F13/F14/F15/F16/F29 a datové podklady; **nic z toho není implementováno ani fyzicky otestováno**. U výslovně uvedených doporučení od asistenta bez odpovědi vlastníka zůstává stav **NÁVRH/OTEVŘENO**, ne POTVRZENO.
+
+### Rozhodnutí 01–13: pracovní postup, editor, Rychlá zaměření
+
+| Rozhodovací bod | Výslovně zvolený funkční požadavek | Stav |
+|---|---|---|
+| **ROZ-01** | Rychlá zaměření jako samostatně dostupný vstup na hlavní obrazovce bez povinného zákazníka/zakázky. Navazuje na již potvrzené UX-57/67. | POTVRZENO |
+| **ROZ-02** | Nabídnout řazení názvem, datem a ručním vlastním pořadím. | POTVRZENO |
+| **ROZ-03** | Individuálně skryté kóty/poznámky zůstávají skryté i po zavření/znovuotevření; malá nenápadná značka přeškrtnutého oka upozorní na skrytý obsah; dostupné opětovné zobrazení. Nezaměňovat s dočasným vypnutím celé vrstvy, které se po novém otevření resetuje podle UX-99. | POTVRZENO funkčně; konkrétní grafika návrh |
+| **ROZ-04** | **F13: plynulé diktování více nových kót bez povinného ručního umístění/potvrzení po každém spolehlivě rozpoznaném povelu.** Zapnout mikrofon jasným kulatým ovladačem, vyslovit např. „vodorovná kóta 850“, hlasová odpověď zopakuje **pouze číslo** „osm set padesát“, vznikne jedna samostatně editovatelná horizontální kóta. Dále „svislá kóta 500“ vytvoří další. Uživatel může kóty přetáhnout na požadovaná místa nebo nechat na pracovních pozicích. První vložit přibližně do středu obrazu, další pod předchozí s rozestupem, bez překrývání; při zaplnění nejprve opatrně oddálit jen po hranici čitelnosti, pak umožnit posun pracovní plochy. Mikrofon běží do vědomého vypnutí (s výjimkami ROZ-35/36). **Bezpečnostní hranice:** záměna 850/580 a nejistá jednotka nesmí být tiše považována za spolehlivě potvrzené měření; viz ROZ-21/37 a rozpor s dřívějším M0-A režimem potvrzení každé kóty. | POTVRZENO UX; mechanismus akceptace řeči/ukládání otevřen k M0 DESIGN/SECURITY |
+| **ROZ-05** | F14: jedna knihovna odborných symbolů rozdělená do kategorií, s možností přidání vlastních malých obrázkových symbolů; nepožadovat hned plný grafický editor symbolů. | POTVRZENO |
+| **ROZ-06** | F16: základní pracovní sada nástrojů; pokročilé volitelně zobrazit; možnost „Zobrazit všechny nástroje“. Skrytím nástroje se nemažou již vytvořené objekty. | POTVRZENO |
+| **ROZ-07** | F09 při nahrazení fotografie zachovat původní i nový originál a editovatelné měření; umožnit přepínání stará/nová fotografie a průhlednost překryvu posuvníkem. Respektovat dva dříve schválené ruční režimy srovnání podkladu/kót a po dokončení jednotlivou editovatelnost. | POTVRZENO funkčně |
+| **ROZ-08** | F29: titulní strana PDF je **volitelná**, nikoliv automaticky povinná; dostupné údaje zakázka, zákazník, datum a případné logo. **Dřívější UX-92 odmítlo automatickou titulní stranu**: proto běžné PDF začíná fotografiemi a titulní stranu přidá pouze vědomá volba. | POTVRZENO s uvedenou návazností |
+| **ROZ-09** | V první funkční etapě Undo/Redo v rámci otevřené pracovní relace; zachování kroků Undo po restartu není první povinnost a je samostatným pozdějším námětem. Undo/Redo nikdy nenahrazuje bezpečně potvrzené uložení ani koš. | POTVRZENO pro první celek |
+| **ROZ-10** | Záměr roční lhůty pro definitivní odstranění položek v Koši, s včasným varováním; při přenosné záloze nabídnout samostatné zahrnutí Koše. **ROZPOR:** starší UX-68/UX-99 výslovně určovaly automatické mazání jako výchozí vypnuté; podrobné pozdější upřesnění ROZ-25/40 řeší režim po jednom roce, ale před technickým schválením se musí jednoznačně sloučit politika výchozího zapnutí/vypnutí, upozornění a bezpečnost dat. **Zápis nesmí být vyložen jako povolení mazat data už nyní.** | POTVRZEN roční směr + backup volba; konflikt výchozího režimu OTEVŘENO |
+| **ROZ-11** | Rychlá zaměření jsou plnohodnotný pracovní prostor: složky, podsložky, fotografie, měření, poznámky a přílohy, možnost později přesunout celý rozpracovaný strom do nové nebo existující zakázky bez ztráty struktury, přesných hodnot a médií. | POTVRZENO – varianta B |
+| **ROZ-12** | Pokud je v cíli už stejný název „Kuchyň“, nic neslučovat ani nepřepisovat; nová samostatná složka např. „Kuchyň kopie“, „Kuchyň kopie (2)“. Slovo „kopie“ v názvu **neznamená automatické zdvojení dat při operaci Přesunout**; kopie dat vzniká jen při výslovné akci Kopírovat. | POTVRZENO |
+| **ROZ-13** | Po úspěšném přesunu zůstat v Rychlých zaměřeních; stručné potvrzení „Složka byla přesunuta“ s volitelným „Otevřít v zakázce“, bez automatického přepnutí. | POTVRZENO – varianta B |
+
+### Rozhodnutí 14–25: přesuny, uspořádání, PDF, koš
+
+| Rozhodovací bod | Výslovně zvolený funkční požadavek | Stav |
+|---|---|---|
+| **ROZ-14** | U celé složky nabídnout obě odlišné akce **Přesunout / Kopírovat**, s poctivým významem a zachováním dat. | C – POTVRZENO |
+| **ROZ-15** | Přepínatelné zobrazení Rychlých zaměření: obyčejný přehled složek/fotek nebo poslední rozpracované nahoře; pamatovat zvolený režim. | C – POTVRZENO |
+| **ROZ-16** | Automatický název nové fotografie nejprve **datum, potom čas**, přejmenování je možné. Bez závazného konkrétního technického formátu názvu. | A – POTVRZENO |
+| **ROZ-17** | **Jedno společné nastavení řazení pro všechny složky**, nikoli složkově oddělené preference. Historie ručního pořadí je oddělená věc, viz ROZ-33. | B – POTVRZENO |
+| **ROZ-18** | Před operací přesunu jednoznačně ukázat a **potvrdit cílovou zakázku/složku** a co se přesouvá; následně neklást další duplicitní potvrzení. | A – POTVRZENO |
+| **ROZ-19** | Po již potvrzeném přesunu **nepřidávat krátkodobé „Vrátit zpět“ ani druhé potvrzování**; zobrazit pravdivý výsledek dle ROZ-13. Neomezuje standardní Undo/Redo editoru ani povinnou bezpečnou nápravu neúspěšného přenosu. Vlastník výslovně změnil předběžnou A na tento jednodušší postup. | KONEČNÁ VOLBA – POTVRZENO |
+| **ROZ-20** | Checklist: zvolit, zda splněné úkoly zůstávají na místě, nebo se řadí na konec; **výchozí zůstávají na místě**. | C, výchozí A – POTVRZENO |
+| **ROZ-21** | Hlas: spolehlivě rozpoznané číslo krátce zopakovat; při nejistotě vytváření/zápis zadržet a nabídnout opravu. Nezavádět povinný mezikrok OK pro každou běžnou spolehlivou kótu, viz ROZ-04. | C – POTVRZENO funkčně; spolehlivost/validace M0 otevřeno |
+| **ROZ-22** | Volitelná titulní strana PDF dostupné údaje předvyplní, uživatel je může změnit, skrýt nebo přidat logo; **výchozí bez titulní strany** dle ROZ-08/UX-92. | C – POTVRZENO |
+| **ROZ-23** | Pamatovat poslední nastavení PDF exportu (rozložení, orientace, další volby) a dát akci **Obnovit výchozí**. Při riziku nechtěného zveřejnění skrytých poznámek musí být stav jasný v náhledu, viz UX-89. | C – POTVRZENO |
+| **ROZ-24** | Zahrnutí Koše do přenosné úplné zálohy je volitelné; **při první úplné záloze zapnuto**, poté pamatovat poslední výslovnou volbu. Záloha musí být konzistentní a obnovitelná, nikoliv důkazem, že lze bezpečně smazat živá data. | C – POTVRZENO |
+| **ROZ-25** | Pokud bude použita roční politika odstranění, upozornit uživatele **30 a 7 dní před koncem**; neslibovat systémovou notifikaci při dlouhodobě nevykonávané aplikaci. Provázat s ROZ-40 a rozporem ROZ-10/UX-68. | B – POTVRZENO |
+
+### Rozhodnutí 26–40: fotografie, galerie, hlas a odložené smazání
+
+| Rozhodovací bod | Výslovně zvolený funkční požadavek | Stav |
+|---|---|---|
+| **ROZ-26** | Nově přijatou fotografii uložit automaticky do **právě otevřené složky**. | A – POTVRZENO |
+| **ROZ-27** | Při návratu do Rychlých zaměření otevřít **poslední používanou složku**, pokud stále existuje a je dostupná. | B – POTVRZENO |
+| **ROZ-28** | Po fotografování **nejprve náhled a akce OK / Vyfotit znovu / Storno**. Teprve OK přijme fotografii a **rovnou otevře editor**. Nevydařené opakované snímky nemají automaticky zahlcovat složku; původní bajty přijaté fotografie zachovat. Rozpracovaný náhled neoznačit za bezpečně uložený před dokončením zápisu. | Upravená A – POTVRZENO |
+| **ROZ-29** | Import fotografie z galerie telefonu vytvoří **vlastní bezpečnou kopii původního média**, na které závisí dokument CraftPlanu. | A – POTVRZENO |
+| **ROZ-30** | Hromadný přesun zobrazuje skutečný průběh, například „35 z 120“, a po dokončení pravdivý výsledek. | B – POTVRZENO |
+| **ROZ-31** | Shodný název souboru vyřešit automatickou příponou „kopie“, „kopie (2)“ atd., bez přepsání jiného souboru. | A – POTVRZENO |
+| **ROZ-32** | Filtry galerie podle typu (fotografie, PDF, poznámky, půdorysy…) a také například jen upravené fotografie. Neznamená povinnost všech typů v M1. | C – POTVRZENO |
+| **ROZ-33** | **Ponechat zapamatované ruční pořadí**, i když uživatel dočasně přepne na datum/název a později zpět na „Vlastní pořadí“. Vlastník původně váhal mezi B/A a **nakonec výslovně vybral A**. Společné aktivní řazení pro složky dle ROZ-17 se tím nemění. | KONEČNÁ A – POTVRZENO |
+| **ROZ-34** | Názvy pod miniaturami lze zobrazit/skrýt; **výchozí zapnuto**. | C – POTVRZENO |
+| **ROZ-35** | Při přechodu aplikace na pozadí / zamčení telefonu se aktivní mikrofon pro hlasové kótování **pozastaví**; obnovení jen vědomým krokem uživatele. Žádný trvalý skrytý odposlech. | C – POTVRZENO |
+| **ROZ-36** | Při přepnutí na **jinou fotografii** se mikrofon **vypne**, nikoliv automaticky přesměruje příkazy na jiný dokument. | B – POTVRZENO |
+| **ROZ-37** | Nerozpoznaný povel ohlásit nenápadně, nic nevytvořit, umožnit zopakování; při nejasném čísle platí přísnější blokace dle ROZ-21. | A – POTVRZENO |
+| **ROZ-38** | Na každé další fotografii hlasově vytvářené kóty začínají novou pracovní řadu od středu jejího obrazu; nepřebírat souřadnice z předchozí fotky. | A – POTVRZENO |
+| **ROZ-39** | PDF **výchozí A4**, možnost **A3 a dalších běžných formátů**, volba při exportu. A3 je nyní výslovně zvolená možnost (dříve UX-92 pouze předběžný návrh). | B – POTVRZENO |
+| **ROZ-40** | Jestliže aplikace nebyla otevřena ani včas k varování a položka překročila roční lhůtu, **nesmazat ji okamžitě při prvním novém spuštění**. Nejprve dát zřetelné upozornění a **dalších 7 dní** na kontrolu/obnovu. Přednost má bezpečnost dat a výslovné vyřešení historického rozporu o defaultu autočištění (ROZ-10, UX-68/99). | B – POTVRZENO jako funkční ochrana |
+
+### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
+
+**VIDEO-01 – POTVRZENO jako produktové chování:** Video je dokumentace vzhledu místnosti, nikoli pohyblivý editor. Lze je **natočit přímo z CraftPlanu** i **importovat** jako jiné médium do právě otevřené složky Rychlých zaměření/zakázky; v galerii má miniaturu a zřetelnou značku videa. **Přehrávání uvnitř CraftPlanu** (přehrát/pauza, posun po časové ose, zvuk, celoobrazovkové zobrazení), bez povinného spuštění externí aplikace. Přesun, kopie, přejmenování, koš a bezpečná přenosná záloha se řídí obdobnými pravidly jako další přílohy. Originální video se nikdy nevratně nepřepisuje.
+
+**VIDEO-02 – POTVRZENO jako UX směr:** Ve spodní části přehledu má být snadná cesta **Přidat foto / video**: jedno otevření fotoaparátu a na obrazovce živého náhledu **přepínač Fotografie | Video**, místo dvou dlouhých oddělených pracovních cest. U fotografie je náhled se schváleným OK / Vyfotit znovu / Storno, po OK otevřít editor. U videa obdobná kontrola přehráním a možnost potvrdit / natočit znovu / zrušit; po potvrzení přidat video jako podklad do složky, **nikoliv do editoru kót**. Zařadit bez rozbití dvou dříve schválených spodních ovladačů **Přidat + Poslední použitá akce** dle UX-61; konkrétní cesta nabídky a podoba přepínače budou ověřeny při návrhu.
+
+**VIDEO-03 – VÝSLOVNĚ NEPOŽADOVÁNO NYNÍ:** Kreslení kót přímo do snímků videa, střih, časované anotace ani AI analýza videa nejsou schválenou funkcí. Výběr vlastní kamerové obrazovky versus systémového Android řešení **je technická otázka k posouzení**, nikoli dnes schválený framework. Otestovat podporované formáty, výdrž, kapacitu úložiště, soukromí/mikrofon a velké přílohy; video nesmí zhoršit offline práci s fotografií a skutečnými mírami.
+
+### Kontrola návazností a nejistot před technologickým posouzením
+
+1. **DOKUMENTAČNÍ KONFLIKT – koš:** dosavadní UX-68/99 říká „automatické čištění výchozí vypnuto“. Pozdější ROZ-10/25/40 pracují s roční dobou, varováním 30/7 dnů a 7denní výjimkou po delším nepoužívání. Nepřepisovat historii mlčky; před HOTOVO M0 uzavřít konkrétní výchozí pravidlo, ochranu odkazovaných originálů, časové údaje, chování při obnově/záloze a pravdivost notifikací. **Dokud není rozpor vypořádán, nenastavovat automatické nevratné mazání jako běžící funkci.**
+2. **DOKUMENTAČNÍ KONFLIKT – F13:** původní návrh PR #1/#3 vyžaduje explicitní potvrzení každé hlasové hodnoty. Novější ROZ-04/21 chce **plynulé diktování bez potvrzování každé jasné hodnoty**; zároveň zakazuje tiché chyby. M0 musí určit bezpečný stav „rozpoznáno/nejisté/opraveno/přijato“, možnost rychlé opravy, stabilní identitu a Undo; **netvrdit, že samotné zopakování čísla dokazuje bezchybné rozpoznání**. Před pozdějším implementačním GO je potřeba ověření české řeči, čísel, jednotek a offline dostupnosti.
+3. **PDF – upřesnění bez povinné titulní strany:** UX-92 chtělo začínat rovnou fotografiemi; ROZ-08/22 přidává **volitelnou** titulní stranu s předvyplněním, takže výchozí export zůstává **bez ní**. Ukládat poslední uživatelské exportní volby dle ROZ-23, ale pozorně validovat rozsah skrytých poznámek.
+4. **ÚLOŽIŠTĚ/OPERACE:** Přesunout ≠ Kopírovat, „kopie“ v názvu ≠ kopie souboru, přesun bez jednorázového Undo ≠ možnost ztráty dat. Zajistit přesné naměřené hodnoty a jednotky, zachování originálů i videí, ID/vazby, pravdivé potvrzení hotového přenosu a případnou obnovu při selhání; řešit v M0-A/nezávislém DESIGN/SECURITY review.
+5. **DALŠÍ OTÁZKY:** V konverzaci byly navrženy body **41–50** (vyhledávání, složky, půdorys, nárys, čas práce, instalační šablony, PDF zápatí, obnova z koše), ale vlastník je **dosud nevybral**. **Neprohlašovat je za schválené.** Existující UX-65 již stanoví princip obnovy na původní místo, jinak „Obnovené z koše“. Drobnosti 41–50 **nejsou podmínkou pro zahájení srovnatelného technologického posouzení**.
+6. **Hranice stavu:** Funkční požadavky v tomto oddílu jsou schválené záměry pro návrh. Technologie, renderer, knihovna kamery/přehrávače, přesný datový formát, konkrétní hardware a fyzické testy jsou **NEROZHODNUTÉ/NOT RUN**. Android první, další Windows/iOS/iPadOS v dlouhodobém hodnocení. **ŽÁDNÝ GO** pro kód, build, Actions, HOME, placené API, APK, merge či použití skutečných zákaznických dat.
+
+**Původ:** navazující projektová konverzace vlastníka 22. 11. 2026, následně kontrola stávajících PR #1–#4. Novější výslovné volby mají přednost před staršími návrhy, ale kolize datových a bezpečnostních pravidel musí být výslovně posouzené.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
