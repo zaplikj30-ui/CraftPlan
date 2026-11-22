@@ -307,10 +307,10 @@ Jeden uživatelem vědomě vytvořený archiv vychází ze snapshotu jedné potv
 
 | Část | Povinné údaje |
 |---|---|
-| Hlavička | backupFormatVersion (oddělené od verze DB), backupId, snapshotRevisionId, rozsah, trashIncluded |
-| Data | typy a ID objektů, rodiče/vazby, kóty a přesná čísla s jednotkou/původem/stavem, poznámky, viditelnost, podporovaná rozšíření |
+| Hlavička | backupFormatVersion (oddělené od verze DB), backupId, snapshotCutId (ID jednoho potvrzeného konzistentního průřezu; NE revize jedné fotografie), rozsah, trashIncluded |
+| Data | typy a ID objektů + jejich přesné potvrzené revize v rámci stejného snapshotCutId, rodiče/vazby, kóty a přesná čísla s jednotkou/původem/stavem, poznámky, viditelnost, podporovaná rozšíření |
 | Média | každý skutečně interně uložený snímek/příloha: mediaId, role, zvolená kvalita, formát, orientace, rozměry, bezpečná relativní cesta, počet bajtů a SHA-256 uložených bajtů |
-| Úplnost | počty typů/objektů/souborů, záměrně vynechaný koš, označení externích původních souborů, jež nejsou nutné pro obnovení interní verze |
+| Úplnost | počty typů/objektů/souborů i zkontrolovatelný výčet všech zahrnutých revizí a odkazů, záměrně vynechaný koš, označení externích původních souborů, jež nejsou nutné pro obnovení interní verze |
 | Kompatibilita | podporovaná verze, povinná a kompatibilní rozšiřující pole, bez tiché ztráty neznámých dat |
 
 Export musí ověřit nejen zdroje, ale i HOTOVÝ archiv; při chybě nesmí zobrazit úspěch. SHA-256 kontroluje integritu dat, nikoliv pravost archivu proti útočníkovi, který vymění i manifest. Obnova v odděleném prostoru zkontroluje verzi, úplnost, hash, vazby, bezpečné cesty a kapacitu PŘED změnou živých dat. Na čisté instalaci zachová ID; v existující práci odmítne kolizi nebo po vědomé volbě vytvoří novou kopii s úplným remapem. Až po validaci publikuje konzistentní obnovený snapshot.
