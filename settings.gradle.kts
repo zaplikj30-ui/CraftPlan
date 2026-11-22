@@ -3,6 +3,7 @@ pluginManagement {
         System.getenv("CRAFTPLAN_MAVEN_CACHE")?.let { maven { url = uri(it) } }
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
 }
 
