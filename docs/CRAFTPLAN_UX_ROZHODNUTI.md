@@ -169,7 +169,7 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 ## Navazující rozhodnutí vlastníka – 22. 11. 2026 (ROZ-01 až ROZ-40 a video)
 
-**Stav:** novější výslovné funkční volby vlastníka v navazující projektové konverzaci 22. 11. 2026. Čísla **ROZ-01 až ROZ-40 jsou čísla otázek této konverzace**, **NE** původní F01–F39, UX-01–UX-99 ani původních 49 kontrol; pouze umožňují dohledat každou odpověď. Rozhodnutí aktualizují UX-57–UX-99 a F08/F09/F12/F13/F14/F15/F16/F29 a datové podklady; **nic z toho není implementováno ani fyzicky otestováno**. U výslovně uvedených doporučení od asistenta bez odpovědi vlastníka zůstává stav **NÁVRH/OTEVŘENO**, ne POTVRZENO.
+**Stav:** novější výslovné funkční volby vlastníka v navazující projektové konverzaci 22. 11. 2026. Čísla **ROZ-01 až ROZ-46 jsou interní čísla rozhodnutí této konverzace (ROZ-41 až ROZ-46 jsou pozdější dodatky)**, **NE** původní F01–F39, UX-01–UX-99 ani původních 49 kontrol; pouze umožňují dohledat každou odpověď. Rozhodnutí aktualizují UX-57–UX-99 a F08/F09/F12/F13/F14/F15/F16/F29 a datové podklady; **nic z toho není implementováno ani fyzicky otestováno**. U výslovně uvedených doporučení od asistenta bez odpovědi vlastníka zůstává stav **NÁVRH/OTEVŘENO**, ne POTVRZENO.
 
 ### Rozhodnutí 01–13: pracovní postup, editor, Rychlá zaměření
 
@@ -249,6 +249,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 **VÝSLOVNĚ SCHVÁLENO VŠECH PĚT BODŮ:** (1) **automatické průběžné ukládání dokončených úprav** bez tlačítka Uložit po každé kótě, bez rušení kreslení; nápis Uloženo až po ověřeném kompletním potvrzení; (2) při hovoru, uzamčení nebo přerušení OS **zrušit nedokončený tah**, zachovat hotové kóty a jejich pravdivý stav uložení; (3) při nedostatku paměti raději omezit rekonstruovatelnou cache, náročné náhledy a video než poškodit zakázku; (4) po pádu při existenci **skutečně zachráněného validního pracovního návrhu** nabídnout `Obnovit rozpracovanou práci` / `Zahodit návrh`, do výslovné volby jej nemaže, ale neexistující RAM data neslibovat; (5) při běžném odchodu z editoru s chybou uložení **upozornit a nabídnout bezpečné pokračování/opakování**, nikdy změny tiše nezahodit.
 
 **Důležitý rozdíl:** zrušený *nedokončený dotykový tah* není již uložená pracovní kóta ani obnovený draft; nepotvrzené ale dokončené změny a prokazatelně staged návrh se neodstraňují záminkou přerušení gesta. Při násilném ukončení Androidem nelze zaručit záchranu toho, co existovalo pouze v RAM. Technický interval autosave, limity RAM a crash persistence k cílenému review v PR #3 §6.1.2; testy NOT RUN, bez GO.
+
+### ROZ-46 – čtyři pravidla Koše a mazání schválena 22. 11. 2026
+
+**Vlastník výslovně schválil všechny čtyři body:** (1) `Do koše` u celé složky přesune **všechny její podsložky, fotografie, kóty, poznámky a přílohy**, které se při obnově vrátí jako celek; (2) samostatná fotografie se přesouvá do Koše včetně **svých kót a poznámek**, bez ztráty či náhodného připojení k jiné fotografii (externí importovaný soubor se nikdy nemaže); (3) `Vysypat koš` ukáže rozsah/počet odstraňovaných položek a bez výslovného potvrzení nic trvale nesmaže; (4) při hromadném mazání ukázat **skutečný seznam/výsledek úspěšných a neúspěšných položek**, nehlásit celkový úspěch při částečné chybě. **Jednu složku/fotografii ale nikdy neroztrhat na napůl potvrzený stav.**
+
+**Dříve schválená pravidla zůstávají:** auto-mazání výchozí OFF (UX-100), ruční trvalé mazání vždy varuje a vyžaduje souhlas, obnova nejprve na původní místo a jinak do viditelných `Obnovené z koše` dle UX-65, práva/zámky a ochrana dat přítomných v jiných živých revizích či aktivním ZIP snapshotu. Přenosná M2 záloha Koš obsahuje jen při schválené volbě. Technické fyzické ověření: NOT RUN; bez GO.
 
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
