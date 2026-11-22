@@ -34,6 +34,9 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 | UX-20 | **Zadávání hodnoty nesmí zakrýt systémová klávesnice**. Dialog/list/okno posunout či zmenšit vůči skutečně viditelné ploše a udržet **Uložit hodnotu** dosažitelné v režimu na výšku i na šířku, na malém telefonu a při znovuotevření/otočení. Zadávání zachová rozepsanou hodnotu a jednotku, nepřipustí falešně potvrzený zápis. | **POTVRZENÝ požadavek**; konkrétní řešení horního dialogu vs. přizpůsobitelný panel **OTEVŘENO**, fyzický Android/IME test NOT RUN |
 | UX-21 | **Místo otazníku `?` schválen motiv malé ikony skládacího dřevěného metru (truhlářský skládací metr) s viditelnými ryskami.** Má být drobná, vizuálně čistá, s dostatečně velkou dotykovou oblastí; klepnutí na místo hodnoty umožní její zadání. Není to automatické měření, nenahrazuje přesnou hodnotu, jednotku ani stav **nezměřeno**. Po vyplnění se zobrazí číselná míra a jednotka. Nezaměňovat za svinovací pásmo; předchozí návrhy textu „Zadat“ nebo „—“ se nevolí. | **POTVRZENÝ MOTIV vlastníkem 22. 11. 2026**; konkrétní grafika, velikost a kontrast k pozdějšímu návrhu/ověření, nikoli GO k programování |
 
+| UX-22 | **Věrně zachovat přesouvání samotného čísla podél kóty**: prstem / S Penem lze přesunout popisek `850 mm` do stran **ve směru kótovací čáry** (i šikmo), nezávisle na celé kótě a koncových bodech. Nemění se hodnota, jednotka, geometrie ani poloha kóty; pozice popisku musí přežít uložení/reopen a fungovat s Undo/Redo. | **VÝSLOVNĚ ZNOVU POTVRZENO vlastníkem 22. 11. 2026**; doložené ve v1 `editor.js` `labelT`, fyzický PASS CraftPlanu NOT RUN |
+| UX-23 | **Jednoduchý zámek POLOHY kót**, pravděpodobně dostupný tlačítkem v liště: uživatel si rozmístí kóty a potom je zamkne proti nechtěnému posunutí celé kóty, koncových bodů i číselných popisků; odemčením je lze znovu přesunout. **Nejde o zámek číselných hodnot ani o zámek polohy samotné lišty nástrojů.** | **PREFERENCE/FUNKČNÍ NÁPAD vlastníka 22. 11. 2026**, přesný rozsah (všechny kóty v dokumentu / jednotlivé vybrané), vliv na nově kreslené kóty a případné číselné úpravy **OTEVŘENÉ** |
+
 ## Závazné shrnutí kóty pro další UX návrh (výslovně potvrzeno vlastníkem 22. 11. 2026)
 
 **Princip: v CraftPlanu má kóta nejen fungovat, ale i vypadat co nejvěrněji jako v Zaměřovači 1. Vlastník výslovně potvrzuje, že vzhled a tvary úchopů, jejich poměry, natahování, uchopení středu, otáčení, lupa a automatická čitelnost čísla už byly dobře vymyšlené a dotažené; není cílem je znovu navrhovat.** Při návrhu/testu nejprve porovnat referenční funkční chování v1, ale **nepřebírat automaticky její kód, data ani výkonové chyby**.
@@ -45,11 +48,11 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 
 Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr zruší; klepnutí na ni umožní editaci hodnoty. Budoucí laser bezpečně zapisuje do jednoznačně označené cílové kóty podle pravidel F03/CP3-05. **Tohle je schválený funkční směr, nikoli runtime PASS nebo technologické/implementační GO.** Další odlišnosti oproti v1 navrhovat pouze samostatně s důvodem a odsouhlasením vlastníka.
 
-## Otevřené návrhové otázky k dalšímu projednání
+**Nový referenční zdroj kóty:** [Technologicky neutrální reference vzhledu a ovládání kóty](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md) přebírá doložené proporce úchopů, gest, posunu čísla a lupy z konkrétní revize v1. Rozhodnutí o zámku polohy je teprve k dokončení.\n\n## Otevřené návrhové otázky k dalšímu projednání
 
 1. **Lišta:** bude swipe, šipka, vyjížděcí panel, nebo uživatelsky volitelná kombinace? Jak přesně přesunout, přeskupit a zamknout bez kolize s kreslením, lupou, scrollováním, S Penem a změnou orientace? Dva základní ovladače musí být stále dostupné.
 2. **Výběr/Přidání a Opakování:** přesná definice každého přepínače, jedna vs. opakovaná akce, krátký/dlouhý stisk, označení stavu, návrat do režimu výběru a interakce s Undo/Redo.
-3. **Kóta a zadání skutečné míry:** postup vytvořit → zůstane vybraná → klepnutím na kótu otevřít hodnotu → klepnutím mimo odznačit je potvrzen. **Motiv malé ikonky skládacího dřevěného metru s ryskami namísto `?` je potvrzen**, otevřen zůstává konkrétní grafika, poloha a adaptivní chování zadávacího okna nad klávesnicí, stavy při zrušení/vymazání čísla a fyzické ověření gest. F03 laser je pozdější integrace.
+3. **Kóta a zadání skutečné míry:** postup vytvořit → zůstane vybraná → klepnutím na kótu otevřít hodnotu → klepnutím mimo odznačit je potvrzen. **Motiv malé ikonky skládacího dřevěného metru s ryskami namísto `?` je potvrzen**, otevřen zůstává konkrétní grafika, poloha a adaptivní chování zadávacího okna nad klávesnicí, stavy při zrušení/vymazání čísla a fyzické ověření gest. F03 laser je pozdější integrace. **Nová otázka:** bude tlačítko zámku polohy zamykat všechny již existující kóty, nebo pouze označené? 
 4. **Celá navigace:** rychlé zaměření vs. práce v zakázce, galerie, editory dalších dokumentů, menu a nastavení, práce na výšku/šířku.
 5. **Vizuální jazyk:** barvy, ikony, rozměry, vzhled lišty a výchozí pořadí dosud neschváleny. Skici v chatu byly pouze orientační ilustrace.
 
@@ -66,6 +69,6 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 - [PR #1 – katalog, ergonomie, diagnostika, verze](https://github.com/zaplikj30-ui/CraftPlan/pull/1).
 - [PR #2 – hlavní plán a rozlišení M0/M1/M2](https://github.com/zaplikj30-ui/CraftPlan/pull/2).
 - [PR #3 – M0-A kontrakty a návrhové testy T01–T44](https://github.com/zaplikj30-ui/CraftPlan/pull/3).
-- **Původ nových UX-01 až UX-21:** výslovná rozhodnutí, preference a otázky vlastníka v projektové konverzaci CraftPlan dne 22. 11. 2026. Nejde o převzetí starého Zaměřovače 1 jako produktu.
+- **Původ nových UX-01 až UX-23:** výslovná rozhodnutí, preference a otázky vlastníka v projektové konverzaci CraftPlan dne 22. 11. 2026. Nejde o převzetí starého Zaměřovače 1 jako produktu.
 
 **Důležité:** PR #1–#3 a `main` se nemění; tento soubor je samostatná pracovní UX dokumentace k budoucí kontrole.
