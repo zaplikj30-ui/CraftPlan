@@ -154,6 +154,17 @@ Každá stěna má trvalé ID a určenou **orientaci z referenčního počáteč
 
 **P0 – definice pravdivého potvrzení pro první M1 (návrhová smlouva, NOT RUN):** Uživatel smí vidět `ULOŽENO` pro konkrétní revizi `R` až po ověření, že `R` má úplný validovaný model, dosažitelné všechny **skutečně slíbené** soubory a trvale potvrzený aktuální revizní ukazatel; výsledek jednotlivých dílčích zápisů média se nevydává za úspěch celé revize. Operace používá očekávanou předchozí revizi a nesmí přepsat novější stav opožděným potvrzením. Když je po pádu nejasné, zda se poslední zápis stihl potvrdit, **nesmí se žádný z kandidátů automaticky zničit**: otevře se jen ověřená konzistentní revize, neúplná práce je izolovaná, uživatel je zřetelně informován a případná obnova probíhá nedestruktivně. **OTEVŘENO:** jaké přesné diskové bariéry a pořadí operací dávají garanci po pádu procesu vs. po výpadku napájení; to závisí na zvoleném úložišti a vyžaduje schválené zkoušky. Pro M0-A je nutno potvrdit bezpečnostní význam, **ne předstírat testované fsync/rename ani atomickou transakci přes galerii**.
 
+### 6.1.1 Konkrétní význam potvrzení, konfliktu a crash recovery – NÁVRH, NOT RUN
+
+1. Dokument má neměnné documentId, poslední potvrzenou revizi R0 a pro připravovaný zápis R1 očekávaného předchůdce R0. Editace kóty nepřepisuje ani znovu nekomprimuje fotografii.
+2. Připravit nové médium do izolovaného místa, dokončit zápis a ověřit skutečnou velikost, obsah a dostupnost. Připraveno nebo viditelný náhled není potvrzená revize.
+3. Nové ověřené médium bezpečně zpřístupnit stabilním odkazem. Potom jedním autoritativním potvrzením zveřejnit celý model, vazby a revizní ukazatel R1. Současné zápisy pro tentýž dokument serializovat nebo odmítnout, jestliže očekávaný R0 už není aktuální. Opožděný writer nesmí přepsat novější R2.
+4. Zobrazení ULOŽENO je dovoleno až po ověřeném trvalém potvrzení všech slíbených objektů a jejich médií. Při chybě/plném disku zobrazit NEULOŽENO/CHYBA; nabídnout bezpečný opakovaný pokus a nezničit poslední potvrzený stav.
+5. Po restartu zkontrolovat integritu a vazby a otevřít nejnovější plně potvrzenou revizi. Nejde-li ověřit, nedestruktivně nabídnout poslední předchozí ověřitelnou a výslovně oznámit, že novější stav nebylo možné obnovit. Nejasně připravené soubory se izolují, nikoli automaticky mažou.
+6. Kandidátní minimální ochrana: aktuální a jedna předchozí ověřená revize metadat, pokud existuje; nezbytná média chráněná aktuálním stavem, recovery, košem či běžící zálohou se nemažou. Není to povinný skrytý archiv druhých plných fotografií ani neomezená historie. Úklid až po prokázané nedosažitelnosti všech souborů.
+
+Rozhraní DB a souborů není jediná automatická transakce. Pořadí fyzických diskových bariér, fsync/rename, trvanlivost po pádu procesu a zvlášť skutečném výpadku napájení vyžadují GO a cílené měření na zvolené platformě. Nyní žádný fyzický PASS; bezpečnostní význam výše je technologicky neutrální.
+
 ### 6.2 Databáze a soubory médií jsou jiná úložiště
 
 **RIZIKO:** databázová transakce sama nezaručuje, že jiný soubor s fotografií byl bezpečně zapsán. **KANDIDÁTNÍ postup k technickému ověření:** připravit médium odděleně, dokončit a ověřit jeho úplnost, zveřejnit jej stabilnímu umístění, potom potvrdit jeho ID/odkaz a revizi v modelu. Přerušení v každé fázi musí mít bezpečný výsledek; teprve pak je dovoleno ukázat potvrzené uložení. Konkrétní pořadí fsync/atomic rename/transakce, koordinaci více zápisů a fallback pro platformu rozhodnout až podle ověřených zkoušek.
