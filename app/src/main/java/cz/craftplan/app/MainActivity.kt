@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,29 +31,50 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.ViewModel
 
 class MainActivity : ComponentActivity() {
+    private val editorState by viewModels<PhotoEditorState>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
-                CraftPlan()
+                CraftPlan(editorState)
             }
         }
     }
 }
 
+internal class PhotoEditorState : ViewModel() {
+    var placement by mutableStateOf<DimensionPlacement>(DimensionPlacement.Idle)
+}
+
 @Composable
-private fun CraftPlan() {
+private fun CraftPlan(editorState: PhotoEditorState) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = photoOpen) { photoOpen = false }
+    val closePhoto = {
+        if (editorState.placement !is DimensionPlacement.Complete) {
+            editorState.placement = DimensionPlacement.Idle
+        }
+        photoOpen = false
+    }
+    BackHandler(enabled = photoOpen, onBack = closePhoto)
 
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { insets ->
         val screen = Modifier.fillMaxSize().padding(insets)
         if (photoOpen) {
-            SamplePhoto(screen, onClose = { photoOpen = false })
+            SamplePhoto(
+                modifier = screen,
+                placement = editorState.placement,
+                onStartDimension = {
+                    editorState.placement = DimensionPlacement.AwaitingFirst(PhotoId.SYNTHETIC_WORKBENCH)
+                },
+                onAnchor = { anchor -> editorState.placement = editorState.placement.place(anchor) },
+                onClose = closePhoto,
+            )
         } else {
             Column(
                 modifier = screen.padding(24.dp),
@@ -69,7 +91,13 @@ private fun CraftPlan() {
 }
 
 @Composable
-private fun SamplePhoto(modifier: Modifier, onClose: () -> Unit) {
+private fun SamplePhoto(
+    modifier: Modifier,
+    placement: DimensionPlacement,
+    onStartDimension: () -> Unit,
+    onAnchor: (PhotoAnchor) -> Unit,
+    onClose: () -> Unit,
+) {
     Column(modifier = modifier) {
         TextButton(onClick = onClose, modifier = Modifier.padding(horizontal = 8.dp)) {
             Text(stringResource(R.string.back_to_start))
@@ -79,14 +107,34 @@ private fun SamplePhoto(modifier: Modifier, onClose: () -> Unit) {
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+        Button(
+            onClick = onStartDimension,
+            enabled = placement == DimensionPlacement.Idle,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        ) {
+            Text(stringResource(R.string.add_dimension))
+        }
+        val hint = when (placement) {
+            DimensionPlacement.Idle -> R.string.photo_gestures
+            is DimensionPlacement.AwaitingFirst -> R.string.place_first_anchor
+            is DimensionPlacement.AwaitingSecond -> R.string.place_second_anchor
+            is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
+                MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+            }
+        }
         Text(
-            text = stringResource(R.string.photo_gestures),
+            text = stringResource(hint),
             style = MaterialTheme.typography.bodyMedium,
+            minLines = 2,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
         AndroidView(
             factory = { context -> PhotoEditorView(context) },
             modifier = Modifier.fillMaxWidth().weight(1f),
+            update = { view ->
+                view.onAnchor = onAnchor
+                view.placement = placement
+            },
         )
     }
 }

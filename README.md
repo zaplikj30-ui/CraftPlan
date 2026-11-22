@@ -1,6 +1,6 @@
 # CraftPlan
 
-Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním. Aplikace v této verzi pracuje pouze s touto fotografií.
+Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním. Po stisku **Přidat kótu** klepněte na dva body fotografie. Kóta zůstane ukotvená při změně přiblížení nebo posunu a zobrazí stav **NEZMĚŘENO**. Kóta je pouze v paměti.
 
 ## Debug sestavení
 

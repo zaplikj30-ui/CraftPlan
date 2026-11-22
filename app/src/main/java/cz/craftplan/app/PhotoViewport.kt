@@ -37,6 +37,18 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         scale = nextScale
     }
 
+    fun toPhotoAnchor(x: Float, y: Float): PhotoAnchor? {
+        if (width <= 0 || height <= 0) return null
+
+        val u = (x - left) / (imageWidth * scale)
+        val v = (y - top) / (imageHeight * scale)
+        return if (u in 0f..1f && v in 0f..1f) PhotoAnchor(u, v) else null
+    }
+
+    fun screenX(anchor: PhotoAnchor): Float = left + anchor.u * (imageWidth * scale)
+
+    fun screenY(anchor: PhotoAnchor): Float = top + anchor.v * (imageHeight * scale)
+
     private fun boundedOffset(offset: Float, viewportSize: Int, imageSize: Float): Float =
         if (imageSize <= viewportSize) {
             (viewportSize - imageSize) / 2f
