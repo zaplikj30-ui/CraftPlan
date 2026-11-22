@@ -92,9 +92,9 @@ Pro návrh M0 se povinně použije **[úplná kontrolní matice](CRAFTPLAN_M0A_M
 
 ### 4.2 Budoucí hlas/AI – návrh nikdy není potvrzené měření
 
-Rozlišit **(a) dočasný návrh grafické kóty**, **(b) uživatelem potvrzený editovatelný grafický objekt**, **(c) samostatně potvrzenou přesnou naměřenou/ručně zadanou hodnotu**. Minimální průchod: povel či rozpoznaná hrana → dočasný návrh (možná bez hodnoty) → náhled/kontrola jednotky a bodů → **potvrdit / opravit / odmítnout** → validovaný běžný příkaz editoru → Undo/Redo/save. Odmítnutí nebo chyba nikdy nezapisují dokončenou kótu. **Bez skutečné hodnoty zůstane „NEZMĚŘENO“, nikoli nula, odhad či hodnota z pixelů.**
+Rozlišit **(a) dočasný návrh grafické kóty**, **(b) uživatelem potvrzený editovatelný grafický objekt**, **(c) samostatně potvrzenou přesnou naměřenou/ručně zadanou hodnotu**. Minimální průchod: povel či rozpoznaná hrana → dočasný návrh (možná bez hodnoty) → náhled/kontrola jednotky a bodů → **potvrdit / opravit / odmítnout** → validovaný běžný příkaz editoru → Undo/Redo/save. **Pro novější UX-101** může být tento potvrzovací krok společný pro více hlasových návrhů po skončení dávky; jednotlivé návrhy až do vědomého potvrzení zůstávají neověřené. Odmítnutí nebo chyba nikdy nezapisují dokončenou kótu. **Bez skutečné hodnoty zůstane „NEZMĚŘENO“, nikoli nula, odhad či hodnota z pixelů.**
 
-Zachovat tři **oddělené** budoucí scénáře: (1) prosté české diktování skutečné hodnoty s hlasovým zopakováním čísla a vědomým potvrzením (otevřeno přímé umístění A vs. dočasný zásobník B), (2) AI navrhne grafické umístění, ale číslo pochází **výhradně od uživatele**, (3) „Okótuj místnost“ navrhne **nové grafické kóty bez skutečných hodnot**. AI nesmí neomezeně měnit ani mazat hotová data a každý povel musí projít stejnými oprávněními a validací jako ruční editor; běžný editor musí fungovat bez AI/sítě. Žádný AI model, server či mikrofon nyní. [Živý návrh](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L337).
+Zachovat tři **oddělené** budoucí scénáře: (1) prosté české diktování skutečné hodnoty s hlasovým zopakováním čísla a vědomým potvrzením (**novější UX-101**: průběžná série návrhů s jednou závěrečnou kontrolou a vědomým `Potvrdit vše`; stará A/B volba je překonaná), (2) AI navrhne grafické umístění, ale číslo pochází **výhradně od uživatele**, (3) „Okótuj místnost“ navrhne **nové grafické kóty bez skutečných hodnot**. AI nesmí neomezeně měnit ani mazat hotová data a každý povel musí projít stejnými oprávněními a validací jako ruční editor; běžný editor musí fungovat bez AI/sítě. Žádný AI model, server či mikrofon nyní. [Živý návrh](https://github.com/zaplikj30-ui/CraftPlan/blob/837988f3e5712fe71a983307dc5417605b429d7b/docs/ZAMEROVAC_2_ZIVY_NAVRH.md#L337).
 
 **Novější UX-101 – potvrzené produktové chování hlasu:** vědomě spuštěná společná relace s více krátkými výroky, možné bezpečné odložení rozpracovaného sezení a **jedno společné `Potvrdit vše`** po kontrole. Datově oddělit `NÁVRH GEOMETRIE`, `ROZPOZNANÉ NEPOTVRZENÉ ČÍSLO/JEDNOTKA`, `UŽIVATELEM OVĚŘENÝ ÚDAJ` a `TRVALE POTVRZENÁ REVIZE`; nepoužít neověřené číslo do závazného součtu, vydaného zákaznického dokumentu či laserem potvrzené míry. Rozpracované sezení potřebuje stabilní ID a odkaz na dokument/revizi; při zavření a následném otevření nesmí být jeho návrhy vydávané za hotové údaje. Chybná položka v dávce, změna fotografie, opakované potvrzení, pád a chybné uložení musejí mít definované bezpečné chování. **OTEVŘENO:** přesné pravidlo dávkové chyby, Undo dávky a technická dostupnost českého offline rozpoznávání; není vybrán hlasový engine ani povolena implementace.
 
@@ -246,7 +246,7 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 
 | Kód | Scénář | Podmínka budoucího PASS |
 |---|---|---|
-| T01 | Foto + kóta → save → úplně zavřít → reopen | Identická přesná hodnota, kotvy a originál |
+| T01 | Foto + kóta → save → úplně zavřít → reopen | Identická přesná hodnota, kotvy a skutečně uložený podklad; plný originál jen v režimu, kde je garantovaný |
 | T02 | M1 na skutečném telefonu prstem a samostatně S Penem: koncový/středový úchop → lupa → zoom/pan → zrušení rozpracovaného tahu → nová editace → Undo/Redo → save → ukončení → reopen; navíc 1 000 dlouhých/přerušovaných tahů a magnetické kolize gest | Jen potvrzené příkazy jsou vratné; konec vs. celek vs. text mají správnou prioritu, lupa/pan nesmí posunout míru ani spustit náhodný úchop, zrušený tah se neuloží, po reopen jsou stejné kotvy/čísla/originál; latence a výpadky měřit bez předstírání prahu |
 | T03 | Přerušení zápisu dat/metadata | Zachována poslední potvrzená revize |
 | T04 | Přerušení mezi souborem média a DB záznamem | Žádné falešné `uloženo`, žádný zničený originál |
@@ -257,7 +257,7 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T09 | Panorama šev 359,9°/0,1° a pól sféry | Kotvy konzistentní i mimo aktuální výřez |
 | T10 | Rozdělení F04 stěny a navázaný F05 nárys | Identita a naměřená délka zachované či vazba jasně nevyřešená |
 | T11 | Laser – zpožděný údaj, nejasná jednotka | Nikdy nevložit do špatné kóty |
-| T12 | Kompletní přenosná záloha, obnova na čisté instalaci | Stejná data, ID, jednotky, vazby, originální mediální bajty |
+| T12 | Kompletní přenosná záloha, obnova na čisté instalaci bez přístupu k původnímu telefonu | Stejná data, ID, jednotky, vazby a skutečně garantované zahrnuté bajty (plný zdroj jen tam, kde byl uchován); jasně odlišná pracovní kopie |
 | T13 | Poškozená/neúplná/starší či novější záloha; existující práce | Bez tichého zničení platné práce |
 | T14 | F35 orientační → konkrétní → schválená revize PDF | Správný stav/datum/revize, vydané PDF nepřepsáno |
 | T15 | Migrace/otevření jiné verze dokumentu | Neznámá data se neztratí, bezpečné odmítnutí nebo migrace |
@@ -278,7 +278,7 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T30 | Hromadný přesun se zámky, ZIP jedné fotky s přílohami, poznámka s více fotkami | ID, zámky, všechna média a editovatelný import zachované; bez skrytého částečného úspěchu |
 | T31 | Revize media+metadata: fail mezi přípravou/potvrzením/GC, save zpožděný vs. novější, běžící záloha | Po reopen pouze poslední plně potvrzená revize, chráněné originály zůstaly; rozdíl pád procesu vs. power-cut doložit zvlášť |
 | T32 | Undo/Redo: zrušení gesta, save error, nová editace po Undo, víceobjektová změna | Žádný falešný `ULOŽENO`, neplatné Redo se nevrátí, celý graf objektů se vrací konzistentně |
-| T33 | M2 záloha během souběžné změny/koše a GC, rychlý podklad, vydané PDF, vlastní symboly | Vše ze stejného potvrzeného snapshotu; souběžná úprava neodpojila bajty ani ID |
+| T33 | M2 záloha během souběžné změny/koše a GC, rychlý podklad, vydané PDF, vlastní symboly | Vše ze stejného potvrzeného snapshotu; souběžná úprava neodpojila skutečně obsažené bajty ani ID, pravdivá role externího zdroje |
 | T34 | Obnova na čisté instalaci a do existující práce s kolizí ID; externí zařízení offline | Původní ID na čisté, v cílové práci odmítnutí či vědomá kopie s úplným remapem; originál nepotřebný k obnově; ochrana soukromí |
 | T35 | Lokální schema vs. ZIP verze, falešný MIME v Android pickeru, starší/novější manifest | Validní ZIP lze vědomě vybrat; neznámé rozšíření zachováno nebo bezpečně odmítnuto, bez změny lokálních preferencí |
 | T36 | Měřicí číslo 0 vs. NEZMĚŘENO, 1/16 in, přesnost zdroje, plocha nepravidelného Lichoběžníku | Nula se nezamění za absenci; 1/16 in přesné, plocha bez dostatku údajů označena neurčená, ne falešně spočtena |
