@@ -15,7 +15,7 @@ V aplikaci bude sekce **Nastavení → Fotografie** se **dvěma nezávislými vo
 | **Kvalita při importu** | Výchozí nastavení pro **existující** fotografie přidávané z galerie/souborů | **Úsporná / Střední / Plná** |
 | **Ukládání nových fotografií** | Kam se ukládají snímky **nově pořízené prostřednictvím CraftPlanu** | **Jen do aplikace / Do aplikace i do galerie telefonu** |
 
-- Všechny tři volby jsou **nezávislé** a zapamatují si poslední výchozí nastavení. **Předvolená možnost ukládání při první instalaci je OTEVŘENO** – nesmí být tiše domyšlena.
+- Všechny tři volby jsou **nezávislé** a zapamatují si poslední uživatelem zvolené výchozí nastavení. **POTVRZENÁ VARIANTA A pro první instalaci (22. 11. 2026): Kvalita při fotografování = Plná; Kvalita při importu = Plná; Ukládání nových fotografií = Jen do aplikace.** Toto přednastavení platí pro nové vstupy, lze je později svobodně změnit a nezmění již uložená média. Volba „Jen do aplikace“ nesmí potichu přidávat nový snímek do galerie.
 - **Při konkrétním fotografování** musí být možné zvolenou kvalitu vidět a **změnit jen pro daný snímek** (přímo v procesu focení / přidání před finálním potvrzením fotografie).
 - **Při konkrétním importu** musí být možné zvolenou kvalitu vidět a **změnit jen pro právě přidávanou fotografii** před potvrzením.
 - Jednorázová změna **kvality** nesmí přepsat příslušné trvalé nastavení; příští nezávislé focení či import opět načte globální výchozí volbu. **Volba místa ukládání** je zatím odsouhlasena v globálním nastavení, nikoli jako povinný přepínač při každém focení.
@@ -29,7 +29,7 @@ V aplikaci bude sekce **Nastavení → Fotografie** se **dvěma nezávislými vo
 - **Střední:** kompromis velikosti a obrazového detailu.
 - **Plná:** maximální *dostupná* kvalita daného zdroje; neslibovat vyšší kvalitu, než skutečně existuje.
 
-**OTEVŘENO:** přesné rozlišení, maximální delší strana, kompresní parametry, podporované formáty, barevný profil, zacházení s metadaty, výchozí předvolená úroveň při první instalaci a případná velikostní indikace. Žádná číselná MP/JPEG hranice není tímto rozhodnutím schválena. Nastavení není totožné s ImageMeter „Maximum texture resolution“.
+**OTEVŘENO:** přesné rozlišení, maximální delší strana, kompresní parametry, podporované formáty, barevný profil, zacházení s metadaty a případná velikostní indikace. Žádná číselná MP/JPEG hranice není tímto rozhodnutím schválena. Nastavení není totožné s ImageMeter „Maximum texture resolution“.
 
 ## 2. Neměnné zásady ochrany originálů – výslovně potvrzeno
 
@@ -71,7 +71,7 @@ Vlastník výslovně rozhodl: **originální soubory se nikdy nemění.**
 
 **Sjednocení po kontrolách (22. 11. 2026, bez nové produktové volby):** [PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) nyní návrhově rozlišuje **externí zdroj / interně uchovaný plný originál / pracovní kopii**, samostatný stav zápisu v aplikaci a galerii, revize a skutečně obnovitelná média. Testy **T45–T47** doplňují FOTO-K01–13; pozdější záloha musí fungovat **bez přístupu k původnímu telefonu**, ale nesmí slibovat neexistující plný zdroj. Fotografie v galerii sama **není záloha zakázky** a může podle nastavení telefonu vstupovat do jeho systémového zálohování či synchronizace. O konkrétní dostupnosti/ochraně soukromí je nutné uživatele pravdivě informovat. Zápis v M0-A nezaručuje implementaci ani funkční test.
 
-**Výslovně nerozhodnuto a neodvozovat automaticky:** (1) předvolené místo ukládání a kvalitativní profil při první instalaci, (2) přesná garance zálohovatelnosti a následné obnovy *plného* originálu ve všech režimech, (3) bezpečná životnost plného mezisouboru, pokud jej kamera skutečně vytvoří před zmenšením, (4) konkrétní systémové API a atomické/chybové stavy galerie. Před implementací M1 a přenosnou zálohou M2 se tyto hranice musejí uzavřít s vlastníkem a vyhodnotit v DESIGN/SECURITY review změněných návrhů. Nezměněný externí originál nikdy automaticky nepřepisovat ani ničit.
+**Výslovně nerozhodnuto a neodvozovat automaticky:** (1) přesná garance zálohovatelnosti a následné obnovy *plného* originálu ve všech režimech, (2) bezpečná životnost plného mezisouboru, pokud jej kamera skutečně vytvoří před zmenšením, (3) konkrétní systémové API a atomické/chybové stavy galerie. **POTVRZENO samostatně:** výchozí profil první instalace je Plná / Plná / Jen do aplikace; tato UX volba sama **neřeší** uchování nezměněných plných bajtů ani obsah zálohy. Před implementací M1 a přenosnou zálohou M2 se tyto hranice musejí uzavřít s vlastníkem a vyhodnotit v DESIGN/SECURITY review změněných návrhů. Nezměněný externí originál nikdy automaticky nepřepisovat ani ničit.
 
 ## 5. Návaznosti a hranice
 
@@ -82,4 +82,4 @@ Vlastník výslovně rozhodl: **originální soubory se nikdy nemění.**
 - ImageMeter je pouze **funkční reference**. Žádný jeho zdrojový kód ani obrazové prvky se nepřebírají; přesná ekvivalence jeho interního nastavení kvality uložení **nebyla prokázána**.
 - Technologie, renderer, obrazový kodek, interní schéma a hranice výkonu zůstávají **NEVYBRÁNO**. Programování, build, testování na Androidu, Actions, merge, výdaje a zásahy do v1 **NEPOVOLENY**.
 
-**HOTOVO v tomto PR:** trvale zapsané vlastníkem schválené UX chování včetně volby místa uložení nových fotografií, hranice ochrany originálů, odkryté bezpečnostní otázky, návrhy nápovědy a akceptačních scénářů. **NENÍ HOTOVO:** navazující datový kontrakt M0-A a jeho nezávislé DESIGN/SECURITY review, technické parametry, implementace či fyzické ověření.
+**HOTOVO v tomto PR:** trvale zapsané vlastníkem schválené UX chování včetně výchozího profilu první instalace **Plná / Plná / Jen do aplikace**, volby místa uložení nových fotografií, hranice ochrany originálů, odkryté bezpečnostní otázky, návrhy nápovědy a akceptačních scénářů. **NENÍ HOTOVO:** navazující datový kontrakt M0-A a jeho nezávislé DESIGN/SECURITY review, technické parametry, implementace či fyzické ověření.
