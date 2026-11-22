@@ -104,8 +104,9 @@
 | K08 | Referenční hotové panorama a šev; malý scénář půdorys–stěna–nárys, později prostorové zobrazení | Trvalé kotvy, topologie, souřadnice, Undo a návaznosti; nepsat nyní všechny moduly |
 | K09 | Jednoznačný/nejistý Bluetooth laserový údaj, jednotka, cílové pole, zpoždění/duplicita | Žádná hodnota v nesprávném poli; hardware/protokol fyzicky až po GO |
 | K10 | Český hlas 850/580, šum, nejasná jednotka, rozpracované kóty, společná kontrola a obnovení | Nepotvrzené hodnoty viditelně neověřené, oprava bez tiché chyby, užitečné offline chování reálně doložené |
-| K11 | Více PDF exportů po sobě v různých zakázkách: skryté poznámky jednou vědomě zapnout a další export spustit jako NOVÝ; ostatní nastavení zůstávají zapamatovaná | Nový export `Zahrnout skryté poznámky` automaticky OFF, běžné PDF volby zachované; náhled stejný jako skutečný soubor, žádné nechtěné poznámky, přílohy či EXIF/GPS, čitelné kóty |
+| K11 | Schválené B01–B04/B07 PDF: plynulé výchozí rozložení a dostupné 1/2 fotografie, jedna automatická orientace pro celý soubor, `Obě verze` = dva oddělené PDF, výchozí zápatí číslo stránky/název ON a datum OFF, skutečný PDF bez EXIF/GPS; dva exporty po sobě s předtím zapnutými skrytými poznámkami a změnou revize během náhledu | Čitelný obsah a vazby foto/poznámky, dva úplné označené soubory ze shodného snapshotu, bez nechtěných GPS/exif a skrytých textů/příloh; každý NOVÝ export citlivý přepínač OFF, ostatní preference se pamatují |
 | K12 | Portovací plán Windows/iOS: seznam UI/hardware adapterů, přenos dat, záloha, export, pero/laser | U každého kandidáta zdokumentovat co se přepíše, licenční podmínky, náklady a údržbu, bez vymyšlených odhadů času |
+| K13 | Schválené B05/B06: jednoduchá úvodní nabídka; změna zobrazení miniatur/dlaždic/seznamu v galerii nebo zakázce; video záznam → přehratelný náhled → OK / Natočit znovu / Storno | Přepínání přehledů nekomplikuje úvod ani neztrácí uloženou preferenci; video uložit do správné složky jen po OK, Storno/neúplný soubor není potvrzená práce; nekreslit kóty do videa |
 
 **Stav testu se musí psát PASS/FAIL/NOT RUN/BLOCKED dle skutečných důkazů.** Žádný uvedený test nebyl spuštěn. Bez samostatného GO nejsou dovoleny placené služby, Actions, emulátorové/fyzické experimenty ani APK.
 
@@ -118,6 +119,10 @@
 **Před M0-D musí být uzavřeno:** přesná měřicí reprezentace a jednotky; ochrana originálů a pravdivé potvrzení uložení; zásady Undo po restartu; bezpečný manifest přenosné zálohy M2; souřadnice EXIF/panoramatu/půdorysu; podmínky použití samostatně neověřeného hlasu; reálné náklady a licence; cílová třída Android zařízení včetně potřeby S Pen; potřeba a realistický horizont Windows/iOS.
 
 **Finance:** limit placených služeb 12 USD/měsíc; tento dokument nepovoluje žádný výdaj. Qt Licence a LTS dostupnost vyžadují samostatné právní/cenové posouzení. Flutter pluginy i Android knihovny je nutné posoudit jednotlivě v době použití; nechceme neudržovaný balíček jako nevratný základ.
+
+### 6.1 Schválené drobnosti B01–B07 – důsledky pro M0-D
+
+**Vlastník schválil všech sedm 22. 11. 2026, podrobné závazné znění má PR #4.** Nejsou to nové blokující technologické volby: B01 plynulé PDF default, B02 jednotná automatická orientace dokumentu, B03 dva samostatné PDF při exportu obou verzí, B04 zápatí číslo stránky/název zakázky ON a datum OFF, B05 čistá úvodní stránka bez přepínače miniatur, B06 video náhled s OK/Znovu/Storno, B07 zákaznické PDF bez GPS/EXIF polohových metadat. Předchozí schválené režimy a budoucí požadavky zůstávají. **K11/K13 jsou kontrolní scénáře NOT RUN**; u žádného kandidáta nepředstírat PDF/video výkon či bezpečnost. Přenosná M2 záloha zachová skutečně uložené bajty a není zákaznickým filtrovaným PDF.
 
 ## 7. Brána a další bezpečný krok
 
