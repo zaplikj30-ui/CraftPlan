@@ -29,11 +29,18 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 | UX-15 | **Nejdřív navrhnout budoucí celek aplikace**, navigaci mezi zakázkami, galerií, různými dokumenty; potom vybrat malý M1 díl, aniž by se později musel bourat základ. | **POTVRZENÝ návrhový postup** |
 | UX-16 | U kót zachovat osvědčené úchopy, žluté čáry, přesnou lupu, čitelnost čísel a možnost přesunu celé kóty středem, koncového bodu koncem. Primární problém v1 je sekání; nepřevádět jeho kód či produkční data. | **Dříve potvrzený ergonomický cíl podle PR #1**, finální UI CraftPlanu neodsouhlaseno |
 
+| UX-17 | **Nová kóta zůstává po nakreslení vybraná** (viditelné úchopy, dostupná následná úprava); klepnutí na prázdné místo výběr zruší. Klepnutí na kótu/její hodnotový popisek dovolí ručně otevřít zadání či úpravu rozměru. | **POTVRZENO vlastníkem 22. 11. 2026**, důsledně odlišit výběr od nechtěného tahu a gesta |
+| UX-18 | **Pořadí „nejprve nakreslit, potom zadat číslo“**. Nezměřená kóta zůstává uložitelná jako **nezměřeno**, nikoli jako skutečná nula či délka odhadnutá z pixelů. Hodnotu lze doplnit a později upravit. | **POTVRZENO**; finální podoba označení nezměřeného stavu je **OTEVŘENÁ**, současný otazník `?` vlastníkovi vizuálně nevyhovuje |
+| UX-19 | Při budoucím **připojení laseru F03** může bezpečně přijatá hodnota **rovnou vyplnit právě označenou kótu**, bez zbytečného ručního přepisování; pouze při jednoznačné identitě cílové kóty/pole, kompatibilní jednotce, platném měření a neexpirovaném kontextu. Při nejednoznačnosti odmítnout automatické přiřazení a nabídnout kontrolu, nikdy nezapsat do jiné kóty. | **POTVRZENÝ UX CÍL, TECHNICKY POZDĚJI** (F03/M5); **laser není součástí M1**, případné rané experimenty jen po GO; vazba na CP3-05/T37 v PR #3 |
+| UX-20 | **Zadávání hodnoty nesmí zakrýt systémová klávesnice**. Dialog/list/okno posunout či zmenšit vůči skutečně viditelné ploše a udržet **Uložit hodnotu** dosažitelné v režimu na výšku i na šířku, na malém telefonu a při znovuotevření/otočení. Zadávání zachová rozepsanou hodnotu a jednotku, nepřipustí falešně potvrzený zápis. | **POTVRZENÝ požadavek**; konkrétní řešení horního dialogu vs. přizpůsobitelný panel **OTEVŘENO**, fyzický Android/IME test NOT RUN |
+| UX-21 | **Náhrada nevzhledného `?` pro nezměřenou kótu**: vlastník chce posoudit hezčí a srozumitelný stavový popisek. Návrhoví kandidáti: malý štítek **„Zadat“** nebo krátká pomlčka **„—“** s vysvětlením „nezměřeno“. Po zadání zobrazit přesné číslo a jednotku, nic neodvozovat z pixelů. | **OTEVŘENO**, žádná konkrétní náhrada zatím nebyla vybrána |
+
+
 ## Otevřené návrhové otázky k dalšímu projednání
 
 1. **Lišta:** bude swipe, šipka, vyjížděcí panel, nebo uživatelsky volitelná kombinace? Jak přesně přesunout, přeskupit a zamknout bez kolize s kreslením, lupou, scrollováním, S Penem a změnou orientace? Dva základní ovladače musí být stále dostupné.
 2. **Výběr/Přidání a Opakování:** přesná definice každého přepínače, jedna vs. opakovaná akce, krátký/dlouhý stisk, označení stavu, návrat do režimu výběru a interakce s Undo/Redo.
-3. **Kóta a zadání skutečné míry:** při jaké akci se otevře číslo/jednotka, stavy „nezměřeno“, ruční zadání, úchopy, lupa a kolize gest. Nevymýšlet nové ovládání již schválených úchopů bez předvedení rozdílu.
+3. **Kóta a zadání skutečné míry:** postup vytvořit → zůstane vybraná → klepnutím na kótu otevřít hodnotu → klepnutím mimo odznačit je nyní potvrzen. **Otevřeno**: náhrada `?` (např. „Zadat“ vs. „—“), konkrétní poloha a adaptivní chování zadávacího okna nad klávesnicí, stavy při zrušení/vymazání čísla a fyzické ověření gest. F03 laser je pozdější integrace.
 4. **Celá navigace:** rychlé zaměření vs. práce v zakázce, galerie, editory dalších dokumentů, menu a nastavení, práce na výšku/šířku.
 5. **Vizuální jazyk:** barvy, ikony, rozměry, vzhled lišty a výchozí pořadí dosud neschváleny. Skici v chatu byly pouze orientační ilustrace.
 
@@ -50,6 +57,6 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 - [PR #1 – katalog, ergonomie, diagnostika, verze](https://github.com/zaplikj30-ui/CraftPlan/pull/1).
 - [PR #2 – hlavní plán a rozlišení M0/M1/M2](https://github.com/zaplikj30-ui/CraftPlan/pull/2).
 - [PR #3 – M0-A kontrakty a návrhové testy T01–T44](https://github.com/zaplikj30-ui/CraftPlan/pull/3).
-- **Původ nových UX-01 až UX-15:** výslovná rozhodnutí, preference a otázky vlastníka v projektové konverzaci CraftPlan dne 22. 11. 2026. Nejde o převzetí starého Zaměřovače 1 jako produktu.
+- **Původ nových UX-01 až UX-21:** výslovná rozhodnutí, preference a otázky vlastníka v projektové konverzaci CraftPlan dne 22. 11. 2026. Nejde o převzetí starého Zaměřovače 1 jako produktu.
 
 **Důležité:** PR #1–#3 a `main` se nemění; tento soubor je samostatná pracovní UX dokumentace k budoucí kontrole.
