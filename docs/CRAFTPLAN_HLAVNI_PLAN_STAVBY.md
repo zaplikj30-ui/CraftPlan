@@ -64,7 +64,7 @@
 | **Obnova a zálohování** | Pád procesu vs. skutečný výpadek napájení, plný disk, vadná příloha, nesprávná migrace, poškozený záznam; pravidla návratu k předchozímu stavu s jasnou informací. **Již v M0-A určit minimální kontrakt přenosné zálohy M2:** verze formátu, úplný inventář ID, vazeb, přesných hodnot/jednotek a původních mediálních bajtů, integrita, úplnost, ochrana před částečným výstupem a pravidla soukromí. Poškozená/neúplná/nepodporovaná záloha nesmí přepsat poslední platnou práci. Oddělit lokální recovery od přenosné zálohy a sync. |
 | **Migrace dat CraftPlanu** | Verze schématu a souborů, bezpečné otevírání starší/novější verze, test vratnosti nebo bezpečné odmítnutí. **Nezaměňovat s importem ze Zaměřovače 1.** |
 | **Přenositelnost** | Rozhraní modelu a formát nezávislé na UI; platformní integrace jen tam, kde jsou potřeba. Pro **každého vážného kandidáta** M0-D srovnatelně odhadnout dlouhodobé náklady a náročnost portu na Windows/iOS/iPadOS, včetně neověřených předpokladů; fyzický portovací prototyp není nyní povinný. Žádný předčasný plugin engine, účet, server ani multiplatformní UI. |
-| **Rozhodovací zkoušky** | Srovnatelné scénáře, konkrétní zařízení, měřené vlastnosti a návrh prahů PASS/FAIL; jen syntetická nebo bezpečně veřejná data. |
+| **Rozhodovací zkoušky** | Srovnatelné scénáře, cílové slabší zařízení, konkrétní prst/pero a realistická velká média, měřené vlastnosti/latence/paměť a předem navržené prahy PASS/FAIL; u každé vážné technologie explicitní integrační náklady foto/video/PDF/Bluetooth/offline hlasu/portu, údržba a licence; jen syntetická nebo bezpečně veřejná data. |
 
 **Výstup M0-A:** malý kontrolovatelný datový slovník, diagram vazeb, popis ukládacího protokolu **i minimální přenosné zálohy M2**, příklady správných/chybných vstupů a matice akceptačních scénářů. Provázat původních **49 požadavků a všech F01–F39** na existující katalog/registr: u každého dohledat stav (připraveno / otevřeno / odloženo / skutečně ověřeno) a etapu nebo „zatím bez etapy“. Nepřidávat duplicitní zdroj pravdy a při změnách kontrolovat, že žádný detail nezmizel. **Není to hotový program.**
 
@@ -89,17 +89,17 @@ Vhodné kandidátní zkoušky, jejichž skutečný rozsah se ještě schválí:
 
 Sepsat výsledky, **srovnatelné odhady budoucího portu a dlouhodobé náklady každé vážné technologické varianty**, výslovně přijatá rizika a reálné budoucí potřeby. Nerozhodovat jen podle plynulosti jediného 2D editoru či popularity frameworku. Po eventuálních zkouškách aktualizovat kontrakty a podle podstatnosti změn zopakovat DESIGN/SECURITY review. **Vlastník teprve poté výslovně rozhodne** o jazyku/frameworku, editoru/rendereru, úložišti a případném spuštění M1. Zvolená technologie není důkaz, že aplikace funguje.
 
-**M0 HOTOVO** = sjednocené ověřitelné kontrakty a testy; žádný nevyřešený kritický bezpečnostní rozpor; nezávislé návrhové review; výsledky povolených experimentů nebo jasné přijetí neověřených rizik; dokumentované rozhodnutí vlastníka; konkrétní zadání prvního malého M1 úkolu.
+**M0 HOTOVO** = sjednocené ověřitelné kontrakty a testy; **žádný nevyřešený kritický bezpečnostní rozpor včetně trvalosti save, obnovy a fotografie**; nezávislé návrhové review **změněných revizí**; výsledky případných povolených experimentů nebo výslovně přijatá neblokující neověřená rizika; dokumentované rozhodnutí vlastníka; konkrétní zadání prvního malého M1 úkolu. Dosavadní posudky [PR #5](https://github.com/zaplikj30-ui/CraftPlan/pull/5) jsou výchozí nálezy, ne automatické schválení po opravách.
 
 ## 4. M1 – první skutečný offline pracovní celek
 
-**Rozsah:** vybrat/pořídit fotografii, zachovat originál, vložit a přesně editovat kótu, ovládat úchopy/gesta prstem a perem včetně zoom/pan, Undo/Redo, bezpečně uložit, ukončit či v testu přerušit a znovu otevřít poslední platný stav. **Rychlé zaměření bez povinného zákazníka** musí být možné; plné zakázky přijdou v M2.
+**Rozsah:** vybrat/pořídit fotografii, **ochránit existující originál a v aplikaci garantovat skutečně dostupnou a bezpečně uloženou verzi podle pravidel [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6), jejichž garanci plného zdroje je nutné před M1 ještě výslovně uzavřít**, vložit a přesně editovat kótu, ovládat úchopy/gesta prstem a perem včetně zoom/pan, Undo/Redo, bezpečně uložit, ukončit či v testu přerušit a znovu otevřít poslední platný stav. **Rychlé zaměření bez povinného zákazníka** musí být možné; plné zakázky přijdou v M2.
 
 **Od začátku malá volitelná místní diagnostika** bez zákaznických dat, s ověřenou režií a možností prohlížení, výběru a sdílení/mazání záznamů v rozsahu schváleného funkčního kontraktu. Nedělat velký automatický testovací framework.
 
-**HOTOVO / důkazy:** přesnost čísel a jednotek, byte-for-byte originál, funkční Undo/Redo a interakce, test přerušení a plného disku, žádné falešné „uloženo“, bezpečný reopen, výkon delšího tahu a mnoho pohybů, diagnostika nezhoršuje ukládání. Automatické testy **nejsou** důkazem funkčnosti fyzického Androidu. Samostatný autorský SOURCE/SECURITY review, nezávislé review, fyzické scénáře a vlastníkovo GO.
+**HOTOVO / důkazy:** přesnost čísel a jednotek, **byte-for-byte kontrola tam, kde je plný původní soubor skutečně slíben, a jasné označení pracovní odvozeniny v ostatních režimech (otevřená produktová hranice M0-A)**, funkční Undo/Redo a interakce, test přerušení a plného disku, žádné falešné „uloženo“, bezpečný reopen, výkon delšího tahu a mnoho pohybů, diagnostika nezhoršuje ukládání. Automatické testy **nejsou** důkazem funkčnosti fyzického Androidu. Samostatný autorský SOURCE/SECURITY review, nezávislé review, fyzické scénáře a vlastníkovo GO.
 
-**Omezení:** pouze syntetická/nahraditelná data; žádné nenahraditelné zakázky, účty, sync, server, automatický import dat ze v1 nebo plošná implementace budoucích funkcí.
+**Omezení:** pouze syntetická/nahraditelná data; žádné nenahraditelné zakázky, účty, sync, server, automatický import dat ze v1 nebo plošná implementace budoucích funkcí. **Před M1 GO** rozhodnout otevřené parametry ukládání fotografií (včetně výchozího místa uložení na nové instalaci) a ověřit, že zvolený dílčí rozsah neztrácí potvrzenou práci. Zjistit skutečná pravidla systémových Android záloh/přenosu zařízení a jejich dopad na soukromá média/diagnostiku; samotný systémový backup nepředstavuje přenosnou zálohu CraftPlanu.
 
 ## 5. M2 – organizace práce a brána pro skutečná data
 
@@ -107,7 +107,7 @@ Zakázky, zákazníci, strom složek a podsložek, rychlé zaměření bez záka
 
 **Před nenahraditelnými zákaznickými zakázkami** samostatně prokázat **přenosnou zálohu a skutečnou obnovu** podle kontraktu M0-A, se všemi objekty, ID, vazbami, přesnými hodnotami a originálními médii. Záloha má verzovaný formát a ověřitelný inventář i integritu; částečný export se nesmí vydávat za platnou zálohu. Ochrana soukromí je povinná. Může to být malý účelový mechanismus dříve než plný editovatelný export M4. Nepředstírat, že dvě lokální revize chrání před ztrátou telefonu.
 
-**HOTOVO:** zachované ID a vazby při přesunech/mazání; obnova z koše a podle povolených pravidel; výkon galerie s 10/100/1 000 položkami; restart, plný disk a chybějící příloha. **Test přenosné zálohy:** vytvořit → ověřit → obnovit na čisté instalaci či odděleném zařízení → porovnat všechny ID, vazby, objekty, přesné hodnoty a originální mediální bajty. Poškozený nebo neúplný archiv, nepodporovaná verze a nedostatek místa se bezpečně odmítnou, **aniž by přepsaly poslední platnou práci**. Testovat také pokus o obnovu do prostředí s existující platnou prací. Kde ještě nelze použít skutečná data, jasně to označit.
+**HOTOVO:** zachované ID a vazby při přesunech/mazání (přesun zachovává ID, nezávislá kopie má nová a přemapuje odkazy); obnova z koše a podle povolených pravidel; **automatické trvalé mazání je podle UX-100 výchozí OFF a nesmí být potichu součástí základního koše**; výkon galerie s 10/100/1 000 položkami; restart, plný disk a chybějící příloha. **Test přenosné zálohy:** vytvořit → ověřit → obnovit na čisté instalaci či odděleném zařízení → porovnat všechny ID, vazby, objekty, přesné hodnoty a originální mediální bajty. Poškozený nebo neúplný archiv, nepodporovaná verze a nedostatek místa se bezpečně odmítnou, **aniž by přepsaly poslední platnou práci**. Testovat také pokus o obnovu do prostředí s existující platnou prací. Kde ještě nelze použít skutečná data, jasně to označit.
 
 ## 6. M3 a M4 – rozvoj podle pracovních priorit a závislostí
 
@@ -157,8 +157,8 @@ Jeden konkrétní fyzicky dostupný model/firmware a telefon: nejprve ruční za
 
 - **F01 horizontální panorama a F02 plná sféra:** import hotového, prohlížení a editovatelné kóty, průvodce pořízením a kvalitní spojování zdrojových snímků; dva nezávislé přepínače nástrojů. **Riziko ověřit časně**, plný editor nestavět v M1.
 - **F06 prostorový orientační náhled** až na stabilních F04/F05; není automaticky CAD/3D engine.
-- **B1 přenosné/offline a pozdější cloudové zálohování** a **B2 živá synchronizace** jsou oddělené; cloud až s prokázanou lokální integritou, ID/revizemi, konflikty a samostatným GO.
-- **F10/F13 hlasové diktování a případná volitelná AI:** validované stejné editační příkazy jako ruční editor; AI nesmí vyrábět skutečné naměřené hodnoty z pixelů.
+- **B1 rozšířené pozdější cloudové zálohování** a **B2 živá synchronizace** jsou oddělené od **minimální přenosné zálohy M2**; cloud až s prokázanou lokální integritou, ID/revizemi, konflikty a samostatným GO. Požadavek J11 na budoucí telefon/tablet a případný počítač je pokryt stabilními ID, revizemi a portovatelným formátem v M0; **v M1 žádná síťová synchronizační infrastruktura**.
+- **F10/F13 hlasové diktování a případná volitelná AI:** potvrzené UX-101 = souvislá uživatelsky zahájená relace s více kótami a společnou kontrolou „Potvrdit vše“; čísla před potvrzením zůstávají neověřená a bez zveřejnění jako skutečná měření. Zkoumat jednoduché krátké výroky před vlastním hlasovým enginem. AI nesmí vyrábět skutečně naměřené hodnoty z pixelů.
 - **F33/F34 pracovní čas a obchodní funkce, F36/F37 zákaznický režim/sdílení, další F01–F39, internacionalizace a moduly:** podle produktové priority, soukromí, bezpečnosti a nákladů. V matici požadavků neztratit **zvuk/video přílohy, přepínače viditelnosti nástrojů a offline nápovědu**. **F07 a F32 zůstávají odložené**, nikoli bez povolení znovu naplánované.
 - **Windows/iOS/iPadOS:** před závazným termínem portu samostatná proveditelnost myši/pera, souborů, Bluetooth, balení, ceny a reálně sdíleného jádra/UI. Samotný obecný příslib frameworku není důkaz funkčnosti aplikace.
 - **Konfigurátor–Nářezák a Převaděč spojitosti:** samostatné projekty; případná integrace jen po novém rozhodnutí vlastníka.
@@ -167,19 +167,19 @@ Jeden konkrétní fyzicky dostupný model/firmware a telefon: nejprve ruční za
 
 **Před významnou implementací:** jasný kontrakt, vstupy/výstupy, testy, hranice, aktuální HEAD/base, samostatná větev/PR a odpovídající GO. Autor provede po změnách skutečné testy a vlastní důkladné SOURCE/SECURITY review celého kumulativního diffu, opraví chyby a zopakuje kontrolu na finálním SHA. Jiný chat/osoba potom provede nezávislé review s verdiktem **APPROVE SOURCE / CHANGES REQUIRED / STOP**. **Zdrojový PASS není fyzický PASS.** Merge/Actions/APK/vydání/placený běh jen po samostatném výslovném GO.
 
-**TEĎ:** pouze dokončit M0-A a nezávislou návrhovou kontrolu, připravit srovnatelná testovací kritéria.  
+**TEĎ:** sjednotit M0-A se všemi novějšími UX a foto rozhodnutími, vypořádat nálezy kontrolorů a připravit srovnatelná testovací kritéria; **neopakovat celou již hotovou rešerši bez důvodu**, ale změněné revize kontrolovat.  
 **POZDĚJI:** samostatně schválené experimenty M0-C, rozhodnutí M0-D, environment pro schválené technologie, první implementace M1.  
 **NEMĚNIT:** Zaměřovač 1 a jeho data, HOME runner, žádné neodsouhlasené CI, APK, merge ani náklady.
 
 ## 10. Otevřená rozhodnutí a známé rozpory
 
 1. **Technologie:** starší AGENTS/START_ZDE/Strom vývoje a další dokumenty PR #1 mluví o schváleném Kotlin + Compose prototypu. **Novější výslovné rozhodnutí vlastníka: definitivní technologie ani první renderer nejsou vybrány.** Tyto dokumenty bude třeba **po schválení nového rozhodnutí** sjednotit v kontrolované změně; nynější draft to sám potichu nemění.
-2. **Pořadí M2–M5:** původní strom odkládá export a instalační plány. Tento nový návrh přesouvá **minimální přenosnou zálohu** před skutečné zakázky, zvyšuje prioritu **F35** a dovoluje ranou technickou zkoušku laseru/panoramatu. **Přeskupení je návrh k rozhodnutí**, ne už schválená změna funkčních požadavků.
+2. **Pořadí M2–M5:** původní strom dokumentoval starší pořadí; po pozdějším souhlasu vlastníka je tento návrh **aktuální pracovní pořadí** s minimální přenosnou zálohou v M2 před nenahraditelnými zakázkami a časným F35. Konkrétní rozsah pozdějších podetap i případný významný odklad zůstávají předmětem samostatného rozhodnutí vlastníka.
 3. **Reprezentace míry:** mikrometry a přesný text jsou **kandidáti k porovnání**, ne uzavřený datový formát; včetně zlomkových palců, ploch a možného přetečení.
-4. **Undo/Redo po restartu**, podrobné technické a validační detaily zálohy podle základního kontraktu M0-A, cílové slabší zařízení, termín iOS/Windows a praktické pořadí F35/F04/F05/F03/F01 vyžadují upřesnění podle priorit.
+4. **Undo/Redo v M1:** podle novějšího ROZ-09 se historie Undo/Redo **nemusí zachovat po restartu**; poslední potvrzené objekty ano. Otevřené jsou technické limity, podrobnosti zálohy, ochrana originálů a výchozí místo fotografií dle PR #6, cílové slabší zařízení, termín iOS/Windows a pozdější pořadí F35/F04/F05/F03/F01.
 5. **Neověřeno:** všechny runtime výkonnostní hodnoty, bezpečnost při fyzickém výpadku, dostupnost konkrétního Bluetooth profilu, stitching panoramat, kompatibilita Windows/iOS a náklady konkrétních knihoven.
 
-**Tento dokument je hlavní návrh k připomínkování, dokud nebude výslovně schválen. Nenahrazuje aktuální zdroj pravdy v PR #1 automaticky.**
+**Tento dokument je aktuálním návrhovým vodítkem pro pořadí M0–M5 a je propojen s upravenými pravidly PR #1.** Zůstává DRAFT bez implementačního GO, bez uzavřené M0-A a bez výběru technologie.
 
 ## 11. Podklady a dohledatelnost
 
