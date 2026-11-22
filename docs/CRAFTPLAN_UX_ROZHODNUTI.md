@@ -34,6 +34,17 @@ Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog f
 | UX-20 | **Zadávání hodnoty nesmí zakrýt systémová klávesnice**. Dialog/list/okno posunout či zmenšit vůči skutečně viditelné ploše a udržet **Uložit hodnotu** dosažitelné v režimu na výšku i na šířku, na malém telefonu a při znovuotevření/otočení. Zadávání zachová rozepsanou hodnotu a jednotku, nepřipustí falešně potvrzený zápis. | **POTVRZENÝ požadavek**; konkrétní řešení horního dialogu vs. přizpůsobitelný panel **OTEVŘENO**, fyzický Android/IME test NOT RUN |
 | UX-21 | **Místo otazníku `?` schválen motiv malé ikony skládacího dřevěného metru (truhlářský skládací metr) s viditelnými ryskami.** Má být drobná, vizuálně čistá, s dostatečně velkou dotykovou oblastí; klepnutí na místo hodnoty umožní její zadání. Není to automatické měření, nenahrazuje přesnou hodnotu, jednotku ani stav **nezměřeno**. Po vyplnění se zobrazí číselná míra a jednotka. Nezaměňovat za svinovací pásmo; předchozí návrhy textu „Zadat“ nebo „—“ se nevolí. | **POTVRZENÝ MOTIV vlastníkem 22. 11. 2026**; konkrétní grafika, velikost a kontrast k pozdějšímu návrhu/ověření, nikoli GO k programování |
 
+## Závazné shrnutí kóty pro další UX návrh (výslovně potvrzeno vlastníkem 22. 11. 2026)
+
+**Princip: v CraftPlanu má kóta fungovat téměř stejně jako v Zaměřovači 1, jehož ergonomie vlastníku velmi vyhovovala; není cílem překreslovat ani předělávat úchopy, natahování, uchopení středu, otáčení, lupu či automatickou čitelnost čísla.** Při návrhu/testu nejprve porovnat referenční funkční chování v1, ale **nepřebírat automaticky její kód, data ani výkonové chyby**.
+
+**Jediné výslovně požadované uživatelské změny oproti této referenci nyní:**
+1. Nahradit `?` u dosud nezměřené kóty **malou ikonou skládacího dřevěného metru s ryskami** (ne svinovací pásmo).
+2. **Opravit zadávací okno**, aby systémová klávesnice nikdy nepřekryla akci **Uložit hodnotu**; adaptovat layout pro viditelnou plochu a orientaci.
+3. **Odstranit sekání/latenci** při tažení a posunu, při zachování již vyhovujícího poměru úchopů a chování; ověřit skutečným prstem/S Penem a sériemi tahů, OFF/ON diagnostika.
+
+Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr zruší; klepnutí na ni umožní editaci hodnoty. Budoucí laser bezpečně zapisuje do jednoznačně označené cílové kóty podle pravidel F03/CP3-05. **Tohle je schválený funkční směr, nikoli runtime PASS nebo technologické/implementační GO.** Další odlišnosti oproti v1 navrhovat pouze samostatně s důvodem a odsouhlasením vlastníka.
+
 ## Otevřené návrhové otázky k dalšímu projednání
 
 1. **Lišta:** bude swipe, šipka, vyjížděcí panel, nebo uživatelsky volitelná kombinace? Jak přesně přesunout, přeskupit a zamknout bez kolize s kreslením, lupou, scrollováním, S Penem a změnou orientace? Dva základní ovladače musí být stále dostupné.
