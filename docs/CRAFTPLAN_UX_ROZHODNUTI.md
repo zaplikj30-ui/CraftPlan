@@ -256,6 +256,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **Dříve schválená pravidla zůstávají:** auto-mazání výchozí OFF (UX-100), ruční trvalé mazání vždy varuje a vyžaduje souhlas, obnova nejprve na původní místo a jinak do viditelných `Obnovené z koše` dle UX-65, práva/zámky a ochrana dat přítomných v jiných živých revizích či aktivním ZIP snapshotu. Přenosná M2 záloha Koš obsahuje jen při schválené volbě. Technické fyzické ověření: NOT RUN; bez GO.
 
+### ROZ-47 – systémový přenos Androidu nejprve skutečně otestovat (22. 11. 2026)
+
+**Vlastníkův výslovný požadavek a odsouhlasený směr ověřování:** systémový přenos dat CraftPlanu mezi dvěma telefony **předem nezakazovat bez důkazu**; nejprve na zkušebních instalacích ověřit běžný přenos Android D2D a samostatně obnovu ze systémové cloudové zálohy Android/Google. Po přenosu nestačí, že se aplikace spustí: porovnat všechny **zahrnuté** zakázky, složky, média a jejich skutečně uložené bajty, kóty a přesná čísla, původ jednotek, kotvy, poznámky včetně skrytých, přílohy, Koš, ID/vazby/revize a následnou editovatelnost. Zkoušet výhradně s nahraditelnými syntetickými daty, bez skutečných zákaznických údajů; vyhodnotit případné limity velikosti a OS. Nezávislá uživatelem vytvářená úplná ZIP záloha M2 se neruší.
+
+**Stav rozhodnutí:** POTVRZENO otestování před závěrem o bezpečnosti; **OTEVŘENO** výchozí produkční zapnutí D2D/cloudových záloh. Tato odpověď není GO pro programování, build ani fyzické testy a není souhlasem s automatickým přenosem reálných zakázek do Google cloudu. Podrobný kontrakt a připravené, dosud **NOT RUN** scénáře jsou v PR #3 §10.1/T54 a PR #5 K14.
+
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
 ### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
