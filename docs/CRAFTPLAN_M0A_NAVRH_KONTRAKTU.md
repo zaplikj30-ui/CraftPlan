@@ -222,11 +222,29 @@ Lokální crash recovery řeší pád aplikace; přenosná záloha ztrátu telef
 
 ### 7.1 Konzistentní záchranná záloha a bezpečná obnova – CP3-02
 
-**NÁVRH MINIMÁLNÍHO ROZSAHU M2:** záloha vychází z **jedné již potvrzené revize**; její graf zahrnuje rychlé zaměření mimo zakázky, zakázky/složky, dokumenty, kóty/měření, skutečně interně uchovaná média a přílohy (včetně transparentního údaje o externích/chybějících plných zdrojích), **stav koše v první přenosné záloze podle novějšího ROZ-24**, a pro podporované budoucí typy také **vlastní definice symbolů a konkrétní vydané revize dokumentů**. Podle ROZ-24 se první záloha v M2 vytváří **včetně koše**, pokud existují položky; vlastní automatická retence a její časové lhůty jsou odlišná pozdější funkce UX-100. Nic neodvozovat jen ze zrovna otevřené obrazovky. **Nezahrnovat jako autoritativní obsah** regenerovatelné náhledy, cache ani místní jazyk/UI nastavení jiného telefonu. Ochrana proti souběžné úpravě, smazání/koši, exportu a GC: po dobu vytváření archivu **zafixovat logický snapshot a dostupnost všech jeho originálů**. Pokud to není zajištěno, zálohu nedokončit jako platnou. Manifest, všechna data a originály musí pocházet ze stejného potvrzeného bodu čtení.
+**MINIMÁLNÍ M2 GRAF – NÁVRH:** jedna již potvrzená revize zahrnuje rychlá zaměření mimo zakázky, zákazníky/zakázky/složky, dokumenty, kóty/měření, poznámky a navázané přílohy, skutečně uloženou jedinou interní fotoverzi ve vybrané kvalitě, existující vydané dokumenty a používané vlastní symboly. **ROZ-24: Koš je VOLITELNÝ; při první úplné záloze je předvolen ZAHRNOUT, ale uživatel jej smí vypnout.** Při vypnutí výslovně ukázat, že položky koše obnovitelné nebudou; při dalších zálohách pamatovat poslední zvolenou možnost. UX-100 automatické mazání zůstává OFF. Po dobu tvorby archivu zmrazit logický snapshot a chránit všechny jeho odkázané soubory před uvolněním a souběžnými změnami. Cache, odvozené náhledy a UI preference cílového telefonu nejsou autoritativní data.
 
 **Obnova není stejná jako kopírování ZIP souborů:** číst a validovat v izolovaném prostoru, včetně úplnosti originálů, cest, verzí, referenční integrity a oprávnění; před potvrzením nic destruktivně nenahradit. Na prázdné instalaci obnovení původního snapshotu **zachová ID**. Při existující práci **nenahrazovat cizí ID**: výslovně odmítnout konflikt, nebo uživatelem potvrzené **„importovat jako novou kopii“** se systematickým přemapováním ID všech objektů, vazeb, symbolových závislostí a mediálních odkazů. Samostatná volba skutečného synchronizačního sloučení je až B2, nikoliv skryté chování obnovy. Úspěch až po ověření **celého finálního artefaktu v cílovém úložišti** a po úspěšném **samostatném akceptačním testu** obnovy na **jiné instalaci bez přístupu k původnímu telefonu**, včetně ověření skutečně slíbených původních bajtů. **Kontrola každého jednotlivého exportu a důkaz, že mechanismus obnovy funguje, jsou různé události**; jeden úspěšný ZIP ani kontrolní součet nenahrazuje akceptační obnovení.
 
 **Soukromí:** exportovat původní bajty může zahrnovat EXIF/GPS i zákaznické údaje; zobrazit citlivost zálohy, omezit přístup/automatické zveřejnění a před prvním reálným použitím rozhodnout **zda a jaké šifrování/přístupový klíč** je nutný pro vybraný způsob přenosu/uložení. Zálohová bezpečnost a zákaznický filtrovaný PDF jsou **odlišné výstupy**; obsah zálohy netvrdit jako anonymizovaný.
+
+### 7.1.1 Minimální přenosný manifest, kontrola a obnova – NÁVRH M0-A
+
+Jeden uživatelem vědomě vytvořený archiv vychází ze snapshotu jedné potvrzené revize. Minimální manifest:
+
+| Část | Povinné údaje |
+|---|---|
+| Hlavička | backupFormatVersion (oddělené od verze DB), backupId, snapshotRevisionId, rozsah, trashIncluded |
+| Data | typy a ID objektů, rodiče/vazby, kóty a přesná čísla s jednotkou/původem/stavem, poznámky, viditelnost, podporovaná rozšíření |
+| Média | každý skutečně interně uložený snímek/příloha: mediaId, role, zvolená kvalita, formát, orientace, rozměry, bezpečná relativní cesta, počet bajtů a SHA-256 uložených bajtů |
+| Úplnost | počty typů/objektů/souborů, záměrně vynechaný koš, označení externích původních souborů, jež nejsou nutné pro obnovení interní verze |
+| Kompatibilita | podporovaná verze, povinná a kompatibilní rozšiřující pole, bez tiché ztráty neznámých dat |
+
+Export musí ověřit nejen zdroje, ale i HOTOVÝ archiv; při chybě nesmí zobrazit úspěch. SHA-256 kontroluje integritu dat, nikoliv pravost archivu proti útočníkovi, který vymění i manifest. Obnova v odděleném prostoru zkontroluje verzi, úplnost, hash, vazby, bezpečné cesty a kapacitu PŘED změnou živých dat. Na čisté instalaci zachová ID; v existující práci odmítne kolizi nebo po vědomé volbě vytvoří novou kopii s úplným remapem. Až po validaci publikuje konzistentní obnovený snapshot.
+
+POVINNÝ POZDĚJŠÍ DŮKAZ M2: archiv vytvořit, ověřit, skutečně obnovit na jiném zařízení/čisté instalaci bez původního telefonu a porovnat identické bajty interních fotografií, přesné míry, poznámky, koš dle volby a všechny vazby; poté negativní testy. Samotný hash ani otevření ZIPu neznamená PASS obnovy.
+
+Soukromí: archiv může obsahovat osobní a zákaznická data a EXIF/GPS. Neposílat jej automaticky do cloudu; uživatel vybírá cíl. Před použitím pro nenahraditelné zakázky vyřešit požadovanou úroveň šifrování/přístupu pro cílový způsob předání. Konkrétní ZIP limity, ověření odebrané SD/úložiště, ZIP bomb a fyzická disková trvanlivost čekají na schválené testy.
 
 ### 7.2 Editovatelný ZIP podle přesné aktuální množiny – CP3-12
 
