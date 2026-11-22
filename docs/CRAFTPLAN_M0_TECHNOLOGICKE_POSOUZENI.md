@@ -6,7 +6,7 @@
 
 - [PR #1 – úplné zadání](https://github.com/zaplikj30-ui/CraftPlan/pull/1): J1–J12, F01–F39, 49 historických dílčích požadavků, 28 historických testů. Staré věty o dříve schválené technologii nepřebírat; novější rozhodnutí vlastníka stanoví **technologie nevybrána**.
 - [PR #2 – plán M0–M5](https://github.com/zaplikj30-ui/CraftPlan/pull/2): návrhová M0-A, nezávislé DESIGN/SECURITY M0-B, jen po zvláštním GO experimenty M0-C, rozhodovací brána vlastníka M0-D a teprve pak M1.
-- [PR #3 – M0-A kontrakty, matice 12+39+49+28 a testy T01–T44](https://github.com/zaplikj30-ui/CraftPlan/pull/3): přesné hodnoty, identity, měřicí pole, geometrie, save/reopen, ochrana médií, zálohy, rizikové scénáře a dosud otevřené části návrhu.
+- [PR #3 – M0-A kontrakty, matice 12+39+49+28 a návrhy T01–T54](https://github.com/zaplikj30-ui/CraftPlan/pull/3): přesné hodnoty, identity, měřicí pole, geometrie, save/reopen, ochrana médií, zálohy, rizikové scénáře a dosud otevřené části návrhu.
 - [PR #4 – UX-01 až UX-101, ROZ-01 až ROZ-40, video](https://github.com/zaplikj30-ui/CraftPlan/pull/4): aktuální volby vlastníka. **UX-100:** koš se automaticky nemaže, dokud ho uživatel vědomě nezapne; v zapnutém režimu roční lhůta a varování. **UX-101:** diktování více kót bez jednotlivých OK, po ukončení jedna společná kontrola „Potvrdit vše“; předtím jsou hlasové hodnoty neověřené. VIDEO-01 až VIDEO-03: společný foto/video fotoaparát, natáčení i přehrávání uvnitř aplikace; bez kreslení a střihu videa.
 - Nový CraftPlan je samostatný projekt. **Zaměřovač 1 se nemění ani se nepřebírá jeho kód nebo produkční prostředí.** Veřejný repozitář nesmí obsahovat zákaznická či soukromá média. Žádné programování, CI/Actions, HOME, APK, placené služby ani merge bez odpovídajícího GO.
 
@@ -72,17 +72,35 @@
 6. **Sdílení vs. záloha vs. synchronizace:** přenosná záloha M2 před nenahraditelnými zakázkami; sync a cloud až samostatně později.
 7. **Porty:** potřeba Windows/iOS je dlouhodobá, její časový horizont a rozsah UI ještě nejsou určené. Ten může zásadně změnit relativní výhodu B/D vůči E/F/G.
 
+### 4.1 Srovnatelná rizika po kontrolách – bez předstírání benchmarku
+
+**Rozhodovací brána není seznam podporovaných API.** Každá **vážně zvažovaná** cesta musí mít stejnou sadu problémů a důkazů. Pro následující oblasti se u každé varianty před rozhodnutím uvede **ZDROJ/ODHAD/NOT RUN/NEPOSOUZENO**: (1) 1/20/50/200 kót a prst/pero při 100/1000 tazích, (2) bezpečné potvrzení revize, pád/plný disk, (3) EXIF 1–8/velká fotografie a paměť, (4) foto/video, zvuk a kodeky, (5) PDF + ZIP/velké zálohy/obnova, (6) jeden konkrétní laser/protokol, (7) offline čeština a rozpracovaná hlasová dávka, (8) plán portu Windows/iOS/iPadOS, (9) licence, údržba, sestavení, opakované provozní náklady a případná závislost na balíčku. Nehodnotit jen teoretickou dostupnost knihovny jako `PASS`. **Žádné z těchto technických měření dosud neproběhlo.**
+
+| Kandidát | Specifická integrační otázka, kterou musí mít výslovně vyřešenou |
+|---|---|
+| **A Java/View** | Je práce s přesným modelem/variantami dlouhodobě udržitelná a co bude nutné skutečně nahradit při portu UI? |
+| **B Kotlin/View** | Jsou gestové vstupy/S Pen a renderování na zvoleném cílovém zařízení rychlé i se stejným bezpečným úložištěm? |
+| **C Kotlin/Compose Canvas** | Co konkrétně znamená překreslování, práce se stavem a kolize se systémovými gesty u dlouhého tahu? |
+| **D Compose + View editor** | Vyvažuje změřený přínos dvě vrstvy UI, jejich životní cyklus a testování mostu mezi editorem a obrazovkami? |
+| **E Flutter** | Které funkce kamera/video/laser/pozadí potřebují nativní most, jak je udržovat a kolik reálně stojí Windows/iOS port? |
+| **F Qt** | Které konkrétní moduly/licence/SDK a mobile adaptéry jsou skutečně použitelné za rozpočet a na cílovém hardware? |
+| **G KMP + nativní UI** | Jaká část přesných dat je sdílitelná a kolik samostatného UI/hardware kódu vyžadují Windows/iOS? |
+
+**Pravidlo malých zkoušek:** porovnávat nejdříve písemné podklady a existující udržované komponenty; pokud mezi kandidáty zbývá rozhodující nejistota, navrhnout jeden či několik **malých, předem srovnatelných, zvlášť povolených** experimentů, ne tři celé aplikace. U každého uvést zařízení, syntetická vstupní data, prahové hodnoty či důvod pro pozdější kalibraci, následky neúspěchu a rozhodnutí **POKRAČOVAT / ZMĚNIT SMĚR / STOP**. Návrhové posouzení neuděluje GO k experimentu.
+
+**Bezpečnost a soukromí:** při technické volbě zohlednit i případnou systémovou zálohu Androidu, její rozsah a možnost nechtěné synchronizace soukromých souborů. [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6) neznamená, že uložení do galerie je přenosná záloha; u různých profilů fotografií nesmí žádná technologie tiše slibovat neexistující plný originál.
+
 ## 5. Shodné testy k budoucímu GO – všechny NOT RUN
 
 | ID | Scénář | Požadovaný důkaz |
 |---|---|---|
-| K01 | Syntetická foto se všemi EXIF 1–8, kóta/save/kill/reopen, otočení během tahu | Identické přesné hodnoty, kotvy a originál byte-for-byte, žádný falešný save |
+| K01 | Syntetická foto se všemi EXIF 1–8, kóta/save/kill/reopen, otočení během tahu; **PR #6: kvalita/místo uložení a stav skutečného plného zdroje** | Identické přesné hodnoty a kotvy, originál byte-for-byte jen tam, kde je plný zdroj skutečně garantovaný; jinde pravdivě doložená pracovní odvozenina, žádný falešný save |
 | K02 | 1/20/50/200 kót, 100/1000 tahů; dotyk konec/střed/popisek/lupa/zoom, prst a samostatně S Pen; diagnostika OFF/ON | P95/P99 input→obraz, jank, RAM, výkon, baterie, velikost aplikace, správná gesta; prahy stanovit až z cílového fyzického telefonu |
 | K03 | Převody mm/cm/palce včetně 1/16, nula vs. NEZMĚŘENO, výpočet ploch a změna jednotky | Bez ztráty přesnosti, zaokrouhlení jen dle kontraktu, původní hodnota a zdroj zachované |
 | K04 | Pád, plný disk, přerušení mezi uložením média a metadata, ztracená příloha, opožděná revize | Poslední potvrzená práce nezmizí; žádné tiché přepsání, error/recovery pravdivé |
 | K05 | Rychlá zaměření: kopírovat/přesunout vnořený strom, stejně pojmenované složky a soubory, koš, obnovit | Všechny stabilní ID/vazby/média, skutečné potvrzení cíle, žádná duplikace při přesunu |
-| K06 | Úplná přenosná záloha včetně volitelného Koše a velkého videa, obnova na čistém zařízení, chybný ZIP | Konzistentní inventář a originály, bezpečné odmítnutí neúplného importu, žádná ztráta existujících dat |
-| K07 | Foto → náhled OK/Znovu/Storno → editor; společný foto/video režim, přehrání, audio, import | Bezpoškozený originál, dostupné ovládání, skutečné kodeky/oprávnění, stabilita i na slabším Androidu |
+| K06 | Úplná přenosná záloha včetně prvního Koše, podle podpory i velkého videa, obnova na čistém zařízení **bez přístupu k původnímu telefonu**, chybný ZIP a plný disk | Konzistentní inventář všech skutečně obnovitelných médií/jejich deklarované kvality, bezpečné odmítnutí neúplného importu, žádná ztráta existujících dat; **plný originál jen pokud skutečně zahrnut** |
+| K07 | Foto → náhled OK/Znovu/Storno → editor; režimy kvality a dva cíle uložení PR #6; společná kamera foto/video, přehrání, audio, import | Bezpoškozený skutečně existující zdroj, správné potvrzení aplikace vs. galerie, dostupné ovládání, kodeky/oprávnění a stabilita i na slabším Androidu |
 | K08 | Referenční hotové panorama a šev; malý scénář půdorys–stěna–nárys, později prostorové zobrazení | Trvalé kotvy, topologie, souřadnice, Undo a návaznosti; nepsat nyní všechny moduly |
 | K09 | Jednoznačný/nejistý Bluetooth laserový údaj, jednotka, cílové pole, zpoždění/duplicita | Žádná hodnota v nesprávném poli; hardware/protokol fyzicky až po GO |
 | K10 | Český hlas 850/580, šum, nejasná jednotka, rozpracované kóty, společná kontrola a obnovení | Nepotvrzené hodnoty viditelně neověřené, oprava bez tiché chyby, užitečné offline chování reálně doložené |
@@ -93,7 +111,7 @@
 
 ## 6. Předběžné pořadí důkladného posouzení a otevřené otázky
 
-**Odborný návrh, nikoli technologické schválení:** pro prvotní věcné srovnání jsou nejpraktičtější **B Kotlin/View/Canvas**, **D Kotlin/Compose + nativní editor** a **E Flutter**. Varianta **C Compose Canvas** je důležitým samostatným srovnáním rendereru. **A Java, F Qt a G KMP** se nesmějí vyškrtnout bez zdůvodnění, zejména pokud se ukáže blízká potřeba Windows/iOS nebo zvláštní licence.
+**Historický odborný návrh pořadí rešerše, nikoli výsledek srovnatelných měření ani technologické schválení:** pro prvotní věcné srovnání byly označeny **B Kotlin/View/Canvas**, **D Kotlin/Compose + nativní editor** a **E Flutter**. Toto pořadí **nesmí být považováno za výběr ani automatické zúžení kandidátů** bez stejných předem stanovených kritérií. Varianta **C Compose Canvas** je důležitým samostatným srovnáním rendereru. **A Java, F Qt a G KMP** se nesmějí vyškrtnout bez zdůvodnění, zejména pokud se ukáže blízká potřeba Windows/iOS nebo zvláštní licence.
 
 **Nepotřebujeme tři celé aplikace na zkoušku.** Po vyjasnění kontraktů a samostatném GO případně malé izolované testy K01/K02/K04/K07; K08–K10 jen tehdy, pokud riziko může změnit výběr technologie. Výběr rendereru, UI a databáze se má opírat o jejich vlastní důkazy.
 
