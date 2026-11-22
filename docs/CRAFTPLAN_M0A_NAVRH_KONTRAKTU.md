@@ -414,9 +414,19 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T51 | ROZ-11–19: přesun stromu rychlých zaměření do zakázky a nezávislá kopie složek s poznámkami/přílohami | Přesun zachová ID, kopie bezpečně přemapuje všechna ID a vazby; žádná skrytá kolize nebo záměna operace |
 | T52 | PDF nové a navazující exporty v různých zakázkách: výchozí B01 plynulé skládání, B02 jedna automatická orientace, B03 obě verze = dva soubory, B04 zápatí, změna revize během náhledu; zapnout skryté poznámky u prvního a vytvořit druhý nový export; ověřit B07 EXIF/GPS | Dva úplné jasně odlišené soubory ze stejného potvrzeného snapshotu, bez ztráty příloh a čitelnosti; každý nový export skryté poznámky OFF, běžné volby pamatovat, žádné nechtěné polohové metadata či cizí data ve skutečném PDF |
 | T53 | Video B06: záznam → přehratelný náhled → OK/Natočit znovu/Storno, import, přerušení, plný disk, bez zvuku, velký archiv a záloha/obnova | Do složky se dostane pouze potvrzené celé video, Storno/selhání nevytvoří falešně uložené médium, žádné automatické kóty ve videu; integrita a vazby M2 zachovány |
-| T54 | Android soukromí a aplikací řízený přenos/systémová záloha: různá verze OS, bez souhlasu, nová instalace | Žádný nečekaný upload zákaznických dat, soukromí diagnostiky a jasně vymezená skutečná dostupnost obnovy |
+| T54 | ROZ-47 – samostatně otestovat (po explicitním GO) Android D2D telefon→telefon a Android cloud Auto Backup→restore s pouze syntetickými daty a možnými limity velikosti/OS; ověřit nepovolené přenosy, soukromí diagnostiky a ztracené oprávnění/účty | Nezaměnit otevřenou aplikaci za úplný restore: všechny ID/vazby, bajty uložených médií a jejich hash, přesné míry, přílohy, Koš podle rozsahu a editovatelnost se porovnají zdroj/cíl; produkční cloudové výchozí nastavení až po důkazech a samostatném souhlasu; M2 ZIP stále nezávislý |
 
 **T01–T54 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
+
+### 10.1 ROZ-47 – systémový přenos a Android Auto Backup: nejdřív samostatně ověřit, nerozhodovat naslepo (22. 11. 2026)
+
+**Vlastník výslovně žádá možnost systémový přenos nejprve skutečně otestovat** na dvou telefonech a porovnat úplnost, místo předčasného zákazu. Odpověď není implementační GO ani definitivní schválení automatického cloudového uploadu zákaznických dat. **Stav produktového výchozího nastavení D2D/Google cloud: OTEVŘENO DO DŮKAZŮ.**
+
+**Dvě oddělené zkoušky po samostatném GO a dostupnosti testovací aplikace:** (A) Android device-to-device přenos mezi dvěma čistě testovacími zařízeními (typicky nová/obnovená instalace cílového telefonu), (B) Android cloud Auto Backup a obnovení na testovací instalaci, **pouze nahraditelná syntetická data, žádné soukromé zákaznické informace ani reálné fotografie**, testovací konfigurace a účty podle schváleného prostředí. Zkoušky neznamenají, že produkční CraftPlan automaticky odesílá data do cloudu.
+
+**Srovnání před/po musí pokrýt:** rychlá zaměření, zakázky, podsložky a identitu, počet fotek a videí, bajty skutečně interně uložených kanonických médií a jejich hash, přesné kóty, jednotky/původ, kotvy/EXIF, poznámky a přílohy včetně skrytých, oblíbené/viditelnost, Koš a zámky dle určeného rozsahu, editovatelnost, kompletní konzistentní revizi, restart a nezávislý reopen; zjistit i chování většího balíku dat a rozdíly Android/zařízení. Pouhé otevření aplikace bez porovnání nemá hodnotu PASS.
+
+**Rozhodovací brána:** zachování všech povinných dat, žádný přenos mimo povolený rozsah a žádný falešný stav obnovy; při omezení/selhání je systémová cesta jen nepovinná, s jasnou informací a dál existuje ověřený uživatelsky řízený ZIP M2. Nastavení Android záloh může být závislé na verzi OS, výrobci, konfiguraci pravidel a uživatelském účtu. **Před spuštěním testu i před povolením produkčního cloudu je vyžadováno samostatné výslovné GO**; záloha přes uživatelský ZIP se neruší. Testy zatím NOT RUN.
 
 ## 11. Otevřené otázky pro nezávislé DESIGN/SECURITY review
 
