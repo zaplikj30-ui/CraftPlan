@@ -226,6 +226,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 | **ROZ-39** | PDF **výchozí A4**, možnost **A3 a dalších běžných formátů**, volba při exportu. A3 je nyní výslovně zvolená možnost (dříve UX-92 pouze předběžný návrh). | B – POTVRZENO |
 | **ROZ-40** | Jestliže aplikace nebyla otevřena ani včas k varování a položka překročila roční lhůtu, **nesmazat ji okamžitě při prvním novém spuštění**. Nejprve dát zřetelné upozornění a **dalších 7 dní** na kontrolu/obnovu. Výchozí vypnutí automatického mazání je vyřešeno UX-100; tato lhůta platí v zapnutém režimu. | B – POTVRZENO jako funkční ochrana |
 
+### ROZ-42 – přesnost měření M1, čtyři pravidla schválena 22. 11. 2026
+
+**VÝSLOVNĚ POTVRZENO VLASTNÍKEM VŠECHNY 4 BODY:** (1) žádné zaokrouhlování při uložení přesně zadané míry (`850,5 mm → 850.5 mm`); (2) exaktní převody a žádný drift (`1/16 in = 1.5875 mm`); (3) pamatovat původní zadanou hodnotu a jednotku (`85 cm` nesmí být anonymně přepsáno na pouhý výsledek `850 mm`); (4) `0 mm` se nesmí zaměňovat s chybějící hodnotou `NEZMĚŘENO`. **Schválený směr uloženého M1 čísla:** kanonická přesná desetinná reprezentace v milimetrech, typovaná veličina a zachovaný původ, nikoliv Float/Double či zaokrouhlená grafická délka.
+
+**Technický detail nadále otevřený:** konkrétní rozsah a počet desetinných míst, nekonečné desetinné převody, přesný výpočtový typ a bezpečné API, nezávislé posouzení návrhu v PR #3 §4. Žádný nový uživatelský limit nebyl schválen; žádné testy ani implementační GO.
+
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
 ### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
