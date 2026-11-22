@@ -176,7 +176,7 @@ Všech [49 očíslovaných požadavků #12](https://github.com/zaplikj30-ui/Zame
 
 **M0 datová rozhodnutí:** stabilní identita zakázky/složky/fotografie/anotace/média, přesná hodnota+jednotka odděleně od pixelů, verze dat, vlastnictví originálů, obecný vstup měření, připojitelné dokumentové typy. Nepsat nyní prázdné tabulky 3D, panoramatu, fakturace, licence a cloudové sync.
 
-**M1 první prototyp:** Kotlin + Compose, jeden celý offline pracovní tok foto–kóta–gesto–Undo/Redo–SQLite kandidát pro transakční save/reopen **plus povinná diagnostika**.
+**M1 první prototyp podle novějšího rozhodnutí vlastníka 22. 11. 2026:** technologie a renderer **NEVYBRÁNY**; jeden offline pracovní tok foto–kóta–gesto–Undo/Redo–bezpečné save/reopen **plus povinná diagnostika**. Kotlin+Compose a SQLite jsou historické kandidátní návrhy, nikoli schválené implementační volby. Aktuální [PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2) a [PR #5](https://github.com/zaplikj30-ui/CraftPlan/pull/5) mají přednost.
 
 **M2+**: galerie, poznámky, ZIP a Bosch; později panorama, další výrobci laserů, pracovní výkaz/faktury, samostatné aplikace/moduly, Windows/iOS a Google Disk záloha/sync vždy až podle konkrétního testu a dalšího rozhodnutí.
 
