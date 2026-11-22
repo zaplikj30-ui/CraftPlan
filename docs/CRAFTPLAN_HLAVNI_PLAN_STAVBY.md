@@ -95,6 +95,9 @@ Sepsat výsledky, **srovnatelné odhady budoucího portu a dlouhodobé náklady 
 
 ## 4. M1 – první skutečný offline pracovní celek
 
+**NOVĚ SCHVÁLENÝ PRODUKTOVÝ KONTRAKT SAVE/RECOVERY (22. 11. 2026; PR #3 §6.1.1, PR #4 ROZ-41):** fotografie, kóty, poznámky a potřebné přílohy tvoří jediné logické potvrzení; `ULOŽENO` teprve po ověření úplné revize. Chyba zápisu v běžícím editoru zachová rozpracované změny se stavem `NEULOŽENO` a akcí `Zkusit znovu`; po pádu otevřít poslední validní potvrzenou revizi a bezpečně zachránitelné novější rozpracované změny případně nabídnout k nedestruktivní obnově. **Nikdy automaticky nesmazat poslední funkční potvrzenou práci kvůli místu.** Fyzické garance procesu/power-cut a přesné implementační řešení NOT RUN; bez dalšího GO nedeklarovat testovací PASS.
+
+
 **Rozsah:** vybrat/pořídit fotografii a v CraftPlanu **bezpečně trvale uložit jednu obrazovou verzi právě zvolené kvality podle novějšího [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6)**, bez automatického dalšího snímku v systémové Galerii; externí importní originál nezměnit; vložit a přesně editovat kótu, ovládat úchopy/gesta prstem a perem včetně zoom/pan, Undo/Redo, bezpečně uložit, ukončit/přerušit a znovu otevřít poslední platný stav. Rychlé zaměření bez zákazníka zůstává; zakázky přijdou v M2.
 
 **Od začátku malá volitelná místní diagnostika** bez zákaznických dat, s ověřenou režií a možností prohlížení, výběru a sdílení/mazání záznamů v rozsahu schváleného funkčního kontraktu. Nedělat velký automatický testovací framework.
