@@ -2,7 +2,7 @@
 
 > **CraftPlan (historicky „Zaměřovač 2“).** Tento dokument je součástí aktuálního produktového zadání CraftPlanu. Pochází z [PR #234 původního Zaměřovače](https://github.com/zaplikj30-ui/Zamerovac-android/pull/234); odkazy na jedničku jsou historické reference, nikoli pokyny ke kopírování starého kódu nebo workflow. Platí [hlavní pravidlo zdroje pravdy](ZAMEROVAC_2_JEDNOTNY_ZAKLAD_A_PRENOS.md).
 
-**21. 11. 2026 · STAV: vlastník odsouhlasil principy jednoduché a dostatečné ochrany dat a preferenci SQLite k technickému ověření; konkrétní implementace, obnova a výkon dosud NEOVĚŘENY.** Záměr: dostatečná ochrana dat bez přehnané historie. Platí nejprve pro malý **offline** základ v2; synchronizace/účty až v pozdější samostatné etapě.
+**21. 11. 2026 · STAV: historicky vlastník odsouhlasil principy jednoduché ochrany dat a předběžné prověření SQLite. Novější rozhodnutí 22. 11. 2026 stanoví: technologie, renderer ani databáze NEVYBRÁNY; současný [M0-A kontrakt PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) a [hlavní plán PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2) mají přednost před zdejšími staršími návrhy. Konkrétní implementace, obnova a výkon NEOVĚŘENY.** Záměr: dostatečná ochrana dat bez přehnané historie. Platí nejprve pro malý **offline** základ v2; synchronizace/účty až v pozdější samostatné etapě.
 
 ## Co musí platit
 
@@ -17,7 +17,7 @@
 ## Konkrétní technická oponentura
 
 - **FAKT:** v1 již má `projects.json` + `projects.bak`, ale při ukládání může ještě **3× archivovat další úplné DB stavy** a prochází rostoucí historické revize; diagnostika naměřila cca 5 s ([#221](https://github.com/zaplikj30-ui/Zamerovac-android/issues/221)). To nechceme opakovat.
-- **SCHVÁLENÝ SMĚR K OVĚŘENÍ (souhlas vlastníka 21. 11. 2026):** přednostně prověřit transakční **SQLite**, ukládání jen změněné fotografie/kóty a originály médií mimo DB. Žádná neomezená historie plných zakázek; obnova a Undo odděleně. SQLite samo nezaručuje druhou zálohu ani ochranu před ztrátou telefonu. Jde o schválení návrhové preference, **nikoli definitivní volbu driveru, struktury DB či povolení implementace**.
+- **HISTORICKÁ PREFERENCE KE SROVNÁNÍ (21. 11. 2026, nikoli výběr technologie):** prověřit transakční **SQLite**, ukládání jen změněné fotografie/kóty a originály médií mimo DB. Žádná neomezená historie plných zakázek; obnova a Undo odděleně. SQLite samo nezaručuje druhou zálohu ani ochranu před ztrátou telefonu. Jde o schválení návrhové preference, **nikoli definitivní volbu driveru, struktury DB či povolení implementace**.
 
 ## Minimální zkouška před schválením řešení
 
@@ -26,4 +26,4 @@
 - Simulovat přerušení zápisu, zaplnění disku, vadný soubor a chybějící médium; žádný tichý přepis posledních platných dat a žádné falešné „uloženo“.
 - Stejný scénář provést na emulátoru a alespoň jednom skutečném Androidu; později zahrnout odlišnou značku a slabší zařízení podle [plánu testování](ZAMEROVAC_2_ZIVY_NAVRH.md). Výsledky oddělit: SOURCE / automat / emulátor / fyzický telefon.
 
-**NEROZHODNUTO:** konkrétní SQLite driver/knihovna, schéma dat, mechanismus obnovy/předchozího platného stavu a limity výkonu. Po srovnání ověřit funkčnost a teprve pak rozhodnout o výrobním nasazení. Tento krátký kontrakt je **brána M0**, ne další mechanika ochrany.
+**OTEVŘENO:** konkrétní SQLite driver/knihovna nebo jednoduchá souborová varianta, schéma dat, mechanismus obnovy/předchozího platného stavu, meze výkonu a garance plného originálu u nižší kvality fotografií podle [PR #6](https://github.com/zaplikj30-ui/CraftPlan/pull/6). Existující externí originály nikdy neničit, pracovní zmenšeninu nevydávat za nezměněný plný zdroj. **Minimální přenosná záloha s prokázanou obnovou je povinná v M2 před nenahraditelnými zakázkami**, nikoli až v budoucí synchronizaci. Po srovnání ověřit funkčnost a teprve pak rozhodnout o výrobním nasazení. Tento krátký kontrakt je **brána M0**, ne další mechanika ochrany.
