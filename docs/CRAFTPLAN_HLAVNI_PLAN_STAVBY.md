@@ -152,6 +152,9 @@ Kopie šablony navázaná na konkrétní zaměření, půdorys, rozměry, zakáz
 
 ### M4a – zákaznické výstupy
 
+**SCHVÁLENO ROZ-48 / upřesnění B07 (22. 11. 2026):** zákaznické PDF má v přípravě samostatný citlivý přepínač `Zahrnout polohu GPS`, **výchozí OFF u každého nového exportu**, bez zapamatování předchozího zapnutí. Pokud ho uživatel vědomě zapne, použít jen skutečně dostupné GPS u vybraných fotografií; při OFF žádná GPS v PDF ani skrytě v metadatech/vložených obrázcích. Chybějící polohu nevymýšlet. Samostatně výchozí OFF zůstávají `Zahrnout skryté poznámky` dle ROZ-23; běžné volby PDF se pamatují. Původní interní jediná verze fotografie a přenosná M2 ZIP záloha zůstávají nedotčené. **Viditelná poloha na stránce PDF je samostatný dosud neschválený rozsah**, konkrétní multi-foto metadata / ověření PDF = OPEN/NOT RUN; bez GO pro implementaci.
+
+
 **Nejmenší část M4a je povinnou závislostí M3b:** offline vytvořit PDF orientačního instalačního plánu, ověřit náhled a skutečný vyexportovaný soubor, nabídnout vědomé systémové sdílení bez vlastního účtu/serveru. Další JPG/PDF výstupy mohou vzniknout později. U F35 vždy uvádět správný **stav, datum, revizi a identifikaci zakázky, pokud existuje**. Orientační PDF nesmí působit jako schválený realizační pokyn; vydané schválené PDF musí zůstat neměnné. Odstranit nežádoucí interní poznámky a nepotřebná EXIF/metadata. Exportovaný pohled není totéž co editovatelný pracovní originál.
 
 ### M4b – editovatelný přenos zakázky
