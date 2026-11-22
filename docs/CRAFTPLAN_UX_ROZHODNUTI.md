@@ -244,6 +244,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **Dříve schválené chování ROZ-24 zůstává:** ZIP je běžný bez hesla a povinného šifrování, uživatel vědomě volí Uložit nebo Sdílet (Android aplikace jako WhatsApp/Google Disk dle dostupnosti); žádný automatický upload. První záloha Koš předvolen ZAHRNOUT, po změně volby se pamatuje poslední. Obnova zachovává **skutečně interně uloženou jedinou fotoverzi podle PR #6**, nikoliv zaručenou externí plnou kvalitu. **Technické limity, zpracování nepřátelského ZIP a skutečný test obnovy z jiného zařízení: NOT RUN.** Rozhodnutí není GO k implementaci.
 
+### ROZ-45 – automatické ukládání, přerušení gest a nedostatek paměti (22. 11. 2026)
+
+**VÝSLOVNĚ SCHVÁLENO VŠECH PĚT BODŮ:** (1) **automatické průběžné ukládání dokončených úprav** bez tlačítka Uložit po každé kótě, bez rušení kreslení; nápis Uloženo až po ověřeném kompletním potvrzení; (2) při hovoru, uzamčení nebo přerušení OS **zrušit nedokončený tah**, zachovat hotové kóty a jejich pravdivý stav uložení; (3) při nedostatku paměti raději omezit rekonstruovatelnou cache, náročné náhledy a video než poškodit zakázku; (4) po pádu při existenci **skutečně zachráněného validního pracovního návrhu** nabídnout `Obnovit rozpracovanou práci` / `Zahodit návrh`, do výslovné volby jej nemaže, ale neexistující RAM data neslibovat; (5) při běžném odchodu z editoru s chybou uložení **upozornit a nabídnout bezpečné pokračování/opakování**, nikdy změny tiše nezahodit.
+
+**Důležitý rozdíl:** zrušený *nedokončený dotykový tah* není již uložená pracovní kóta ani obnovený draft; nepotvrzené ale dokončené změny a prokazatelně staged návrh se neodstraňují záminkou přerušení gesta. Při násilném ukončení Androidem nelze zaručit záchranu toho, co existovalo pouze v RAM. Technický interval autosave, limity RAM a crash persistence k cílenému review v PR #3 §6.1.2; testy NOT RUN, bez GO.
+
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
 ### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
