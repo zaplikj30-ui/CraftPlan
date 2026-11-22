@@ -124,6 +124,12 @@
 
 **Vlastník schválil všech sedm 22. 11. 2026, podrobné závazné znění má PR #4.** Nejsou to nové blokující technologické volby: B01 plynulé PDF default, B02 jednotná automatická orientace dokumentu, B03 dva samostatné PDF při exportu obou verzí, B04 zápatí číslo stránky/název zakázky ON a datum OFF, B05 čistá úvodní stránka bez přepínače miniatur, B06 video náhled s OK/Znovu/Storno, B07 zákaznické PDF bez GPS/EXIF polohových metadat. Předchozí schválené režimy a budoucí požadavky zůstávají. **K11/K13 jsou kontrolní scénáře NOT RUN**; u žádného kandidáta nepředstírat PDF/video výkon či bezpečnost. Přenosná M2 záloha zachová skutečně uložené bajty a není zákaznickým filtrovaným PDF.
 
+### 6.2 ROZ-47 – skutečný test Android záloh před volbou výchozího chování (22. 11. 2026)
+
+Vlastník upřednostňuje **vyzkoušet skutečný systémový přenos mezi telefony a úplně porovnat výsledek**, nikoliv předem funkci trvale vyřadit. **D2D a cloud Auto Backup vyhodnocovat zvlášť**; Android 12+ rozlišuje pravidla `device-transfer` a `cloud-backup` a výsledná dostupnost závisí na zařízení/OS/poskytovateli. Zaznamenat objektové ID, revisions, vnořené vazby, přesná měření, byte-for-byte interní fotky a přílohy, Koš, videa a možnost další editace. Nekompletní přenos není PASS, staré zákaznické údaje ani reálné soukromé fotografie nepoužívat. K dispozici je dokumentovaný Android D2D/cloud backup testing včetně obnovení na testovacím zařízení; ale **K14 NOT RUN** a konkrétní test/build až po samostatném GO. Výchozí produkční cloud backup a produkční automatické přenosy nejsou touto diskusí definitivně schváleny. Vlastní plná ruční ZIP záloha M2 zůstává bezpečnou nezávislou cestou.
+
+| K14 | Po samostatném GO dvě nezávislé zkoušky ROZ-47: Android D2D telefon→telefon a systémový cloud Auto Backup→restore, větší syntetické foto/video + kóty/poznámky/ZIP obsah, různé OS a chybové situace | Identické úplné ID/revize/vazby, přesné hodnoty, interní média byte-for-byte, editovatelnost a pravdivá informace o chybě; žádné nechtěné zveřejnění zákaznických dat; výsledky D2D/cloud oddělené, produkční výchozí nastavení vybrat teprve po validaci |
+
 ## 7. Brána a další bezpečný krok
 
 - **M0-A:** sjednotit návrhové smlouvy z PR #3 s posledními UX-100/101 a úplnou maticí požadavků; nedělat jen seznam políček.
