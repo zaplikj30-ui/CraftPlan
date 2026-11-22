@@ -8,6 +8,14 @@
 
 Tento soubor zapisuje **pouze nový průběžný UX kontext**. Úplný katalog funkcí, bezpečnostní pravidla a M0 kontrakty zůstávají v níže odkazovaných PR #1–#3; tento záznam je nenahrazuje. Nová rozhodnutí ukládat průběžně do téhož izolovaného UX PR s krátkým logem změn, ne čekat na konec chatu. Při novém chatu začít tímto souborem a aktuálními PR, nikoli pouhou pamětí konverzace.
 
+## ImageMeter jako referenční mustr, ne kopírovaný projekt
+
+**POTVRZENÉ UPŘESNĚNÍ vlastníka (22. 11. 2026):** ImageMeter je dlouhodobý **praktický mustr / funkční a ergonomická reference**, ze které se při navrhování CraftPlanu **můžeme učit, porovnávat dostupné postupy, přebírat obecné principy a vlastní návrh měnit, vylepšovat i odlišovat**. Není pravda, že bychom CraftPlan mechanicky „dělali podle ImageMeteru“ nebo kopírovali jeho produkt. Vlastní požadavky, dříve schválená ergonomie Zaměřovače 1, bezpečnost dat a následná rozhodnutí vlastníka mají přednost před chováním reference. Není povinnost odlišit každý obecný pracovní princip jen proto, že ho používá ImageMeter; současně **nesmíme kopírovat cizí zdrojový kód, grafické podklady, charakteristickou sadu ikon, značku ani vydávat CraftPlan za ImageMeter**.
+
+**Návaznost na skutečně existující starší plán:** [Živý návrh CraftPlanu v PR #1](https://github.com/zaplikj30-ui/CraftPlan/blob/docs/craftplan-start-20261121/docs/ZAMEROVAC_2_ZIVY_NAVRH.md) výslovně pracuje s ImageMeterem jako funkční referencí; [historická VIZE_A_PLAN Zaměřovače 1](https://github.com/zaplikj30-ui/Zamerovac-android/blob/8a36e353448ba74a066e16372441604b7e7163c7/VIZE_A_PLAN.md) určuje tutéž hranici. Referenční uživatelské balíčky ve starších podkladech: **ImageMeter 26.6.1 XAPK (přednostní), Pro 26.5.0 APK (doplňkový), starší 3.9.15 (technické principy)**; jejich existence a dřívější uložení v Library byly **popsány starou vizí**, nikoliv v této kontrole znovu fyzicky ověřeny. APK/XAPK jsou **instalační balíčky, nikoli zveřejněný původní zdrojový kód** a nepatří do veřejného repozitáře CraftPlan. K dohledání chování slouží též [oficiální dokumentace ImageMeter](https://www.imagemeter.com/) a jeho [historie změn](https://imagemeter.com/download/).
+
+**Příklad použití pravidla:** U rychlého tlačítka otevření nástrojů (UX-35) lze nejprve ponechat známé `+`, pak navrhnout a prakticky ověřit vlastní srozumitelnou ikonu. Rozhoduje použitelnost a identita CraftPlanu, ne povinná odlišnost za každou cenu. Konkurenční reference **není zdrojem automatických schválení funkcí, implementace či testovacího PASS**.
+
 ## Potvrzené směry a preference vlastníka
 
 | ID | Funkce / rozhodnutí | Stav a hranice |
