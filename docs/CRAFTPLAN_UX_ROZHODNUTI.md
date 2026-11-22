@@ -311,6 +311,14 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **Původ:** navazující projektová konverzace vlastníka 22. 11. 2026, následně kontrola stávajících PR #1–#4. Novější výslovné volby mají přednost před staršími návrhy, ale kolize datových a bezpečnostních pravidel musí být výslovně posouzené.
 
+## Pravidlo testovacích verzí M1 – potvrzeno vlastníkem 23. 11. 2026
+
+**POTVRZENO – způsob spolupráce, nikoli nové GO k implementaci.** Před zadáním každého dalšího funkčního kroku ChatGPT stručně uvede očekávané ovládání a rozsah proti schválenému UX (zejména PR #4 a původní referenci Zaměřovače 1). Před předáním testovací APK vlastníkovi výslovně rozliší: **(1) co už má fungovat a má se nyní testovat, (2) co je záměrně dočasné/provizorní, (3) co je naplánované do navazujících kroků a zatím nemá fungovat**. Přidá krátký konkrétní testovací postup.
+
+Když vlastník upozorní na odlišnost, ChatGPT **nejprve ověří plán a skutečný rozsah právě schváleného kroku**, teprve potom určí, zda jde o chybu, provizorium nebo plánovanou pozdější funkci. **Nevydávat absenci plánované funkce za regresi; neposílat kvůli ní automaticky Codexu opravné zadání ani nesestavovat zbytečnou APK.** Naopak skutečný rozpor s právě schváleným chováním jasně označit a řešit cíleně. Žádný schválený požadavek tím není zrušen ani potichu odložen. Nejasnost vyřešit s vlastníkem před implementací, ne až při testu.
+
+**Příklad z M1:** prvotní umístění kóty dvěma klepnutími bylo pouze dočasné zjednodušení malého testovacího řezu; cílové ovládání tažením a přesná lupa zůstávají podle referenčního UX součástí M1. Jejich absence v raném řezu není sama o sobě důkazem regresní chyby. Toto pravidlo šetří opakovanou práci a AI limity, nikoliv bezpečnostní testování.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
