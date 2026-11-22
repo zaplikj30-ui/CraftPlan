@@ -36,7 +36,7 @@
 | ☐ | J7 | Lokální offline save, jedna aktuální + jedna předchozí bezpečná verze, obnova, koš, přerušení, originály | M0–M1 | **ZÁVAZNÝ CÍL** |
 | ☐ | J8 | Rozlišení import/export editovatelného ZIP vs zákaznické PDF/JPG/ZIP; původní média nepoškozená | M4 | **DŘÍVE DOHODNUTO** |
 | ☐ | J9 | Podpora telefonů/tabletů různých značek a výkonů; prst, S Pen, jiné pero, myš/klávesnice podle fáze | M1+ | **ZÁVAZNÝ CÍL** |
-| ☐ | J10 | Kotlin + Compose pro první Android/offline prototyp; přenositelnost domény pro Windows/iOS | M0 | **SCHVÁLENO JAKO SMĚR PROTOTYPU** |
+| ☐ | J10 | Android první; konkrétní jazyk/framework/renderer **NEVYBRÁNY**, historický Kotlin+Compose jen kandidát; přenositelnost datového modelu pro Windows/iOS | M0-D | **NOVĚ OTEVŘENO – rozhodnutí vlastníka 22. 11. 2026** |
 | ☐ | J11 | Bezpečná budoucí sync telefon–tablet, Google Disk pro sync a oddělenou obnovitelnou zálohu | B1–B2 | **SCHVÁLENÝ CÍL, POZDĚJŠÍ ETAPA** |
 | ☐ | J12 | Čeština, první další jazyk angličtina, různé jednotky a locale; offline nápověda | M2+ | **SCHVÁLENÝ SMĚR** |
 
