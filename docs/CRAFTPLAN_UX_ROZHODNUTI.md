@@ -232,6 +232,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **Technický detail nadále otevřený:** konkrétní rozsah a počet desetinných míst, nekonečné desetinné převody, přesný výpočtový typ a bezpečné API, nezávislé posouzení návrhu v PR #3 §4. Žádný nový uživatelský limit nebyl schválen; žádné testy ani implementační GO.
 
+### ROZ-43 – orientace EXIF, zrcadlení, kotvy a výměna fotografie (22. 11. 2026)
+
+**VÝSLOVNĚ SCHVÁLENA VŠECHNA ČTYŘI PRAVIDLA:** (1) zohlednit jednou EXIF orientaci fotografie včetně případného zrcadlení a nenechat kóty nechtěně otočit/převrátit; (2) kóty jsou ukotveny k fotografii, **ne k obrazovce**; zoom a posun neovlivní jejich uložené body; (3) F09 při výměně podkladu uchová původní i nový stále potřebný snímek a dovolí vědomé **ruční přizpůsobení** kót k nové perspektivě, bez automatického předstírání shody; (4) otočení, zoom/pan, výměna fotografie a pouhé posunutí kóty **nemění skutečně zadanou přesnou míru**. EXIF je informace souboru např. o orientaci a zrcadlení při pořízení; neznamená automatické zrcadlení každé selfie nebo další volné změny vzhledu. Každý samostatný snímek má podle PR #6 **jedinou vlastní uloženou verzi**, nikoliv dvě trvalé verze jediné fotografie. Původní externí soubor importu nepřepisovat.
+
+**K ověření, nikoliv znovu k produktovému hlasování:** EXIF 1–8, fotografie různých poměrů stran, kotvy po uložení/reopen, transformace při zoom/pan/rotaci zařízení a nezávislé zachování přesných měření po F09. M0-A souřadnicový kandidát a testy PR #3 §5.1/§5.1.1; fyzický PASS **NOT RUN**, žádné implementační GO.
+
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
 ### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
