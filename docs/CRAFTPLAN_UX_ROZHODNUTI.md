@@ -228,6 +228,13 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
+### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
+
+**VÝSLOVNĚ SCHVÁLENO VLASTNÍKEM VŠECH 5 BODŮ:** (1) fotografie, kóty a poznámky včetně nutných příloh se potvrzují jako **jeden úplný konzistentní celek** – nepřipustit viditelně napůl uloženou verzi; (2) `Uloženo` až po skutečně dokončeném a ověřeném zápisu celé revize; (3) při neúspěšném ukládání v běžící aplikaci ponechat rozpracované změny dostupné v editoru, ukázat `Neuloženo` a `Zkusit znovu`, nepoškodit předchozí potvrzenou práci; (4) po pádu a novém spuštění otevřít nejnovější bezpečně potvrzenou revizi a **jen pokud jsou novější rozpracované změny technicky obnovitelné**, nabídnout jejich bezpečné nedestruktivní obnovení s pravdivým popisem; (5) **nikdy automaticky neodstranit poslední funkční verzi kvůli uvolnění místa**. Toto není požadavek na nemožnou garantovanou obnovu čistě paměťového, nikdy neuloženého draftu.
+
+**Návaznost:** konkrétní technologicky neutrální kontrakt a kontrolní scénáře jsou v PR #3 §6.1.1/§6.5 (M0-A), při fyzickém testu musí být odlišen pád aplikace, plný disk a výpadek napájení. Původní schválená pravidla Undo/Redo, jediné interní fotoverze, bezpečné ZIP zálohy a zámků se nemění. **Produktově POTVRZENO; fyzické záruky NOT RUN; žádné implementační GO.**
+
+
 **VIDEO-01 – POTVRZENO jako produktové chování:** Video je dokumentace vzhledu místnosti, nikoli pohyblivý editor. Lze je **natočit přímo z CraftPlanu** i **importovat** jako jiné médium do právě otevřené složky Rychlých zaměření/zakázky; v galerii má miniaturu a zřetelnou značku videa. **Přehrávání uvnitř CraftPlanu** (přehrát/pauza, posun po časové ose, zvuk, celoobrazovkové zobrazení), bez povinného spuštění externí aplikace. Přesun, kopie, přejmenování, koš a bezpečná přenosná záloha se řídí obdobnými pravidly jako další přílohy. Originální video se nikdy nevratně nepřepisuje.
 
 **VIDEO-02 – POTVRZENO jako UX směr:** Ve spodní části přehledu má být snadná cesta **Přidat foto / video**: jedno otevření fotoaparátu a na obrazovce živého náhledu **přepínač Fotografie | Video**, místo dvou dlouhých oddělených pracovních cest. U fotografie je náhled se schváleným OK / Vyfotit znovu / Storno, po OK otevřít editor. U videa **NOVĚ POTVRZENO B06**: přehratelný kontrolní náhled a OK / Natočit znovu / Storno; po potvrzení přidat video jako podklad do složky, **nikoliv do editoru kót**. Zařadit bez rozbití dvou dříve schválených spodních ovladačů **Přidat + Poslední použitá akce** dle UX-61; konkrétní cesta nabídky a podoba přepínače budou ověřeny při návrhu.
