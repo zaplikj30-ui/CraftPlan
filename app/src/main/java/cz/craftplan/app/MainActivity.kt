@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -99,35 +100,43 @@ private fun SamplePhoto(
     onClose: () -> Unit,
 ) {
     Column(modifier = modifier) {
-        TextButton(onClick = onClose, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(stringResource(R.string.back_to_start))
-        }
-        Text(
-            text = stringResource(R.string.sample_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        Button(
-            onClick = onStartDimension,
-            enabled = placement == DimensionPlacement.Idle,
-            modifier = Modifier.padding(horizontal = 16.dp),
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Text(stringResource(R.string.add_dimension))
-        }
-        val hint = when (placement) {
-            DimensionPlacement.Idle -> R.string.photo_gestures
-            is DimensionPlacement.AwaitingFirst -> R.string.place_first_anchor
-            is DimensionPlacement.AwaitingSecond -> R.string.place_second_anchor
-            is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
-                MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+            Column {
+                TextButton(onClick = onClose, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(stringResource(R.string.back_to_start))
+                }
+                Text(
+                    text = stringResource(R.string.sample_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Button(
+                    onClick = onStartDimension,
+                    enabled = placement == DimensionPlacement.Idle,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) {
+                    Text(stringResource(R.string.add_dimension))
+                }
+                val hint = when (placement) {
+                    DimensionPlacement.Idle -> R.string.photo_gestures
+                    is DimensionPlacement.AwaitingFirst -> R.string.place_first_anchor
+                    is DimensionPlacement.AwaitingSecond -> R.string.place_second_anchor
+                    is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
+                        MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+                    }
+                }
+                Text(
+                    text = stringResource(hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    minLines = 2,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
         }
-        Text(
-            text = stringResource(hint),
-            style = MaterialTheme.typography.bodyMedium,
-            minLines = 2,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
         AndroidView(
             factory = { context -> PhotoEditorView(context) },
             modifier = Modifier.fillMaxWidth().weight(1f),

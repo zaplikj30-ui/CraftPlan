@@ -70,6 +70,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        // AndroidView can draw on the Compose canvas without a clip at the View bounds.
+        val saveCount = canvas.save()
+        canvas.clipRect(0, 0, width, height)
         canvas.drawColor(0xFF17191C.toInt())
         photoBounds.set(
             viewport.left,
@@ -78,14 +81,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
             viewport.top + photo.height * viewport.scale,
         )
         canvas.drawBitmap(photo, null, photoBounds, paint)
-        canvas.save()
         canvas.clipRect(photoBounds)
         when (val current = placement) {
             is DimensionPlacement.AwaitingSecond -> drawAnchor(canvas, current.start)
             is DimensionPlacement.Complete -> drawDimension(canvas, current.dimension)
             else -> Unit
         }
-        canvas.restore()
+        canvas.restoreToCount(saveCount)
     }
 
     private fun drawDimension(canvas: Canvas, dimension: PhotoDimension) {
