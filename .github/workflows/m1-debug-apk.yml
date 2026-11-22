@@ -36,7 +36,7 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build, JVM tests and lint
-        run: gradle --no-daemon :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+        run: gradle --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 
       - name: Record APK SHA-256
         run: sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
