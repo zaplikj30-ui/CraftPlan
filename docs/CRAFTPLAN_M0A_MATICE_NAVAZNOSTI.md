@@ -249,7 +249,7 @@ Tato **delta-matice doplňuje, nikoli nahrazuje J1–J12/F01–F39/49/28**. Nov�
 
 | Rozhodnutí | M0-A základ / otevřená hranice | Etapa / test |
 |---|---|---|
-| **PR #6 foto kvalita a místo uložení** | ID a role zdroje, originálu, odvozeniny a náhledu; dostupnost galerie a dvě různá potvrzení; **garance plného zdroje a výchozí režim instalace OTEVŘENÉ** | M1 foto, M2 záloha; T45–T47, FOTO-K01–13 |
+| **PR #6 foto – dvě kvality, jedna uložená verze** | Jedno interní autoritativní médium na fotografii v právě vybrané kvalitě, žádný automatický druhý soubor do systémové Galerie; importovaný externí originál zůstává nedotčen, není závislostí pro obnovu. Výchozí kvalita Plná/Plná potvrzena, záloha M2 obsahuje skutečné uložené bajty. | M1 foto, M2 záloha; T45–T47, FOTO-K01–13 |
 | **UX-100/ROZ-24 koš** | Revize, ID, zámky, chráněná média, automatické trvalé mazání výchozí OFF; první záloha včetně koše | M2 koš, automatika zvlášť; T43/T48 |
 | **UX-101 hlas F10/F13** | Relace návrhů a stav jednotlivých neověřených čísel, jedno „Potvrdit vše“, bezpečné přerušení | Budoucí hlas; T20/T49 |
 | **UX-45/46 laser F03** | Jednotka ze zprávy/protokolu vs. zapamatovaný uživatelský předpoklad, identita cílového pole | M5; T11/T37/T50 |
@@ -263,7 +263,7 @@ Tato **delta-matice doplňuje, nikoli nahrazuje J1–J12/F01–F39/49/28**. Nov�
 | **Android soukromí** | Systémový backup telefonu ≠ ověřená přenosná záloha; žádný nečekaný upload zákaznických médií | M1/M2; T54 |
 | **J11/B2 budoucí synchronizace** | Stabilní ID/revize, konfliktní ochrana a oddělené historické zálohy; žádné cloudové fronty v M1 | M0 připravenost → B2 |
 
-**Otevřené brány:** garance plného originálu a výchozí volba ukládání snímků, fyzická odolnost po výpadku napájení, minimální slabší Android, limity výkonu, jednotky specifických laserů, pravidla budoucí retence a zařazení videa. Nezaměňovat koncept, schválený UX směr ani připravený test za PASS.
+**Otevřené brány:** technicky bezpečné potvrzení jediného foto souboru a životnost dočasného mezisouboru, parametry kvality, fyzická odolnost po výpadku napájení, minimální slabší Android, limity výkonu, jednotky specifických laserů, pravidla budoucí retence a zařazení videa. **Produktově uzavřeno:** jedna interní fotoverze ve zvolené kvalitě, výchozí Plná/Plná, bez automatického ukládání do systémové Galerie; M2 musí obnovit její přesné bajty. Nezaměňovat návrhový směr ani připravený test za PASS.
 
 ## 7. Kontrola při každé etapě – žádné „to doženeme později“
 
