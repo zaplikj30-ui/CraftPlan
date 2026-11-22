@@ -291,7 +291,18 @@ Zvolit **jediný neměnný potvrzený zdroj dokumentu** a konkrétní obsahový 
 | T43 | Zámek: jediný přesun, dávka, restore, import a koš v zamčené vnořené složce | Zdroj, cíl i zamčení předků kontrolováno jednotně, výsledek/částečný výsledek pravdivý |
 | T44 | Export ZIP vybrané fotky/složky po přemístění jiné fotky ven; symbol s novou verzí katalogu | Z archivu nevytékají cizí/historické soubory, editovatelné přílohy a přesná podoba symbolu se zachovají |
 
-**T01–T44 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
+| T45 | Foto kvalita a externí zdroj: import/focení Úsporná–Střední–Plná, ztráta galerie, záloha a obnovení bez původního zařízení | Evidována skutečná kvalita, vlastní pracovní kopie a dostupnost originálu; žádný příslib plného zdroje, který v archivu není |
+| T46 | PR #6 dvojí ukládání: pád/plný disk před i po uložení do aplikace a galerie, opakované dokončení, zrušení | Dvě pravdivá potvrzení, žádné falešné „uloženo obojí“, žádná ztráta jediné platné kopie ani viditelné duplicity |
+| T47 | PR #6 změna rozlišení/EXIF 1–8 a pozdější výměna F09, kóty → save/reopen → export | Neměnné přesné míry, stabilní a ověřitelné mapování kotev i orientace, nezaměnit zmenšenou kopii za originál |
+| T48 | UX-100: koš výchozí bez automazání; budoucí zapnutí/vypnutí retence, změna systémového času, stará obnova, upozornění 30/7 dní | Nikdy tiše nesmazat chráněnou/obnovitelnou práci, bezpečný základní koš funguje bez budoucí automatiky |
+| T49 | UX-101: více hlasových návrhů, jedno Potvrdit vše, jedna chybně rozpoznaná hodnota, zavření/reopen, dvojí potvrzení | Neověřená hodnota není vydaná za měření; stabilní ID sezení, pravdivý stav a konzistentní soubor běžných editačních příkazů |
+| T50 | UX-46: laser neposílá jednotku, výchozí mm, změna předpokladu mm ↔ cm v přístroji/aplikaci, opožděná zpráva a jiné pole | Rozlišen zdroj jednotky vs. uživatelský předpoklad; starší hodnoty se nemění, cizí pole se nepřepíše |
+| T51 | ROZ-11–19: přesun stromu rychlých zaměření do zakázky a nezávislá kopie složek s poznámkami/přílohami | Přesun zachová ID, kopie bezpečně přemapuje všechna ID a vazby; žádná skrytá kolize nebo záměna operace |
+| T52 | Export fotografie/PDF: čistá pracovní kopie vs. zdroj, skryté poznámky, EXIF/GPS a zapamatované citlivé volby z jiné zakázky | Jeden potvrzený snapshot; žádné nechtěné metadata, komentáře či obsah cizí zakázky |
+| T53 | Video: import a záznam, zrušení, přerušení, plný disk, bez zvuku, velký archiv a záloha/obnova | Neúplný soubor není viditelně „uložené video“; důkaz integrace s vazbami/manifestem v příslušné etapě |
+| T54 | Android soukromí a aplikací řízený přenos/systémová záloha: různá verze OS, bez souhlasu, nová instalace | Žádný nečekaný upload zákaznických dat, soukromí diagnostiky a jasně vymezená skutečná dostupnost obnovy |
+
+**T01–T54 jsou NOVÉ návrhy scénářů, nikoli náhrada historických 28 testů.** Nyní **NOT RUN**. Teprve po schválení konkrétních úkolů a prostředí lze realizovat malé experimenty M0-C/M1/M2 a rozlišovat SOURCE, automat, emulátor a fyzický Android.
 
 ## 11. Otevřené otázky pro nezávislé DESIGN/SECURITY review
 
