@@ -1,24 +1,23 @@
 # CraftPlan – kvalita fotografií při focení a importu
 
-**Rozhodnutí vlastníka:** 22. 11. 2026, projektová konverzace CraftPlan. **Nejnovější upřesnění stejného dne:** vlastník si v nastavení vybírá, zda se nové fotografie ukládají jen do aplikace, nebo i do galerie telefonu. Toto rozhodnutí nahrazuje předchozí návrh povinného ukládání každého originálu do galerie.  
+**Rozhodnutí vlastníka – 22. 11. 2026, poslední upřesnění:** každá fotografie se trvale uloží **jen jednou v CraftPlanu ve zvolené kvalitě**. Nové snímky se automaticky NEukládají také do systémové Galerie telefonu. Není povinný skrytý interní archiv originálů. Dřívější varianta „Do aplikace i do galerie“ je nahrazena; historicky zůstává dohledatelná v předchozích revizích PR. Externí originály při importu zůstávají nedotčené.
 **Stav:** **POTVRZENÉ funkční/UX zadání**; datové a technické detaily níže označené **OTEVŘENO**.  
 **Rozsah:** nové fotografie fotoaparátem a přidání existujících fotografií z galerie/souborů do editoru či zakázky.  
 **Nejde o:** schválení technologie, implementace, testu, změnu již existujících souborů, automatický merge nebo povolení pracovat s nenahraditelnými zákaznickými daty.
 
-## 1. Potvrzené chování – kvalita a místo uložení
+## 1. Potvrzené chování – dvě volby kvality, jeden interní obrazový podklad
 
-V aplikaci bude sekce **Nastavení → Fotografie** se **dvěma nezávislými volbami kvality a třetí samostatnou volbou místa uložení nově vyfocených snímků**:
+**Nastavení → Fotografie** obsahuje dvě nezávislé volby kvality. **Místo ukládání není přepínač:** uložená fotografie je pouze v datech CraftPlanu, ne zároveň jako nový snímek v systémové Galerii.
 
 | Nastavení | Účel | Volby |
 |---|---|---|
 | **Kvalita při fotografování** | Výchozí nastavení pro **nově pořízené** fotografie v CraftPlanu | **Úsporná / Střední / Plná** |
 | **Kvalita při importu** | Výchozí nastavení pro **existující** fotografie přidávané z galerie/souborů | **Úsporná / Střední / Plná** |
-| **Ukládání nových fotografií** | Kam se ukládají snímky **nově pořízené prostřednictvím CraftPlanu** | **Jen do aplikace / Do aplikace i do galerie telefonu** |
 
-- Všechny tři volby jsou **nezávislé** a zapamatují si poslední uživatelem zvolené výchozí nastavení. **POTVRZENÁ VARIANTA A pro první instalaci (22. 11. 2026): Kvalita při fotografování = Plná; Kvalita při importu = Plná; Ukládání nových fotografií = Jen do aplikace.** Toto přednastavení platí pro nové vstupy, lze je později svobodně změnit a nezmění již uložená média. Volba „Jen do aplikace“ nesmí potichu přidávat nový snímek do galerie.
+- **První instalace:** fotografování **Plná**, import **Plná**. Obě volby si nezávisle pamatují změny. Každá nově pořízená/importovaná fotografie vytvoří **jednu trvale uloženou verzi v aktuálně vybrané kvalitě v CraftPlanu**; nevytváří druhý plný interní archiv ani automatickou kopii v Galerii.
 - **Při konkrétním fotografování** musí být možné zvolenou kvalitu vidět a **změnit jen pro daný snímek** (přímo v procesu focení / přidání před finálním potvrzením fotografie).
 - **Při konkrétním importu** musí být možné zvolenou kvalitu vidět a **změnit jen pro právě přidávanou fotografii** před potvrzením.
-- Jednorázová změna **kvality** nesmí přepsat příslušné trvalé nastavení; příští nezávislé focení či import opět načte globální výchozí volbu. **Volba místa ukládání** je zatím odsouhlasena v globálním nastavení, nikoli jako povinný přepínač při každém focení.
+- Jednorázová změna kvality platí jen pro dané focení/import a nemění globální výchozí úroveň. Žádná volba druhého místa ukládání již není součástí zadání.
 - Přechod do editoru zůstává s potvrzovacím náhledem **OK / Znovu / Storno** tam, kde to pro daný vstup dává smysl; samotné zpracování nesmí potichu změnit nebo poškodit kóty.
 - **Kvalita uložené fotografie** je něco jiného než **dočasná kvalita zobrazení / vykreslovací výkon editoru (F17)** a něco jiného než **velikost a kvalita zákaznického PDF/JPG exportu**. Tři různé věci neslučovat do jediného přepínače.
 - Změna výchozího nastavení nemění **dříve uložené** fotografie. Zmenšená fotografie nezíská dodatečně ztracené detaily přepnutím na „Plná“.
@@ -31,55 +30,54 @@ V aplikaci bude sekce **Nastavení → Fotografie** se **dvěma nezávislými vo
 
 **OTEVŘENO:** přesné rozlišení, maximální delší strana, kompresní parametry, podporované formáty, barevný profil, zacházení s metadaty a případná velikostní indikace. Žádná číselná MP/JPEG hranice není tímto rozhodnutím schválena. Nastavení není totožné s ImageMeter „Maximum texture resolution“.
 
-## 2. Neměnné zásady ochrany originálů – výslovně potvrzeno
+## 2. Ochrana původních souborů a jediné uložené fotografie
 
-Vlastník výslovně rozhodl: **originální soubory se nikdy nemění.**
+**POTVRZENO:** existující zdrojové soubory mimo aplikaci se nikdy nemění, nemažou ani nepřepisují. CraftPlan vede pro každou fotografii jednu trvale uloženou obrazovou verzi ve vybrané kvalitě.
 
-1. **Import z galerie nebo souborů:** CraftPlan nesmí **měnit, přepisovat ani mazat** existující zdrojový soubor mimo aplikaci. Při Úsporná/Střední může vytvořit **novou vlastní zmenšenou pracovní kopii** do svých dat. Originál v galerii nebo zdrojovém umístění zůstává v původních bajtech.
-2. **Původní médium a pracovní kopie jsou dvě rozdílné věci.** Zmenšenou kopii nelze označovat jako nezměněný originál ani v exportu, záloze či dokumentaci. U každé uložené fotografie má být dohledatelný zdroj, použitá kvalita, rozměry/otočení a zda je k dispozici i původní nezmenšená verze. Odkazy, ID a anotace/kóty se při odvození kopie neztrácejí.
-3. **Nová fotografie z fotoaparátu – produktově POTVRZENO, volitelné místo uložení:**
-   - **Jen do aplikace:** CraftPlan uloží vlastní fotografii v kvalitě **Úsporná / Střední / Plná**. **Do galerie záměrně nic nepřidává.** Při nižší zvolené kvalitě **není slíben žádný další samostatně uchovaný originál v plném rozlišení**; uživatel musí před potvrzením rozumět tomu, že pozdější přepnutí na Plná neobnoví detaily. Již vzniklý zdrojový soubor nesmí aplikace tiše přepsat ani smazat. **OTEVŘENO pro M0-A:** bezpečné chování fotoaparátu, vznik/nakládání s případným dočasným plnohodnotným snímkem a ukládací protokol tak, aby nevznikal skrytý destruktivní krok.
-   - **Do aplikace i do galerie telefonu:** CraftPlan uloží **vlastní pracovní kopii** ve vybrané kvalitě a **samostatný původní snímek v plné dostupné kvalitě do galerie**. Původní soubor v galerii se nikdy nepřepisuje ani nemaže. Android toto nemusí zajistit automaticky: aplikace musí obě operace **výslovně provést a ověřit**.
-   - **Selhání:** není dovoleno nepravdivě potvrdit uložení do obou míst, pokud jedno selhalo; uživatel musí vědět, kde snímek skutečně existuje. Nezničit jediný platný zdroj ani poslední uložený stav. **OTEVŘENO PRO M0-A:** mechanismus galerie, zrušené focení, částečný úspěch, uživatelsky pravdivá oznámení, následná dostupnost zdroje a návaznost přenosné zálohy.
-4. **Důležitý datový rozpor k uzavření:** starší M0 texty v [PR #1](https://github.com/zaplikj30-ui/CraftPlan/pull/1) a [PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) požadují zachovat **původní bajty médií i v aplikačním datovém modelu/záloze**. Novější produktové rozhodnutí připouští jen pracovní snímek v aplikaci (bez galerie) **nebo** pracovní kopii v aplikaci a plný originál v galerii; importovaný externí originál zůstává na svém místě. Nejde o totožnou úroveň obnovitelnosti a galerie může být později nedostupná. **Nevyřešit tiše přepsáním ani smazáním existujících originálů.** Před M1/M2 musí M0-A rozlišit, co je skutečně uložený originál, co odvozená pracovní kopie, jaký zdroj je dostupný a co úplná přenosná záloha dokáže či nedokáže obnovit. Nevydávat zmenšenou kopii za plnohodnotný originál. Dva výstupy mohou zabírat více místa.
+1. **Import:** existující externí originál (Galerie/soubory) zůstává ve svém původním umístění a bajtech. Do CraftPlanu se uloží jedna vlastní použitelná verze vybrané kvality; externí zdroj není druhá kopie vytvářená aplikací ani spolehlivá součást její zálohy.
+2. **Evidence a anotace:** uložená verze má ID, kvalitu, rozměry, orientaci, vazbu na původ a kontrolu integrity. Kóty a poznámky jsou samostatně editovatelné. Náhledy/cache a dočasné soubory sloužící pro bezpečný zápis nejsou druhou trvale uloženou originální fotografií.
+3. **Pořízení snímku v CraftPlanu:**
+   - Uloží se **právě jedna autoritativní obrazová verze** v kvalitě **Úsporná / Střední / Plná**, pouze uvnitř aplikace; do systémové Galerie se automaticky nic nového nezapisuje. Nižší kvalita není později vratná do plného rozlišení. Případný technický plný mezisoubor kamery není druhý trvalý archiv; před bezpečným potvrzením vybrané verze se nesmí předčasně ztratit. Jeho životnost a bezpečné uvolnění patří do M0-A.
+   - **Pád/storno/plný disk:** výsledek nepovažovat za uložený před potvrzením kompletní verze a kót. Poslední potvrzené soubory zachovat; rozpracované mezisoubory izolovat a řešit bez destrukce platné práce.
+4. **Záloha a obnova:** M2 záloha zahrnuje skutečně **jedinou interně uloženou verzi v její zvolené kvalitě** a příslušné editovatelné údaje. Na novém zařízení se musí obnovit **stejné bajty uložené verze**, nikoli neexistující plný originál tam, kde byl uložen jen zmenšený snímek. Záloha celé zakázky nesmí pro svou obnovu vyžadovat původní externí zdroj, systémovou Galerii ani původní telefon.
 5. **Stabilita měření:** kvalita obrazu nikdy nesmí měnit skutečné naměřené číslo, jednotku ani původ měření, pouze případnou viditelnost obrazového detailu. Převody rozměrů, EXIF orientace/zrcadlení, souřadnice ukotvených kót, následná výměna fotografie F09 a export musí zůstat jednoznačné a editovatelné.
 6. **Selhání:** chybějící přístup ke zdroji, nedostatek místa, přerušení importu či pořízení, chyba komprese/rotace nesmí vést k falešnému „uloženo“, nahrazení poslední platné fotografie ani tichému poškození zdroje.
 
 ## 3. Jednoduchá uživatelská nápověda (návrh textu pro budoucí offline aplikaci)
 
-> V Nastavení → Fotografie si nastavíš zvlášť kvalitu pro **focení** a pro **fotky z galerie**. Obě nabízejí **Úsporná**, **Střední** a **Plná**. Navíc si zvolíš, zda nové fotografie ukládat **Jen do aplikace**, nebo **Do aplikace i do galerie telefonu**. Při přidání konkrétní fotografie můžeš kvalitu jednorázově změnit bez přepsání nastavení pro příště. Pokud zvolíš **Jen do aplikace** a úspornou/střední kvalitu, plný snímek v galerii nebude a ztracené detaily nepůjde obnovit. Pokud zvolíš **Do aplikace i do galerie**, aplikace si uloží pracovní kopii podle kvality a plný originál zvlášť do galerie. Při **importu** se původní soubor v galerii nebo složce nikdy nepřepíše ani nesmaže.
+> V Nastavení → Fotografie nastavíš zvlášť kvalitu focení a importu: **Úsporná / Střední / Plná**. Při první instalaci jsou obě na **Plná**. Kvalitu lze pro jednu fotografii jednorázově změnit. Do CraftPlanu se trvale uloží **jen jedna fotografie ve vybrané kvalitě**; žádný další skrytý plný originál ani automatická další kopie v Galerii. Při importu zůstává externí originál beze změny. Zmenšenou kvalitu nelze později „vrátit“ do plných detailů.
 
 ## 4. Návrh ověřovacích scénářů (NOT RUN)
 
 | ID | Scénář | Očekávání |
 |---|---|---|
-| FOTO-K01 | Na čisté instalaci ověřit výchozí **Plná při focení / Plná při importu / Jen do aplikace**; potom změnit focení na Úsporná, ponechat import Plná, zavřít a znovu otevřít nastavení | Tři volby mají potvrzený výchozí stav, jsou nezávislé a změny se zachovají; aplikace při výchozím focení nepřidává snímek do galerie |
+| FOTO-K01 | Čistá instalace: kvalita focení/importu Plná; změnit jen jednu globální kvalitu; restart; pořídit snímek | Obě výchozí kvality i jejich nezávislé uložení platí; žádná volba druhého místa uložení a žádná nová fotka v systémové Galerii |
 | FOTO-K02 | Otevřít focení, jednorázově vybrat Plná, potvrdit fotografii, příště fotit znovu | Nový vstup vychází z původního výchozího nastavení, ne z jednorázové volby |
 | FOTO-K03 | Import existujícího obrázku ve Střední a Úsporné kvalitě | Zdrojový soubor a jeho bajty mimo aplikaci beze změny, pracovní kopie je odlišná a správně označená |
 | FOTO-K04 | Zvolit Plná pro již poškozený/zmenšený vstup | Aplikace nevymýšlí chybějící obrazové detaily |
 | FOTO-K05 | Vyměnit orientaci/EXIF, různé rozlišení a formáty, velký snímek; vložit a přemístit kóty | Bez změny přesných hodnot/jednotek, po save/reopen stejné ID a geometrie |
 | FOTO-K06 | Pád, plný disk, odebraná oprávnění a poškozený/zmizelý zdroj | Žádné falešné uložení ani nevratné přepsání platného zdroje/dokumentu |
-| FOTO-K07 | Přenosná záloha a obnova na čistém zařízení, zdroj z galerie je mezitím nedostupný | Poctivě poznat, zda záloha obsahuje plný zdroj či jen pracovní kopii; nepředstírat obnovu detailu |
+| FOTO-K07 | Úplná přenosná záloha M2 a obnova na jiném zařízení bez původního telefonu/externího zdroje | Identické bajty **skutečně uložené verze**, všechny kóty, ID a vazby; nedeklarovat nezachované rozlišení |
 | FOTO-K08 | Změnit globální kvalitu po vytvoření dokumentu a exportovat/vrátit se | Staré soubory bez automatické rekomprese, zobrazování a export oddělené |
 | FOTO-K09 | Hromadný import více snímků; zrušit uprostřed nebo vybrat pro jeden jiný profil | **OTEVŘENO:** přesná UX pravidla pro dávky; nesmí dojít k tiché záměně nebo částečnému nezaznamenanému úspěchu |
-| FOTO-K10 | Pořídit snímek přes CraftPlan s volbou **Do aplikace i do galerie**, potvrdit, vybrat Úsporná/Střední/Plná | **Plný originál v galerii**, samostatná odpovídající pracovní kopie v CraftPlanu; uložení obou stran ověřeno |
-| FOTO-K11 | Zrušit pořízení; v režimu **Do aplikace i galerie** chyba jedné ukládací operace; později přesunout/smazat originál | Přiznaný částečný úspěch/chyba, žádné falešné „uloženo“, žádné tiché smazání zdroje, bezpečné otevření pracovní kopie a jasný údaj o dostupnosti originálu |
-| FOTO-K12 | Zvolit **Jen do aplikace**, pak pořídit a potvrdit Úsporná/Střední/Plná | Snímek je uložen v aplikaci ve správné kvalitě, **v galerii nepřibude žádný soubor**; uživatel ví, že plná kopie nemusí existovat |
-| FOTO-K13 | Přepnout místo ukládání, zavřít a znovu otevřít aplikaci; pořídit další fotografii | Zapamatovaná volba platí pro nové snímky; dříve uložené se zpětně nepřesouvají a nemění |
+| FOTO-K10 | Vyfotit ve všech třech kvalitách, znovu otevřít a zkontrolovat uložené soubory | Každé pořízení má jednu trvale uloženou autoritativní obrazovou verzi, žádný druhý interní originál ani nový snímek v Galerii |
+| FOTO-K11 | Zrušené focení, plný disk, pád během zpracování, dočasný plný mezisoubor kamery | Žádné falešné uložení, poslední platná verze zachována a bezpečně odstranitelné rozpracované médium |
+| FOTO-K12 | Import ve všech třech kvalitách, poté zdroj mimo aplikaci znepřístupnit | V CraftPlanu funguje jediná uložená verze, mimo aplikaci byl zdroj zachován a žádný další trvalý interní plný originál nevznikl |
+| FOTO-K13 | Změna globální kvality, další focení, restart a znovuotevření starší fotografie | Jen nové snímky používají novou kvalitu, staré se automaticky nerekomprimují |
 
 **Všechny testy NOT RUN.** Nejde o nové PASS ani povolení experimentů.
 
-**Sjednocení po kontrolách (22. 11. 2026, bez nové produktové volby):** [PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) nyní návrhově rozlišuje **externí zdroj / interně uchovaný plný originál / pracovní kopii**, samostatný stav zápisu v aplikaci a galerii, revize a skutečně obnovitelná média. Testy **T45–T47** doplňují FOTO-K01–13; pozdější záloha musí fungovat **bez přístupu k původnímu telefonu**, ale nesmí slibovat neexistující plný zdroj. Fotografie v galerii sama **není záloha zakázky** a může podle nastavení telefonu vstupovat do jeho systémového zálohování či synchronizace. O konkrétní dostupnosti/ochraně soukromí je nutné uživatele pravdivě informovat. Zápis v M0-A nezaručuje implementaci ani funkční test.
+**NOVÉ ZÁVAZNÉ UPŘESNĚNÍ (22. 11. 2026):** dřívější návrh ukládání do dvou cílů je **nahrazen jedinou trvalou fotografií v CraftPlanu** ve zvolené kvalitě. [PR #3](https://github.com/zaplikj30-ui/CraftPlan/pull/3) eviduje bezpečný save/recovery, roli externího zdroje a zálohu jediné uložené verze. Historická schválení dvojího cíle zůstávají v historii revizí, nikoli jako platná implementační volba. FOTO-K01–13 a T45–47 jsou návrhové scénáře: **NOT RUN**.
 
-**Výslovně nerozhodnuto a neodvozovat automaticky:** (1) přesná garance zálohovatelnosti a následné obnovy *plného* originálu ve všech režimech, (2) bezpečná životnost plného mezisouboru, pokud jej kamera skutečně vytvoří před zmenšením, (3) konkrétní systémové API a atomické/chybové stavy galerie. **POTVRZENO samostatně:** výchozí profil první instalace je Plná / Plná / Jen do aplikace; tato UX volba sama **neřeší** uchování nezměněných plných bajtů ani obsah zálohy. Před implementací M1 a přenosnou zálohou M2 se tyto hranice musejí uzavřít s vlastníkem a vyhodnotit v DESIGN/SECURITY review změněných návrhů. Nezměněný externí originál nikdy automaticky nepřepisovat ani ničit.
+**Produktově uzavřeno:** dvě nezávislé kvality, výchozí **Plná/Plná**, jedna autoritativní fotografie uvnitř CraftPlanu, žádný automatický druhý soubor v Galerii nebo skrytý interní archiv. M2 obnovuje identické bajty skutečně uložené fotografie; neobnovuje ztracený detail zmenšeniny. **OTEVŘENO technicky:** formáty a parametry kvality, bezpečná dočasná média a životnost po potvrzení/stornu, potvrzovací mechanismus, integrita archivu a praktické testy. Žádné programování ani experiment nebyly povoleny.
 
 ## 5. Návaznosti a hranice
 
 - [PR #4 – UX rozhodnutí](https://github.com/zaplikj30-ui/CraftPlan/pull/4): budoucí odkaz do UX registru; nový funkční požadavek na dvě volby a jednorázové přepnutí.
-- [PR #3 – M0-A datové kontrakty](https://github.com/zaplikj30-ui/CraftPlan/pull/3): musí výslovně rozlišit zdrojové médium, interní originál, pracovní odvozenou kopii, výchozí profil, přiřazené ID/verze a obsah zálohy.
+- [PR #3 – M0-A datové kontrakty](https://github.com/zaplikj30-ui/CraftPlan/pull/3): jediná autoritativní interní verze, nedotčený externí zdroj, identita, bezpečný save a záloha skutečně uložených bajtů.
 - [PR #2 – plán etap](https://github.com/zaplikj30-ui/CraftPlan/pull/2): přesná pravidla pro M1 focení/import, napojení na editor; bezpečná přenosná záloha M2 před nenahraditelnými zakázkami.
 - [PR #1 – původní pravidla](https://github.com/zaplikj30-ui/CraftPlan/pull/1): originály nezničit; staré definice „původních bajtů“ sjednotit s novou volbou velikosti, **nepřepsat historii bez vysvětlení**.
 - ImageMeter je pouze **funkční reference**. Žádný jeho zdrojový kód ani obrazové prvky se nepřebírají; přesná ekvivalence jeho interního nastavení kvality uložení **nebyla prokázána**.
 - Technologie, renderer, obrazový kodek, interní schéma a hranice výkonu zůstávají **NEVYBRÁNO**. Programování, build, testování na Androidu, Actions, merge, výdaje a zásahy do v1 **NEPOVOLENY**.
 
-**HOTOVO v tomto PR:** trvale zapsané vlastníkem schválené UX chování včetně výchozího profilu první instalace **Plná / Plná / Jen do aplikace**, volby místa uložení nových fotografií, hranice ochrany originálů, odkryté bezpečnostní otázky, návrhy nápovědy a akceptačních scénářů. **NENÍ HOTOVO:** navazující datový kontrakt M0-A a jeho nezávislé DESIGN/SECURITY review, technické parametry, implementace či fyzické ověření.
+**HOTOVO na úrovni UX rozhodnutí:** dvě kvality, výchozí **Plná/Plná**, každá fotografie v aplikaci uložena jen jednou, žádný automatický další plný originál ani ukládání do systémové Galerie. **NEHOTOVO:** návrhové schválení celého M0-A, přesné technické parametry, nezávislé review změněné revize a praktické testy.
