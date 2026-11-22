@@ -238,6 +238,12 @@ Po vytvoření kóty zůstává vybraná; klepnutí do volného místa výběr z
 
 **K ověření, nikoliv znovu k produktovému hlasování:** EXIF 1–8, fotografie různých poměrů stran, kotvy po uložení/reopen, transformace při zoom/pan/rotaci zařízení a nezávislé zachování přesných měření po F09. M0-A souřadnicový kandidát a testy PR #3 §5.1/§5.1.1; fyzický PASS **NOT RUN**, žádné implementační GO.
 
+### ROZ-44 – pět schválených pravidel obnovy ZIP na jiném telefonu (22. 11. 2026)
+
+**VÝSLOVNĚ SCHVÁLENO VŠECH PĚT BODŮ:** (1) na prázdné instalaci obnovit z ZIP všechny **zahrnuté** zakázky, fotografie, editovatelné kóty, poznámky, složky a přílohy se zachovanými přesnými hodnotami a vazbami; (2) jsou-li v cílovém telefonu již zakázky, **nikdy nepřepsat existující práci**, nabídnout vědomé `Importovat jako kopii`, nové ID/bezpečné přemapování vazeb; (3) poškozenou, neúplnou, nepodporovanou či škodlivou zálohu bezpečně odmítnout s vysvětlením, bez mazání dat; (4) při nedostatku místa bezpečně zastavit obnovu, **bez odstranění původních zakázek a bez zviditelnění neúplné složky**; (5) zahrnutý Koš obnovit, vynechaný Koš přiznat a jeho neexistující obsah neslibovat.
+
+**Dříve schválené chování ROZ-24 zůstává:** ZIP je běžný bez hesla a povinného šifrování, uživatel vědomě volí Uložit nebo Sdílet (Android aplikace jako WhatsApp/Google Disk dle dostupnosti); žádný automatický upload. První záloha Koš předvolen ZAHRNOUT, po změně volby se pamatuje poslední. Obnova zachovává **skutečně interně uloženou jedinou fotoverzi podle PR #6**, nikoliv zaručenou externí plnou kvalitu. **Technické limity, zpracování nepřátelského ZIP a skutečný test obnovy z jiného zařízení: NOT RUN.** Rozhodnutí není GO k implementaci.
+
 ### Nově výslovně upřesněno: fotografie a videa přímo v CraftPlanu
 
 ### ROZ-41 – pět schválených pravidel uložení a obnovy (22. 11. 2026)
