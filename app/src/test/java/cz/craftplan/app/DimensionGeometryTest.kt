@@ -143,7 +143,7 @@ class DimensionGeometryTest {
         assertEquals(0f, edgePanSpeed(240f, height, edge, maxSpeed), 0f)
         assertEquals(220f, edgePanSpeed(120f, height, edge, maxSpeed), 0.0001f)
         assertEquals(440f, edgePanSpeed(0f, height, edge, maxSpeed), 0f)
-        assertEquals(-220f, edgePanSpeed(710f, height, edge, maxSpeed), 0.0001f)
+        assertEquals(-220f, edgePanSpeed(680f, height, edge, maxSpeed), 0.0001f)
         assertEquals(-440f, edgePanSpeed(800f, height, edge, maxSpeed), 0f)
         assertEquals(128f, verticalAutoPanEdgeSize(320, 1f, isLandscape = false), 0f)
         assertEquals(180f, verticalAutoPanEdgeSize(800, 1f, isLandscape = true), 0f)
