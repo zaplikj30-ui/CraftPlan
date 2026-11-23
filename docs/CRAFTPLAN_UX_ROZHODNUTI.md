@@ -399,6 +399,14 @@ Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchope
 
 **FYZICKY OVĚŘENO VLASTNÍKEM NA BUILD 19:** po uvolnění prstu i S Penu při auto-panu se posun skutečně zastavil a sám nepokračoval (**PASS pro tento scénář**). Neznamená to test výpadku, pádu procesu, ztráty okna ani ochrany trvalého uložení; tyto scénáře zůstávají bez fyzického důkazu.
 
+### M1 – doladění směru auto-panu a pracovní hranice po testu buildu 20 (23. 11. 2026)
+
+**SCHVÁLENO vlastníkem pro příští malý testovací build, nikoli zatím implementováno:** podle fyzického testu buildu 20 začíná svislá složka při tažení kóty u levého/pravého okraje stále příliš blízko horní/dolní hrany; prst musí zajet zbytečně vysoko/nízko, aby se vodorovný posun změnil na diagonální. **Zvětšit horní a spodní aktivační pásmo z 30 % výšky samotné zobrazovací plochy (max. 180 dp) na 40 % (max. 240 dp)**. Zmenší se prostřední neutrální pásmo; plynulé zesilování rychlosti směrem k hraně zachovat. **Vodorovný pás 48 dp a maximální rychlost neměnit.** Měřit výhradně lokální rozměry editorového View, **bez horního panelu s tlačítky, titulkem a nápovědou**; právě tak je nynější oddělení panelu a pracovní plochy konstruováno. Prakticky ověřit diagonálu i čistě vodorovný tah na výšku/šířku.
+
+**SCHVÁLENO omezení příliš vzdáleného odjezdu plátna:** současný „prakticky neomezený“ auto-pan má dostat **rozumnou prostorovou hranici od fotografie a již existujících potvrzených kót**, orientačně **rezervu asi tří šířek/výšek editoru** kolem jejich obsahu. **Nepočítát hranici od bodu, kde se začal poslední tah, ani nerestartovat limit každým novým dotykem**. Omezit skutečný rozsah pracovních souřadnic, nikoli dráhu jednoho gesta. Posun směrem zpět k obsahu vždy umožnit; neoprávněně nepřesouvat nebo neztrácet potvrzené kóty. Přesná geometrie a testy hranice jsou k návrhu v implementačním kroku (včetně zajištění stabilní orientace a omezení přetečení); žádné měřené hodnoty nezávisí na pixelech. Při testu v případě nepohodlného limitu nastavení znovu doladit, nikoli tvrdit trvalou volbu.
+
+**Stav:** rozhodnutí z testu buildu 20 zapsáno do PR #4; **kód změny, nový build, automatické a fyzické testy NOT RUN**. Předchozí technický návrh 30 % / 180 dp výše zůstává historickým stavem buildu 20; pro příští změnu jej nahrazuje zde schválené 40 % / 240 dp.
+
 ### Budoucí samostatný režim – vícefotkové kótování na společném plátně (23. 11. 2026)
 
 **SCHVÁLENO VLASTNÍKEM jako budoucí funkce, nikoli GO k implementaci.** Zachovat stávající režim kótování **jedné fotografie** jako samostatný pracovní postup. Vedle něj později nabídnout **vícefotkové kótování**: uživatel může do jednoho logického seskupení/pracovního dokumentu vložit několik fotografií (např. 3–4 snímky kuchyně), libovolně je rozmístit na společné posuvné a přibližovatelné ploše, jednotlivé snímky přesouvat a vizuálně zvětšovat/zmenšovat, přitom nezávisle kótovat každou fotografii.
