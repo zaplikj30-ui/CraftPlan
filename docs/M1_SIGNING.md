@@ -30,6 +30,16 @@ Instalační sestavení z větve `m1/first-dimension` podepisuje GitHub Actions 
 
 Hodnoty Secrets patří pouze do nastavení GitHubu. Příkazy spusťte bez trasování shellu. Dočasná kopie klíče při sestavení vzniká v dočasném adresáři runneru a po skončení kroku se odstraní. Artefakt obsahuje APK a jeho kontrolní součet.
 
+## Kde vlastník uchovává lokální podpisové soubory (potvrzeno 23. 11. 2026)
+
+Vlastník potvrdil, že **na ploše svého počítače** má uložené tyto tři soukromé soubory:
+
+- `CraftPlan-M1-stabilni-podpis.p12` – stabilní podpisový klíč M1.
+- `CraftPlan-M1-HESLO-SOUKROME.txt` – heslo k podpisovému klíči.
+- `CraftPlan-M1-GITHUB-SECRET-BASE64.txt` – Base64 reprezentace téhož klíče pro GitHub Secret.
+
+**Pouze evidence umístění; žádný z těchto souborů, jejich obsah ani heslo nejsou součástí GitHubu.** Umístění na ploše není bezpečná nezávislá záloha. Vlastník má vytvořit a chránit další soukromou zálohu mimo počítač. Obsahy nikdy neposílat do issue, PR, commitu ani veřejného chatu.
+
 ## Vydání a ověření aktualizace
 
 Po schválení vydání pošlete na `m1/first-dimension` nový commit s textem `[publish m1 apk]` v commit message. Lze použít prázdný commit. Workflow při běžném pushi vydávací úlohu přeskočí. Pro nový pokus o vydání po chybě použijte další označený commit. Běžný rerun stejného run ID úlohu nevydá.
