@@ -13,13 +13,15 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
     private var width = 0
     private var height = 0
-    private var fitScale = 1f
+    private var photoFitScale = 1f
+    private var contentFitScale = 1f
     private var dimension: PhotoDimension? = null
     private var handleMargin = 0f
 
     fun updateContentBounds(dimension: PhotoDimension?, handleMargin: Float) {
         this.dimension = dimension
         this.handleMargin = handleMargin
+        if (width > 0 && height > 0) contentFitScale = contentFit().scale
         transform(0f, 0f, 0f, 0f)
     }
 
@@ -35,10 +37,58 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         this.height = height
         if (width <= 0 || height <= 0) return
 
-        fitScale = minOf(width.toFloat() / imageWidth, height.toFloat() / imageHeight)
-        scale = fitScale
-        left = (width - imageWidth * scale) / 2f
-        top = (height - imageHeight * scale) / 2f
+        updatePhotoFitScale()
+        val fit = contentFit()
+        contentFitScale = fit.scale
+        scale = fit.scale
+        left = (width / 2.0 - fit.centerX * scale).toFloat()
+        top = (height / 2.0 - fit.centerY * scale).toFloat()
+    }
+
+    fun resize(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        if (this.width <= 0 || this.height <= 0) {
+            fit(width, height)
+            return
+        }
+
+        val oldCenterX = this.width / 2f
+        val oldCenterY = this.height / 2f
+        this.width = width
+        this.height = height
+        updatePhotoFitScale()
+        contentFitScale = contentFit().scale
+        transform(oldCenterX, oldCenterY, width / 2f, height / 2f)
+    }
+
+    private fun updatePhotoFitScale() {
+        photoFitScale = minOf(width.toFloat() / imageWidth, height.toFloat() / imageHeight)
+    }
+
+    private data class ViewportFit(val scale: Float, val centerX: Double, val centerY: Double)
+
+    private fun contentFit(): ViewportFit {
+        val start = dimension?.start
+        val end = dimension?.end
+        val minU = minOf(0f, start?.u ?: 0f, end?.u ?: 0f)
+        val maxU = maxOf(1f, start?.u ?: 1f, end?.u ?: 1f)
+        val minV = minOf(0f, start?.v ?: 0f, end?.v ?: 0f)
+        val maxV = maxOf(1f, start?.v ?: 1f, end?.v ?: 1f)
+        if (minU == 0f && maxU == 1f && minV == 0f && maxV == 1f) {
+            return ViewportFit(photoFitScale, imageWidth / 2.0, imageHeight / 2.0)
+        }
+
+        // Use Double for the bounds so distant normalized anchors can be fitted together.
+        val left = minU.toDouble() * imageWidth
+        val right = maxU.toDouble() * imageWidth
+        val top = minV.toDouble() * imageHeight
+        val bottom = maxV.toDouble() * imageHeight
+        val margin = minOf(handleMargin, width / 4f, height / 4f)
+        val fitScale = minOf(
+            (width - 2.0 * margin) / (right - left),
+            (height - 2.0 * margin) / (bottom - top),
+        )
+        return ViewportFit(fitScale.toFloat(), (left + right) / 2.0, (top + bottom) / 2.0)
     }
 
     fun transform(
@@ -49,15 +99,18 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
             !fromX.isFinite() || !fromY.isFinite() || !toX.isFinite() || !toY.isFinite()
         ) return
 
-        val nextScale = (scale * factor).coerceIn(fitScale, fitScale * MAX_ZOOM)
-        val ratio = nextScale / scale
+        // If an edit removes an overhang, keep a previously valid hand-set zoom
+        // until the user zooms back into the new range.
+        val minScale = minOf(scale, contentFitScale)
+        val nextScale = (scale * factor).coerceIn(minScale, photoFitScale * MAX_ZOOM)
+        val ratio = nextScale.toDouble() / scale
         val active = dimension
         left = boundedOffset(
-            toX - (fromX - left) * ratio, width, imageWidth * nextScale,
+            (toX - (fromX - left) * ratio).toFloat(), width, imageWidth * nextScale,
             active?.start?.u, active?.end?.u, extendingForDrag,
         )
         top = boundedOffset(
-            toY - (fromY - top) * ratio, height, imageHeight * nextScale,
+            (toY - (fromY - top) * ratio).toFloat(), height, imageHeight * nextScale,
             active?.start?.v, active?.end?.v, extendingForDrag,
         )
         scale = nextScale

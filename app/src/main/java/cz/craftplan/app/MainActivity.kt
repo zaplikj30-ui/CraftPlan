@@ -159,7 +159,7 @@ private fun SamplePhoto(
             }
         }
         AndroidView(
-            factory = { context -> PhotoEditorView(context) },
+            factory = { context -> PhotoEditorView(context).apply { this.placement = placement } },
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
                 view.onDimension = onDimension

@@ -8,6 +8,90 @@ import org.junit.Test
 
 class PhotoViewportTest {
     @Test
+    fun openingFitsThePhotoAndBothAnchorsInEveryDirection() {
+        val cases = listOf(
+            PhotoAnchor(-1f, 0.5f) to PhotoAnchor(2f, 0.5f),
+            PhotoAnchor(0.5f, -1f) to PhotoAnchor(0.5f, 2f),
+            PhotoAnchor(-1f, 2f) to PhotoAnchor(2f, -1f),
+            PhotoAnchor(0.25f, 0.75f) to PhotoAnchor(8f, -6f),
+        )
+        for ((start, end) in cases) {
+            val viewport = PhotoViewport(1200, 800)
+            val dimension = PhotoDimension(UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH, start, end)
+            viewport.updateContentBounds(dimension, 24f)
+            viewport.resize(600, 480)
+
+            val points = listOf(PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f), start, end)
+                .map(viewport::screenPoint)
+            assertTrue(points.all { it.x in 23.999f..576.001f && it.y in 23.999f..456.001f })
+            assertEquals(300f, (points.minOf { it.x } + points.maxOf { it.x }) / 2f, 0.001f)
+            assertEquals(240f, (points.minOf { it.y } + points.maxOf { it.y }) / 2f, 0.001f)
+
+            val initialScale = viewport.scale
+            viewport.transform(300f, 240f, 300f, 240f, factor = 0.1f)
+            assertEquals(initialScale, viewport.scale, 0f)
+        }
+    }
+
+    @Test
+    fun openingWithAnInsideDimensionUsesTheOriginalPhotoFit() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.updateContentBounds(
+            PhotoDimension(
+                UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+                PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f),
+            ),
+            24f,
+        )
+        viewport.resize(600, 600)
+
+        assertEquals(0.5f, viewport.scale, 0f)
+        assertEquals(0f, viewport.left, 0f)
+        assertEquals(100f, viewport.top, 0f)
+    }
+
+    @Test
+    fun aLongDimensionFitsButDoesNotLowerTheOriginalMaximumZoom() {
+        val viewport = PhotoViewport(1200, 800)
+        val far = PhotoAnchor(1_000_000f, 0.5f)
+        viewport.updateContentBounds(
+            PhotoDimension(UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH, PhotoAnchor(0f, 0f), far),
+            24f,
+        )
+        viewport.resize(600, 480)
+
+        assertEquals(24f, viewport.left, 0.001f)
+        assertEquals(576f, viewport.screenX(far), 0.001f)
+        viewport.transform(300f, 240f, 300f, 240f, factor = 100_000_000f)
+        assertEquals(4f, viewport.scale, 0.001f)
+    }
+
+    @Test
+    fun editingContentAndResizingPreserveAHandSetView() {
+        val viewport = PhotoViewport(800, 800)
+        val original = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(-1f, 0.25f), PhotoAnchor(2f, 0.5f),
+        )
+        viewport.updateContentBounds(original, 24f)
+        viewport.resize(400, 400)
+        viewport.transform(200f, 200f, 225f, 205f, factor = 1.2f)
+        val scale = viewport.scale
+        val left = viewport.left
+        val top = viewport.top
+        viewport.updateContentBounds(original.copy(end = PhotoAnchor(1f, 0.5f)), 24f)
+
+        assertEquals(scale, viewport.scale, 0f)
+        assertEquals(left, viewport.left, 0f)
+        assertEquals(top, viewport.top, 0f)
+        val focus = viewport.toPhotoAnchor(200f, 200f)
+        viewport.resize(420, 440)
+        val resizedFocus = requireNotNull(viewport.toPhotoAnchor(210f, 220f))
+        assertEquals(requireNotNull(focus).u, resizedFocus.u, 0.0001f)
+        assertEquals(focus.v, resizedFocus.v, 0.0001f)
+    }
+
+    @Test
     fun fitCentersTheImageInUnusedSpace() {
         val viewport = PhotoViewport(1200, 800)
         viewport.fit(600, 600)

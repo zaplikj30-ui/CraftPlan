@@ -101,7 +101,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         clearDimensionGesture()
-        viewport.fit(width, height)
+        viewport.resize(width, height)
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
