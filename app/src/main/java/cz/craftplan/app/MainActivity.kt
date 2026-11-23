@@ -74,7 +74,10 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                     editorState.placement = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
                 },
                 onDimension = { result ->
-                    if (editorState.placement is DimensionPlacement.Ready) {
+                    val current = editorState.placement
+                    if (current is DimensionPlacement.Ready ||
+                        current is DimensionPlacement.Complete && current.dimension.id == result.dimension.id
+                    ) {
                         editorState.placement = result
                     }
                 },

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
 import android.view.MotionEvent
@@ -26,14 +27,34 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val end: PhotoAnchor? = null,
     )
 
+    private data class DimensionEdit(
+        val original: PhotoDimension,
+        val hit: DimensionHit,
+        val pointerId: Int,
+        val down: EditorPoint,
+        val preview: PhotoDimension? = null,
+    )
+
+    private val lensBounds = RectF()
+    private val crosshairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        strokeWidth = density
+        pathEffect = DashPathEffect(floatArrayOf(3f * density, 3f * density), 0f)
+    }
     private var dimensionDrag: DimensionDrag? = null
+    private var dimensionEdit: DimensionEdit? = null
+    private var dimensionSelected = false
+    private var lensOnRight: Boolean? = null
+    private var lensContact: EditorPoint? = null
     private var placingDimension = false
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
             if (field != value) {
+                if (value is DimensionPlacement.Complete && field !is DimensionPlacement.Complete) {
+                    dimensionSelected = true
+                }
                 field = value
-                clearDimensionDrag()
+                clearDimensionGesture()
                 invalidate()
             }
         }
@@ -75,17 +96,17 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
-        clearDimensionDrag()
+        clearDimensionGesture()
         viewport.fit(width, height)
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
-        if (!hasWindowFocus) clearDimensionDrag()
+        if (!hasWindowFocus) clearDimensionGesture()
     }
 
     override fun onDetachedFromWindow() {
-        clearDimensionDrag()
+        clearDimensionGesture()
         super.onDetachedFromWindow()
     }
 
@@ -101,22 +122,34 @@ internal class PhotoEditorView(context: Context) : View(context) {
             viewport.top + photo.height * viewport.scale,
         )
         canvas.drawBitmap(photo, null, photoBounds, paint)
+        canvas.save()
         canvas.clipRect(photoBounds)
         when (val current = placement) {
             is DimensionPlacement.Ready -> dimensionDrag?.let { draft ->
                 val end = draft.end
                 if (end == null || end == draft.start) drawAnchor(canvas, draft.start)
-                else drawDimension(canvas, draft.start, end)
+                else drawDimension(canvas, draft.start, end, selected = true)
             }
             is DimensionPlacement.Complete -> {
-                drawDimension(canvas, current.dimension.start, current.dimension.end)
+                val dimension = dimensionEdit?.preview ?: current.dimension
+                drawDimension(canvas, dimension.start, dimension.end, dimensionSelected)
             }
             else -> Unit
         }
+        canvas.restore()
+        val target = dimensionEdit?.let { edit ->
+            val preview = edit.preview ?: return@let null
+            when (edit.hit) {
+                DimensionHit.START -> preview.start
+                DimensionHit.END -> preview.end
+                DimensionHit.BODY -> null
+            }
+        } ?: dimensionDrag?.end ?: dimensionDrag?.start
+        if (target != null) drawMagnifier(canvas, viewport.screenPoint(target))
         canvas.restoreToCount(saveCount)
     }
 
-    private fun drawDimension(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor) {
+    private fun drawDimension(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
         val x1 = viewport.screenX(start)
         val y1 = viewport.screenY(start)
         val dx = viewport.screenX(end) - x1
@@ -126,9 +159,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.translate(x1, y1)
         canvas.rotate(Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat())
 
+        if (selected) {
+            overlayPaint.color = 0x8CFFFFFF.toInt()
+            overlayPaint.strokeWidth = 5f * density
+            canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
+        }
         overlayPaint.color = Color.rgb(247, 220, 39)
         overlayPaint.strokeWidth = 2f * density
-        val tick = 6f * density
+        val tick = 11f * density
         val arrow = minOf(9f * density, length / 4f)
         canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
         canvas.drawLine(0f, -tick, 0f, tick, overlayPaint)
@@ -140,27 +178,31 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         canvas.restore()
 
-        drawAnchor(canvas, start)
-        drawAnchor(canvas, end)
-        drawUnmeasuredMarker(canvas, x1 + dx / 2f, y1 + dy / 2f)
+        if (selected) {
+            drawAnchor(canvas, start)
+            drawAnchor(canvas, end)
+        }
+        drawUnmeasuredMarker(canvas, x1 + dx / 2f, y1 + dy / 2f, readableAngle(EditorPoint(dx, dy)))
     }
 
     private fun drawAnchor(canvas: Canvas, anchor: PhotoAnchor) {
         overlayPaint.color = 0x30FFFFFF
         val x = viewport.screenX(anchor)
         val y = viewport.screenY(anchor)
-        val radius = 10f * density
+        val radius = 14f * density
         canvas.drawCircle(x, y, radius, overlayPaint)
-        overlayPaint.color = 0xCCFFFFFF.toInt()
+        overlayPaint.color = 0xBAFFFFFF.toInt()
         overlayPaint.style = Paint.Style.STROKE
-        overlayPaint.strokeWidth = 1.5f * density
+        overlayPaint.strokeWidth = 1.4f * density
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.style = Paint.Style.FILL
     }
 
-    private fun drawUnmeasuredMarker(canvas: Canvas, x: Float, y: Float) {
+    private fun drawUnmeasuredMarker(canvas: Canvas, x: Float, y: Float, angle: Float) {
         canvas.save()
-        canvas.translate(x, y - 12f * density)
+        canvas.translate(x, y)
+        canvas.rotate(angle)
+        canvas.translate(0f, -12f * density)
         canvas.scale(density, density)
         overlayPaint.color = Color.rgb(65, 72, 77)
         canvas.drawRoundRect(-14f, -5f, 14f, 5f, 1.5f, 1.5f, overlayPaint)
@@ -175,6 +217,75 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.restore()
     }
 
+    private fun drawMagnifier(canvas: Canvas, target: EditorPoint) {
+        val contact = lensContact ?: return
+        val margin = 8f * density
+        val size = minOf(136f * density, width - 2f * margin, height - 2f * margin)
+        if (size <= 0f) return
+        val onRight = magnifierOnRight(contact.x, width, lensOnRight)
+        lensOnRight = onRight
+        val oppositeX = if (onRight) width - margin - size else margin
+        val otherX = if (onRight) margin else width - margin - size
+        val bottom = height - margin - size
+
+        if (!positionLens(oppositeX, margin, size, target, contact) &&
+            !positionLens(otherX, margin, size, target, contact) &&
+            !positionLens(oppositeX, bottom, size, target, contact) &&
+            !positionLens(otherX, bottom, size, target, contact)
+        ) return
+
+        val centerX = lensBounds.centerX()
+        val centerY = lensBounds.centerY()
+        val zoom = 2f
+        canvas.save()
+        canvas.clipRect(lensBounds)
+        canvas.drawColor(0xFF17191C.toInt())
+        canvas.save()
+        canvas.translate(centerX, centerY)
+        canvas.scale(zoom, zoom)
+        canvas.translate(-target.x, -target.y)
+        canvas.drawBitmap(photo, null, photoBounds, paint)
+        canvas.restore()
+
+        val arm = 12f * density
+        drawCrosshair(canvas, centerX, centerY, arm, Color.BLACK, 2f * density)
+        drawCrosshair(canvas, centerX, centerY, arm, Color.WHITE, density)
+        if (contact.distanceTo(target) > density) {
+            overlayPaint.color = Color.rgb(247, 220, 39)
+            canvas.drawCircle(
+                centerX + zoom * (contact.x - target.x),
+                centerY + zoom * (contact.y - target.y),
+                1.5f * density,
+                overlayPaint,
+            )
+        }
+        canvas.restore()
+
+        overlayPaint.color = Color.WHITE
+        overlayPaint.style = Paint.Style.STROKE
+        overlayPaint.strokeWidth = density
+        canvas.drawRect(lensBounds, overlayPaint)
+        overlayPaint.style = Paint.Style.FILL
+    }
+
+    private fun drawCrosshair(canvas: Canvas, x: Float, y: Float, arm: Float, color: Int, stroke: Float) {
+        crosshairPaint.color = color
+        crosshairPaint.strokeWidth = stroke
+        canvas.drawLine(x - arm, y, x + arm, y, crosshairPaint)
+        canvas.drawLine(x, y - arm, x, y + arm, crosshairPaint)
+    }
+
+    private fun positionLens(
+        left: Float, top: Float, size: Float, target: EditorPoint, contact: EditorPoint,
+    ): Boolean {
+        lensBounds.set(left, top, left + size, top + size)
+        val clearance = 14f * density
+        fun overlaps(point: EditorPoint): Boolean =
+            point.x in (left - clearance)..(left + size + clearance) &&
+                point.y in (top - clearance)..(top + size + clearance)
+        return !overlaps(target) && !overlaps(contact)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             placingDimension = placement is DimensionPlacement.Ready
@@ -185,6 +296,24 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
 
         scaleDetector.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val dimension = (placement as? DimensionPlacement.Complete)?.dimension
+            val down = EditorPoint(event.x, event.y)
+            if (dimension != null && viewport.toPhotoAnchor(down.x, down.y) != null) {
+                val hit = hitDimension(down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end), density)
+                if (hit != null) {
+                    dimensionEdit = DimensionEdit(dimension, hit, event.getPointerId(0), down)
+                    activePointerId = MotionEvent.INVALID_POINTER_ID
+                    clickCandidate = false
+                    return true
+                }
+            }
+        }
+        if (dimensionEdit != null) {
+            handleEditTouch(event)
+            // A second pointer cancels the edit and hands the stream back to pinch/zoom.
+            if (event.actionMasked != MotionEvent.ACTION_POINTER_DOWN) return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 startTracking(event, 0)
@@ -204,6 +333,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 if (clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop) {
+                    dimensionSelected = false
+                    invalidate()
                     performClick()
                 }
                 clickCandidate = false
@@ -217,13 +348,53 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return true
     }
 
+    private fun handleEditTouch(event: MotionEvent) {
+        val draft = dimensionEdit ?: return
+        if (event.flags and MotionEvent.FLAG_CANCELED != 0 ||
+            event.actionMasked == MotionEvent.ACTION_CANCEL ||
+            event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
+        ) {
+            clearDimensionGesture()
+            return
+        }
+
+        val index = event.findPointerIndex(draft.pointerId)
+        if (index < 0) {
+            clearDimensionGesture()
+            return
+        }
+        val contact = EditorPoint(event.getX(index), event.getY(index))
+        val moved = draft.preview != null || passesDragThreshold(draft.down, contact, 7f * density)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> if (moved) {
+                dimensionSelected = true
+                lensContact = contact
+                val preview = viewport.moveDimension(draft.original, draft.hit, contact - draft.down)
+                dimensionEdit = draft.copy(preview = preview)
+                invalidate()
+            }
+            MotionEvent.ACTION_UP -> {
+                dimensionSelected = true
+                clearDimensionGesture()
+                invalidate()
+                if (moved) {
+                    val result = viewport.moveDimension(draft.original, draft.hit, contact - draft.down)
+                    if (result != draft.original) onDimension(DimensionPlacement.Complete(result))
+                } else {
+                    performClick()
+                }
+            }
+        }
+    }
+
     private fun handleDimensionTouch(event: MotionEvent) {
         if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
-            clearDimensionDrag()
+            clearDimensionGesture()
             return
         }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                lensContact = EditorPoint(event.x, event.y)
                 dimensionDrag = viewport.toPhotoAnchor(event.x, event.y)?.let { start ->
                     DimensionDrag(event.getPointerId(0), start)
                 }
@@ -233,9 +404,10 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 val draft = dimensionDrag ?: return
                 val index = event.findPointerIndex(draft.pointerId)
                 if (index < 0) {
-                    clearDimensionDrag()
+                    clearDimensionGesture()
                     return
                 }
+                lensContact = EditorPoint(event.getX(index), event.getY(index))
                 dimensionDrag = draft.copy(
                     end = viewport.toPhotoAnchor(event.getX(index), event.getY(index)),
                 )
@@ -243,21 +415,24 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 val draft = dimensionDrag
-                clearDimensionDrag()
+                clearDimensionGesture()
                 val ready = placement as? DimensionPlacement.Ready ?: return
                 if (draft == null || event.getPointerId(0) != draft.pointerId) return
 
                 val end = viewport.dragEnd(draft.start, event.x, event.y, touchSlop)
                 ready.finishDrag(draft.start, end)?.let(onDimension)
             }
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> clearDimensionDrag()
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> clearDimensionGesture()
         }
     }
 
-    private fun clearDimensionDrag() {
-        if (dimensionDrag == null) return
+    private fun clearDimensionGesture() {
+        val needsRedraw = dimensionDrag != null || dimensionEdit != null
         dimensionDrag = null
-        invalidate()
+        dimensionEdit = null
+        lensOnRight = null
+        lensContact = null
+        if (needsRedraw) invalidate()
     }
 
     override fun performClick(): Boolean = super.performClick()

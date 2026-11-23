@@ -59,6 +59,11 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
     fun screenY(anchor: PhotoAnchor): Float = top + anchor.v * (imageHeight * scale)
 
+    fun screenPoint(anchor: PhotoAnchor) = EditorPoint(screenX(anchor), screenY(anchor))
+
+    fun moveDimension(dimension: PhotoDimension, hit: DimensionHit, delta: EditorPoint): PhotoDimension =
+        dimension.move(hit, delta.x / (imageWidth * scale), delta.y / (imageHeight * scale))
+
     private fun boundedOffset(offset: Float, viewportSize: Int, imageSize: Float): Float =
         if (imageSize <= viewportSize) {
             (viewportSize - imageSize) / 2f
