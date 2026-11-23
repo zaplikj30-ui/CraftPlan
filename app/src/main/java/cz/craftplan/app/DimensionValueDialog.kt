@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.view.WindowInsets as AndroidWindowInsets
+import android.view.WindowManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -37,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +67,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -76,6 +80,7 @@ internal fun DimensionValueDialog(
     var showError by rememberSaveable { mutableStateOf(false) }
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var systemKeyboard by rememberSaveable { mutableStateOf(false) }
+    var editingNote by rememberSaveable { mutableStateOf(false) }
     var showSymbols by rememberSaveable { mutableStateOf(false) }
     var restoreIme by rememberSaveable { mutableStateOf(false) }
     var field by remember { mutableStateOf(TextFieldValue(draft.input, TextRange(draft.input.length))) }
@@ -99,6 +104,12 @@ internal fun DimensionValueDialog(
         ),
     ) {
         val view = LocalView.current
+        val window = (view.parent as DialogWindowProvider).window
+        DisposableEffect(window) {
+            val previous = window.attributes.softInputMode
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            onDispose { window.setSoftInputMode(previous) }
+        }
         val keyboard = LocalSoftwareKeyboardController.current
         val hideIme: () -> Unit = {
             restoreIme = false
@@ -111,8 +122,7 @@ internal fun DimensionValueDialog(
             observedIme = systemKeyboard && imeVisible
         }
         val isImeOpen: () -> Boolean = {
-            systemKeyboard &&
-                (view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) ?: imeVisible)
+            view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) ?: imeVisible
         }
         // The dialog uses normal Back priority so Android gives the IME the first chance.
         val latestBack by rememberUpdatedState<() -> Unit> {
@@ -125,25 +135,64 @@ internal fun DimensionValueDialog(
         }
         // Keep the window at a stable size and lay out the panel in the unobscured area.
         BoxWithConstraints(
-            Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 8.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().imePadding().safeDrawingPadding().padding(horizontal = 4.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             val wide = maxWidth >= 540.dp
             val focus = remember { FocusRequester() }
+            val noteFocus = remember { FocusRequester() }
             val openIme = {
+                editingNote = false
                 restoreIme = true
                 showSymbols = false
                 systemKeyboard = true
             }
-            LaunchedEffect(systemKeyboard) {
+            val openNoteIme = {
+                editingNote = true
+                restoreIme = true
+                showSymbols = false
+                systemKeyboard = true
+            }
+            LaunchedEffect(systemKeyboard, editingNote) {
                 if (systemKeyboard && restoreIme) {
-                    focus.requestFocus()
+                    if (editingNote) noteFocus.requestFocus() else focus.requestFocus()
                     keyboard?.show()
                 }
             }
             Box(Modifier.matchParentSize().pointerInput(Unit) {
                 detectTapGestures { outsideTap() }
             })
+            val noteField: @Composable () -> Unit = {
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = draft.note,
+                        onValueChange = {
+                            if (it.length <= 2000) {
+                                onChange(draft.withNote(it))
+                                showError = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().focusRequester(noteFocus),
+                        label = { Text(stringResource(R.string.dimension_note)) },
+                        singleLine = true,
+                        readOnly = !systemKeyboard || !editingNote,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            autoCorrectEnabled = true,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { hideIme() }),
+                    )
+                    if (!systemKeyboard || !editingNote) {
+                        Box(
+                            Modifier.matchParentSize().clickable(
+                                onClickLabel = stringResource(R.string.dimension_note),
+                                onClick = openNoteIme,
+                            ),
+                        )
+                    }
+                }
+            }
             val actions: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.End) {
                     if (!wide && systemKeyboard && imeVisible) {
@@ -177,7 +226,7 @@ internal fun DimensionValueDialog(
                             ),
                             keyboardActions = KeyboardActions(onDone = { hideIme() }),
                         )
-                        if (!systemKeyboard) {
+                        if (!systemKeyboard || editingNote) {
                             Box(Modifier.matchParentSize().clickable(
                                 onClickLabel = stringResource(R.string.use_system_keyboard),
                                 onClick = openIme,
@@ -193,9 +242,16 @@ internal fun DimensionValueDialog(
                             modifier = Modifier.semantics { contentDescription = unitLabel },
                             contentPadding = PaddingValues(horizontal = 8.dp),
                         ) {
-                            Text(draft.unit.symbol)
+                            Text(if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit))
                         }
                         DropdownMenu(expanded = unitsOpen, onDismissRequest = { unitsOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_no_unit)) },
+                                onClick = {
+                                    onChange(draft.type(field.text).withUnitVisibility(false))
+                                    unitsOpen = false
+                                },
+                            )
                             LengthUnit.entries.forEach { unit ->
                                 DropdownMenuItem(
                                     text = { Text(unit.symbol) },
@@ -217,6 +273,7 @@ internal fun DimensionValueDialog(
                             hideIme()
                             field = field.copy(composition = null)
                             systemKeyboard = false
+                            editingNote = false
                         } else {
                             openIme()
                         }
@@ -231,11 +288,11 @@ internal fun DimensionValueDialog(
                 }
             }
             Surface(
-                modifier = Modifier.widthIn(max = if (wide) 620.dp else 440.dp).fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight),
                 shape = MaterialTheme.shapes.large,
                 tonalElevation = 6.dp,
             ) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                     if (wide) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -247,6 +304,8 @@ internal fun DimensionValueDialog(
                     } else {
                         inputRow(Modifier.fillMaxWidth())
                     }
+                    // With an open IME the active field and the value row take priority.
+                    if (!imeVisible || editingNote) noteField()
                     if (wide && systemKeyboard && imeVisible) {
                         TextButton(onClick = hideIme) { Text(stringResource(R.string.hide_system_keyboard)) }
                     }
@@ -296,7 +355,7 @@ internal fun DimensionValueDialog(
     }
 }
 
-internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,")
+internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
 internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
 internal fun handleDimensionDialogBack(imeOpen: Boolean, hideIme: () -> Unit, confirm: () -> Unit) {
@@ -314,6 +373,7 @@ private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, o
                     '◷' -> stringResource(R.string.dimension_key_history)
                     '⋯' -> stringResource(R.string.dimension_key_symbols)
                     '↩' -> stringResource(R.string.use_dimension_keypad)
+                    '_' -> stringResource(R.string.dimension_key_reserved)
                     ' ' -> stringResource(R.string.dimension_key_space)
                     else -> null
                 }
@@ -325,7 +385,7 @@ private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, o
                             else -> onKey(key)
                         }
                     },
-                    enabled = key != '◷',
+                    enabled = key != '◷' && key != '_',
                     modifier = Modifier.weight(1f).heightIn(min = 52.dp).semantics {
                         if (description != null) contentDescription = description
                     },
@@ -336,6 +396,7 @@ private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, o
                             '\b' -> "⌫"
                             ' ' -> "␣"
                             '↩' -> "123"
+                            '_' -> ""
                             else -> key.toString()
                         },
                         style = MaterialTheme.typography.titleLarge,

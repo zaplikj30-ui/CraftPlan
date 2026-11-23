@@ -10,7 +10,7 @@ import org.junit.Test
 class DimensionInputTest {
     @Test
     fun usesSpecifiedNumericAndSymbolRows() {
-        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,"), dimensionKeyRows)
+        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,_"), dimensionKeyRows)
         assertEquals(listOf("+−±/", ".% ↩"), dimensionSymbolRows)
     }
 

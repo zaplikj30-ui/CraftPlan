@@ -22,6 +22,9 @@
     <string name="dimension_key_history">Historie laseru</string>
     <string name="dimension_key_symbols">Doplňkové znaky</string>
     <string name="dimension_key_space">Mezera</string>
+    <string name="dimension_key_reserved">Volné tlačítko</string>
+    <string name="dimension_no_unit">Nic</string>
+    <string name="dimension_note">Poznámka ke kótě (na fotografii jen notýsek)</string>
     <string name="dimension_value_required">Zadej hodnotu kóty.</string>
     <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
     <string name="cancel_value">Zrušit</string>

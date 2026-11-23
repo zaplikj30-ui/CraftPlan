@@ -99,7 +99,12 @@ internal class DimensionValueDraft private constructor(
         ) return null
         if (note.length > 2000) return null
         // The original exact source wins when only presentation or notes have changed.
-        val entry = parseDimensionEntry(input, unit, requireSelectedUnit)
+        val parsed = parseDimensionEntry(input, unit, requireSelectedUnit)
+        // A converted rational can have a display form not accepted as manual metric input.
+        // Preserve its exact original source when the numerical text was not edited.
+        val entry = if (unchangedSource != null && parsed == null) {
+            DimensionEntry.Measured(unchangedSource, target.labelSuffix)
+        } else parsed
         return when (entry) {
             is DimensionEntry.Measured -> current.copy(
                 measurement = unchangedSource ?: entry.value, displayUnit = unit,
@@ -109,7 +114,9 @@ internal class DimensionValueDraft private constructor(
                 measurement = null, displayUnit = unit, labelSuffix = "",
                 textLabel = entry.text, note = note, showUnit = showUnit,
             )
-            null -> if (input.isBlank() && note.isNotBlank()) current.copy(
+            null -> if (input.isBlank() && (note.isNotBlank() || target.note.isNotBlank() ||
+                target.textLabel != null)
+            ) current.copy(
                 measurement = null, displayUnit = unit, labelSuffix = "",
                 textLabel = null, note = note, showUnit = showUnit,
             ) else null

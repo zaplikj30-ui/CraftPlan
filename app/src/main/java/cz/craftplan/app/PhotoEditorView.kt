@@ -66,6 +66,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
     var onEditValue: (PhotoDimension) -> Unit = {}
     private var valueLabel: String? = null
+    private var hasNote = false
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
             if (field != value) {
@@ -74,10 +75,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 }
                 field = value
                 val dimension = (value as? DimensionPlacement.Complete)?.dimension
-                valueLabel = dimension?.measurement?.let {
-                    val unit = dimension.displayUnit
-                    "${it.length.displayNumber(unit)} ${unit.symbol}"
-                }
+                valueLabel = dimension?.displayLabel()
+                hasNote = !dimension?.note.isNullOrBlank()
                 clearDimensionGesture()
                 invalidate()
             }
@@ -160,7 +159,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val end = drag?.end ?: dimension?.end
         if (start != null) {
             if (end == null || start == end) drawAnchor(canvas, start)
-            else drawDimension(canvas, start, end, drag != null || dimensionSelected, valueLabel)
+            else drawDimension(canvas, start, end, drag != null || dimensionSelected, valueLabel, hasNote)
         }
 
         val target = when {
@@ -199,6 +198,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     private fun drawDimension(
         canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, label: String?,
+        noteIndicator: Boolean,
     ) {
         drawDimensionLine(canvas, start, end, selected)
         if (selected) {
@@ -220,6 +220,20 @@ internal class PhotoEditorView(context: Context) : View(context) {
             canvas.drawRoundRect(-halfWidth, top, halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
             canvas.drawText(label, 0f, bottom - labelPaint.descent() - 2f * density, labelPaint)
         }
+        if (noteIndicator) {
+            // A tiny notebook marker; the note text itself stays off the photograph.
+            val x = (label?.let { labelPaint.measureText(it) / 2f } ?: 14f * density) + 10f * density
+            val top = -24f * density
+            overlayPaint.color = Color.rgb(247, 220, 39)
+            canvas.drawRoundRect(x, top, x + 15f * density, top + 17f * density,
+                2f * density, 2f * density, overlayPaint)
+            overlayPaint.color = Color.rgb(53, 61, 66)
+            overlayPaint.strokeWidth = 1.3f * density
+            for (line in 1..3) {
+                val y = top + (line * 4f + 1f) * density
+                canvas.drawLine(x + 4f * density, y, x + 12f * density, y, overlayPaint)
+            }
+        }
         canvas.restore()
     }
 
@@ -231,7 +245,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
         val halfText = valueLabel?.let { labelPaint.measureText(it) / 2f } ?: 0f
-        val halfWidth = maxOf(24f * density, halfText + 8f * density)
+        val halfWidth = maxOf(24f * density, halfText + if (hasNote) 30f * density else 8f * density)
         val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
         return along in -halfWidth..halfWidth && across in -height..12f * density
     }
