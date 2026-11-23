@@ -440,6 +440,18 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **Stav:** produktové rozhodnutí schváleno; konkrétní datový kontrakt vícefotkového plátna, UI, výkonnostní limity, ukládání, export a fyzické testy **NOT RUN / zatím nevyřešeny**. Pro nynější M1 to nepřidává implementační požadavek. Současné plynulé posouvání u okraje je uživatelsky schváleno **bez pevného limitu jednoho tahu**; případnou možnost pozdějšího omezení rozsahu ponechat otevřenou, bez automatické změny.
 
+## Doplnění UX zadávání kóty a poznámek – 23. 11. 2026
+
+**Potvrzený uživatelský návrh, rozpracovaná realizace M1 (ne fyzicky ověřená funkce).** Při psaní hodnoty se používá vlastní velký číselník 4 × 4, který zabírá téměř celou použitelnou šířku dialogu i na šířku telefonu. Řádky: `7 8 9 ⌫`, `4 5 6 C`, `1 2 3 historie laseru`, `⋯ 0 , [prázdné orámované políčko]`. Historie laseru je pouze neaktivní rezervované tlačítko pro budoucí F03/M5. `⋯` přepíná na speciální znaky `+ − ± / . % mezera`; po zadání se číselník vrací. Nepodporované výrazy se nesmějí uložit jako skutečná míra; význam procent a matematických znamének není schválen jako výpočet.
+
+**Horní řádek:** co nejširší textové pole, kompaktní jednotka jen symbolem (např. `mm`) a přepínač vlastní/systémové klávesnice. Klepnutí do vstupu otevře systémovou klávesnici; zavření klávesnice přes Zpět, Hotovo, mimo dialog či `Skrýt klávesnici` **nesmí potvrdit nebo ztratit rozepsané změny**. Uložit je samostatná vědomá akce; dříve schválené chování Zpět bez otevřené IME dle příslušného UX kontraktu zůstává. Pole a akce musejí být viditelné na výšku i na šířku; uchovat rozepsané údaje při otočení. Fyzické ověření **NOT RUN**.
+
+**Obsah kóty:** do hlavního pole lze zadat přesné číslo, číslo následované volným viditelným textem (např. `1250 výška pracovní desky`) nebo pouze text (`PŘEMĚŘIT`). Při potvrzení se zvolená jednotka vloží **do zobrazení mezi číslo a text** (`1250 mm výška pracovní desky`), nikoli do rozepsaného vstupu. Výběr `Nic` skrývá jednotku popisku, **nikoli autoritativní jednotku/přesnou délku**, při textové kótě neuvádět falešnou hodnotu `0 mm` a zachovat rozdíl od `NEZMĚŘENO`. Zlomkové a přesné hodnoty nesmějí degradovat na Float/Double.
+
+**Samostatná poznámka ke konkrétní kótě:** vlastní textové pole pod hodnotou; používá systémovou klávesnici. Poznámka **není vykreslena textem na fotografii**, u popisku se při její existenci zobrazuje malý notýsek (motiv sešit/tužka). Klepnutí na notýsek otevře editaci poznámky. Poznámka, hlavní popisek a přesná míra jsou oddělené; budoucí export nesmí poznámku bez souhlasu zveřejnit. Společné bezpečné trvalé uložení/obnova zatím **NOT RUN**; současná M1 data stále jen syntetická a v paměti.
+
+**Realizace / důkaz ke dni zápisu:** vývojová větev `m1/first-dimension`, zdrojová revize [`beef0ed`](https://github.com/zaplikj30-ui/CraftPlan/commit/beef0ed65528ec60de831f4decd08b5ec9147847). Codex hlásí 59/59 lokálních jednotkových testů a debug build PASS; fyzické testování orientace, IME, dotyku notýsku a trvalá obnova **NOT RUN**. Etapizace PR #2 se nemění: v M1 nejvyšší priorita funkční editor, Undo/Redo, bezpečný save/reopen; další rozvoj poznámek a laseru podle návazností.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
