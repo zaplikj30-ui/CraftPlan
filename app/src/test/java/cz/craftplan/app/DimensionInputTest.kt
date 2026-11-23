@@ -15,6 +15,16 @@ class DimensionInputTest {
     }
 
     @Test
+    fun portraitSymbolGridMatchesNumericGridWithoutAddingActions() {
+        val numbers = displayedDimensionKeyRows(showSymbols = false, portrait = true)
+        val symbols = displayedDimensionKeyRows(showSymbols = true, portrait = true)
+        assertEquals(List(4) { 4 }, numbers.map(String::length))
+        assertEquals(numbers.map(String::length), symbols.map(String::length))
+        assertEquals(dimensionSymbolRows + listOf("____", "____"), symbols)
+        assertEquals(dimensionSymbolRows, displayedDimensionKeyRows(showSymbols = true, portrait = false))
+    }
+
+    @Test
     fun clearAndBackspaceCanConfirmAnUnmeasuredDimension() {
         val dimension = PhotoDimension(
             UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH, PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f),

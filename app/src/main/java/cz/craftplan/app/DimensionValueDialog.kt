@@ -1,5 +1,6 @@
 package cz.craftplan.app
 
+import android.content.res.Configuration
 import android.view.WindowInsets as AndroidWindowInsets
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
@@ -38,6 +40,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
@@ -90,7 +94,10 @@ internal fun DimensionValueDialog(
     onChange: ((DimensionValueDraft) -> DimensionValueDraft) -> Unit,
     onConfirm: () -> Boolean,
     onCancel: () -> Unit,
+    showNotes: Boolean,
+    onToggleNotes: () -> Unit,
 ) {
+    val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
     var showError by rememberSaveable { mutableStateOf(false) }
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var keys by rememberSaveable(stateSaver = keyboardSaver) { mutableStateOf(DimensionKeyboard()) }
@@ -204,7 +211,11 @@ internal fun DimensionValueDialog(
                                     modifier = Modifier.semantics { contentDescription = unitLabel },
                                     contentPadding = PaddingValues(horizontal = 8.dp),
                                 ) { Text(unitText) }
-                                DropdownMenu(expanded = unitsOpen, onDismissRequest = { unitsOpen = false }) {
+                                DropdownMenu(
+                                    expanded = unitsOpen,
+                                    onDismissRequest = { unitsOpen = false },
+                                    modifier = if (portrait) Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp) else Modifier,
+                                ) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.dimension_no_unit)) },
                                         onClick = {
@@ -226,6 +237,9 @@ internal fun DimensionValueDialog(
                                             },
                                         )
                                     }
+                                    if (portrait) {
+                                        KeepNumberOption(keepNumber, { keepNumber = it }, Modifier.padding(horizontal = 12.dp))
+                                    }
                                 }
                             }
                             val switchLabel = stringResource(
@@ -236,8 +250,13 @@ internal fun DimensionValueDialog(
                                 onClick = { keys = keys.switch(); showSymbols = false },
                                 modifier = Modifier.semantics { contentDescription = switchLabel },
                             ) {
-                                if (keys.mode == DimensionKeyboardMode.SYSTEM) Text("123")
-                                else Icon(painterResource(R.drawable.ic_dimension_keyboard), contentDescription = null)
+                                Icon(
+                                    painterResource(
+                                        if (keys.mode == DimensionKeyboardMode.SYSTEM) R.drawable.ic_dimension_keypad
+                                        else R.drawable.ic_dimension_keyboard,
+                                    ),
+                                    contentDescription = null,
+                                )
                             }
                         }
                         DimensionInputField(
@@ -252,15 +271,19 @@ internal fun DimensionValueDialog(
                             onDone = hideKeyboard,
                             isNote = true,
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
-                                value = keepNumber, role = Role.Checkbox, onValueChange = { keepNumber = it },
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = keepNumber, onCheckedChange = null)
-                            Text(stringResource(R.string.keep_number_on_unit_change))
+                        if (portrait) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
+                                    value = showNotes, role = Role.Switch, onValueChange = { onToggleNotes() },
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Switch(checked = showNotes, onCheckedChange = null)
+                                Text(stringResource(if (showNotes) R.string.hide_dimension_notes else R.string.show_dimension_notes))
+                            }
+                        } else {
+                            KeepNumberOption(keepNumber, { keepNumber = it })
                         }
                         if (showError) {
                             Text(
@@ -272,6 +295,7 @@ internal fun DimensionValueDialog(
                         if (keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible) {
                             DimensionKeypad(
                                 showSymbols = showSymbols,
+                                portrait = portrait,
                                 onToggleSymbols = { showSymbols = !showSymbols },
                                 onKey = { key ->
                                     val editingNote = keys.field == DimensionField.NOTE
@@ -303,6 +327,20 @@ internal fun DimensionValueDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun KeepNumberOption(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
+            value = checked, role = Role.Checkbox, onValueChange = onChange,
+        ).then(modifier),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(stringResource(R.string.keep_number_on_unit_change))
     }
 }
 
@@ -348,16 +386,23 @@ private fun DimensionInputField(
 internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
 internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
+internal fun displayedDimensionKeyRows(showSymbols: Boolean, portrait: Boolean): List<String> = when {
+    !showSymbols -> dimensionKeyRows
+    portrait -> dimensionSymbolRows + listOf("____", "____")
+    else -> dimensionSymbolRows
+}
+
 internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -> Unit, confirm: () -> Unit) {
     if (keyboardOpen) hideKeyboard() else confirm()
 }
 
 @Composable
-private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
+private fun DimensionKeypad(showSymbols: Boolean, portrait: Boolean, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    for (row in if (showSymbols) dimensionSymbolRows else dimensionKeyRows) {
+    for (row in displayedDimensionKeyRows(showSymbols, portrait)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for (key in row) {
+                val keyHeight = if (portrait) Modifier.height(62.dp) else Modifier.heightIn(min = 62.dp)
                 val description = when (key) {
                     '\b' -> stringResource(R.string.dimension_key_delete)
                     'C' -> stringResource(R.string.dimension_key_clear)
@@ -377,7 +422,7 @@ private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, o
                         }
                     },
                     enabled = key != '◷' && key != '_',
-                    modifier = Modifier.weight(1f).heightIn(min = 62.dp).semantics {
+                    modifier = Modifier.weight(1f).then(keyHeight).semantics {
                         if (description != null) contentDescription = description
                     },
                     shape = RoundedCornerShape(6.dp),
@@ -389,16 +434,19 @@ private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, o
                     ),
                     contentPadding = PaddingValues(0.dp),
                 ) {
-                    Text(
-                        text = when (key) {
-                            '\b' -> "⌫"
-                            ' ' -> "␣"
-                            '↩' -> "123"
-                            '_' -> ""
-                            else -> key.toString()
-                        },
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
+                    if (key == '↩') {
+                        Icon(painterResource(R.drawable.ic_dimension_keypad), contentDescription = null)
+                    } else {
+                        Text(
+                            text = when (key) {
+                                '\b' -> "⌫"
+                                ' ' -> "␣"
+                                '_' -> ""
+                                else -> key.toString()
+                            },
+                            style = MaterialTheme.typography.headlineSmall,
+                        )
+                    }
                 }
             }
         }

@@ -115,6 +115,8 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                     onChange = { update -> editorState.valueDraft = editorState.valueDraft?.let(update) },
                     onConfirm = editorState::confirmValue,
                     onCancel = { editorState.valueDraft = null },
+                    showNotes = editorState.showNotes,
+                    onToggleNotes = { editorState.showNotes = !editorState.showNotes },
                 )
             }
         } else {
@@ -215,11 +217,12 @@ private fun SamplePhoto(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                    Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = onStartDimension, enabled = placement == DimensionPlacement.Idle) {
-                            Text(stringResource(R.string.add_dimension))
-                        }
-                        noteToggle()
+                    Button(
+                        onClick = onStartDimension,
+                        enabled = placement == DimensionPlacement.Idle,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    ) {
+                        Text(stringResource(R.string.add_dimension))
                     }
                     Text(
                         text = stringResource(hint),
