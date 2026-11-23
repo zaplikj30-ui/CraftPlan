@@ -338,6 +338,10 @@ Když vlastník upozorní na odlišnost, ChatGPT **nejprve ověří plán a skut
 
 **Postup práce:** před dalším testovacím APK vlastníku explicitně uvést, co je hotové, co je provizorní a co zůstává na další kroky; příbuzné vizuální a ergonomické opravy sdružit do jednoho rozumného balíčku. Nepřidávat podpisový klíč ani zákaznická média do veřejného GitHubu.
 
+### Potvrzené UX – omezený posun fotografie i při výchozím zoomu (23. 11. 2026)
+
+**POTVRZENO vlastníkem:** Po otevření editoru je celá fotografie automaticky vycentrovaná, ale uživatel ji může **posouvat prstem i bez předchozího přiblížení (fit/minimální zoom)**. Fotografie se smí částečně posunout mimo původní středovou pozici a případně za okraj pracovní oblasti, aby kolem vzniklo místo pro kóty; pohyb má **rozumné hranice**, takže fotografii nelze odsunout úplně mimo pracovní plochu a ztratit ji z dosahu. Po přiblížení se přípustné meze přizpůsobí zoomu. Konkrétní rozsah posunu je k ergonomickému ověření na fyzickém telefonu, **není schválen pevný počet pixelů ani procent**. Pan/zoom nesmějí měnit ukotvení kót k fotografii. Toto je **cílové UX pro další M1 krok**, nikoliv tvrzení, že již funguje v APK: nynější `PhotoViewport.boundedOffset` při obrazu menším než viewport vynucuje vycentrování. Samostatný požadavek kreslení kót mimo fotografii zůstává platný. Záznam není samostatné GO k implementaci, buildu či nové APK.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
