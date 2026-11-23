@@ -389,6 +389,14 @@ Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchope
 
 **Implementační poznámka:** změna editoru a malý jednotkový test v commitu [`a11a7b27`](https://github.com/zaplikj30-ui/CraftPlan/commit/a11a7b2770828ab440290306954ad59e2a4941de), nové podepsané CI sestavení [build 19](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45177130364). Dokud není doložen stav CI a fyzický test, nepovažovat nový runtime za PASS; skutečné chování na telefonu prověří vlastník.
 
+### Upřesnění po fyzickém testu buildu 19 – tečky trvale a plynulejší diagonála (23. 11. 2026)
+
+**NOVĚ SCHVÁLENO VLASTNÍKEM A NAHRAZUJE DŘÍVĚJŠÍ DOČASNÉ ZOBRAZOVÁNÍ TEČEK:** jemná pomocná tečkovaná mřížka je **stále viditelná na volném pozadí pracovního prostoru**, i když se právě neposouvá. Při posunu se tečky pohybují se souřadnicemi plátna. **Fotografie se vykreslují přes mřížku a plně ji zakrývají ve své ploše**; mřížka nikdy nepřekrývá samotný fotografický obsah, kóty ani úchopy. Vizuální jemnost a rozestupy z osvědčeného M1 buildu 19 jsou výchozí referencí; nezvyšovat výraznost bez potřeby.
+
+**Plynulá diagonála auto-panu:** při držení konce kóty u levého/pravého kraje má posun v přibližně prostředním pásu výšky zůstat čistě vodorovný. Čím blíže prst přejde směrem k hornímu nebo dolnímu kraji, tím plynuleji se přidává svislá složka a posun jde šikmo. V buildu 19 svislá složka začínala až příliš blízko horní/dolní hrany. **První technická volba k fyzickému doladění:** přechodová oblast přibližně vnějších 30 % výšky editoru od každé hrany, maximálně 180 dp; rychlost dál plynule roste ke hraně. Levý/pravý okraj aktivace vodorovného posunu i dosavadní maximální rychlost se **nemění**. Změnu posoudit na telefonu na výšku/šířku; toto číselné nastavení není nevratně schválený ideální poměr.
+
+**Provedeno ve zdrojích:** [`8d0915ab`](https://github.com/zaplikj30-ui/CraftPlan/commit/8d0915aba5137586037859a52f32a83a5911785d) na větvi `m1/first-dimension` včetně cílených jednotkových testů výpočtu. Commit má `[skip ci]`: **build, nové JVM testy i fyzické ověření tohoto commitu NOT RUN**. Fyzické hodnocení uživatele „funguje to“ platí pro **předchozí build 19**, nikoli tuto následnou úpravu. Ostatní pravidla bezpečného ukončení tahu, horní lupy a citlivosti úchopů zůstávají beze změny.
+
 ### Budoucí samostatný režim – vícefotkové kótování na společném plátně (23. 11. 2026)
 
 **SCHVÁLENO VLASTNÍKEM jako budoucí funkce, nikoli GO k implementaci.** Zachovat stávající režim kótování **jedné fotografie** jako samostatný pracovní postup. Vedle něj později nabídnout **vícefotkové kótování**: uživatel může do jednoho logického seskupení/pracovního dokumentu vložit několik fotografií (např. 3–4 snímky kuchyně), libovolně je rozmístit na společné posuvné a přibližovatelné ploše, jednotlivé snímky přesouvat a vizuálně zvětšovat/zmenšovat, přitom nezávisle kótovat každou fotografii.
