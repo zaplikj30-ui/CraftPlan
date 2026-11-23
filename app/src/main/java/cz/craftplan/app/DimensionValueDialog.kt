@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.view.WindowInsets as AndroidWindowInsets
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +28,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -48,6 +52,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -71,6 +76,7 @@ internal fun DimensionValueDialog(
     var showError by rememberSaveable { mutableStateOf(false) }
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var systemKeyboard by rememberSaveable { mutableStateOf(false) }
+    var showSymbols by rememberSaveable { mutableStateOf(false) }
     var restoreIme by rememberSaveable { mutableStateOf(false) }
     var field by remember { mutableStateOf(TextFieldValue(draft.input, TextRange(draft.input.length))) }
     var unitsOpen by remember { mutableStateOf(false) }
@@ -124,6 +130,11 @@ internal fun DimensionValueDialog(
         ) {
             val wide = maxWidth >= 540.dp
             val focus = remember { FocusRequester() }
+            val openIme = {
+                restoreIme = true
+                showSymbols = false
+                systemKeyboard = true
+            }
             LaunchedEffect(systemKeyboard) {
                 if (systemKeyboard && restoreIme) {
                     focus.requestFocus()
@@ -135,6 +146,11 @@ internal fun DimensionValueDialog(
             })
             val actions: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.End) {
+                    if (!wide && systemKeyboard && imeVisible) {
+                        TextButton(onClick = hideIme, modifier = Modifier.weight(1f, fill = false)) {
+                            Text(stringResource(R.string.hide_system_keyboard))
+                        }
+                    }
                     TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_value)) }
                     Button(onClick = confirm) { Text(stringResource(R.string.confirm_value)) }
                 }
@@ -145,24 +161,39 @@ internal fun DimensionValueDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
-                        value = field,
-                        onValueChange = updateField,
-                        modifier = Modifier.weight(1f).focusRequester(focus),
-                        label = { Text(stringResource(R.string.dimension_value)) },
-                        singleLine = true,
-                        isError = showError,
-                        readOnly = !systemKeyboard,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            autoCorrectEnabled = false,
-                            imeAction = ImeAction.Done,
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { hideIme() }),
-                    )
+                    Box(Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = field,
+                            onValueChange = updateField,
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                            label = { Text(stringResource(R.string.dimension_value)) },
+                            singleLine = true,
+                            isError = showError,
+                            readOnly = !systemKeyboard,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                autoCorrectEnabled = false,
+                                imeAction = ImeAction.Done,
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { hideIme() }),
+                        )
+                        if (!systemKeyboard) {
+                            Box(Modifier.matchParentSize().clickable(
+                                onClickLabel = stringResource(R.string.use_system_keyboard),
+                                onClick = openIme,
+                            ).semantics {
+                                contentDescription = field.text
+                            })
+                        }
+                    }
                     Box {
-                        OutlinedButton(onClick = { unitsOpen = true }) {
-                            Text(stringResource(R.string.dimension_unit, draft.unit.symbol))
+                        val unitLabel = stringResource(R.string.dimension_unit, draft.unit.symbol)
+                        OutlinedButton(
+                            onClick = { unitsOpen = true },
+                            modifier = Modifier.semantics { contentDescription = unitLabel },
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) {
+                            Text(draft.unit.symbol)
                         }
                         DropdownMenu(expanded = unitsOpen, onDismissRequest = { unitsOpen = false }) {
                             LengthUnit.entries.forEach { unit ->
@@ -180,6 +211,22 @@ internal fun DimensionValueDialog(
                                 )
                             }
                         }
+                    }
+                    IconButton(onClick = {
+                        if (systemKeyboard) {
+                            hideIme()
+                            field = field.copy(composition = null)
+                            systemKeyboard = false
+                        } else {
+                            openIme()
+                        }
+                    }) {
+                        Icon(
+                            painterResource(R.drawable.ic_dimension_keyboard),
+                            contentDescription = stringResource(
+                                if (systemKeyboard) R.string.use_dimension_keypad else R.string.use_system_keyboard,
+                            ),
+                        )
                     }
                 }
             }
@@ -199,6 +246,9 @@ internal fun DimensionValueDialog(
                         }
                     } else {
                         inputRow(Modifier.fillMaxWidth())
+                    }
+                    if (wide && systemKeyboard && imeVisible) {
+                        TextButton(onClick = hideIme) { Text(stringResource(R.string.hide_system_keyboard)) }
                     }
                     Column(
                         modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
@@ -226,21 +276,15 @@ internal fun DimensionValueDialog(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        TextButton(onClick = {
-                            if (systemKeyboard) {
-                                hideIme()
-                                field = field.copy(composition = null)
-                            } else {
-                                restoreIme = true
-                            }
-                            systemKeyboard = !systemKeyboard
-                        }) {
-                            Text(stringResource(
-                                if (systemKeyboard) R.string.use_dimension_keypad else R.string.use_system_keyboard,
-                            ))
-                        }
                         if (!systemKeyboard) {
-                            DimensionKeypad { key -> updateField(editDimensionInput(field, key)) }
+                            DimensionKeypad(
+                                showSymbols = showSymbols,
+                                onToggleSymbols = { showSymbols = !showSymbols },
+                                onKey = { key ->
+                                    updateField(editDimensionInput(field, key))
+                                    showSymbols = false
+                                },
+                            )
                         }
                     }
                     if (!wide) {
@@ -252,39 +296,59 @@ internal fun DimensionValueDialog(
     }
 }
 
-internal val dimensionKeyRows = listOf("123", "456", "789", ",0\b")
+internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,")
+internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
 internal fun handleDimensionDialogBack(imeOpen: Boolean, hideIme: () -> Unit, confirm: () -> Unit) {
     if (imeOpen) hideIme() else confirm()
 }
 
 @Composable
-private fun DimensionKeypad(onKey: (Char) -> Unit) {
-    for (row in dimensionKeyRows) {
+private fun DimensionKeypad(showSymbols: Boolean, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
+    for (row in if (showSymbols) dimensionSymbolRows else dimensionKeyRows) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for (key in row) {
-                val description = if (key == '\b') stringResource(R.string.dimension_key_delete) else null
+                val description = when (key) {
+                    '\b' -> stringResource(R.string.dimension_key_delete)
+                    'C' -> stringResource(R.string.dimension_key_clear)
+                    '◷' -> stringResource(R.string.dimension_key_history)
+                    '⋯' -> stringResource(R.string.dimension_key_symbols)
+                    '↩' -> stringResource(R.string.use_dimension_keypad)
+                    ' ' -> stringResource(R.string.dimension_key_space)
+                    else -> null
+                }
                 OutlinedButton(
-                    onClick = { onKey(key) },
-                    modifier = Modifier.weight(1f).semantics {
+                    onClick = {
+                        when (key) {
+                            '⋯', '↩' -> onToggleSymbols()
+                            '◷' -> Unit
+                            else -> onKey(key)
+                        }
+                    },
+                    enabled = key != '◷',
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).semantics {
                         if (description != null) contentDescription = description
                     },
                     contentPadding = PaddingValues(0.dp),
                 ) {
-                    Text(if (key == '\b') "⌫" else key.toString())
+                    Text(
+                        text = when (key) {
+                            '\b' -> "⌫"
+                            ' ' -> "␣"
+                            '↩' -> "123"
+                            else -> key.toString()
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
                 }
             }
+            if (row.length == 3) Spacer(Modifier.weight(1f))
         }
-    }
-    // Alternate decimal and fraction controls supplement the standard 3 × 4 grid.
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        TextButton(onClick = { onKey('.') }) { Text(".") }
-        TextButton(onClick = { onKey('/') }) { Text(stringResource(R.string.dimension_key_fraction)) }
-        TextButton(onClick = { onKey(' ') }) { Text(stringResource(R.string.dimension_key_space)) }
     }
 }
 
 internal fun editDimensionInput(field: TextFieldValue, key: Char): TextFieldValue {
+    if (key == 'C') return TextFieldValue()
     val end = field.selection.max
     val start = if (key == '\b' && field.selection.collapsed && end > 0) {
         field.text.offsetByCodePoints(end, -1)

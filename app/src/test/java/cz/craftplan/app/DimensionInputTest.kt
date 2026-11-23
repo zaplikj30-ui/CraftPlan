@@ -2,13 +2,37 @@ package cz.craftplan.app
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DimensionInputTest {
     @Test
-    fun usesStandardNumericRowsWithDecimalAndBackspace() {
-        assertEquals(listOf("123", "456", "789", ",0\b"), dimensionKeyRows)
+    fun usesSpecifiedNumericAndSymbolRows() {
+        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,"), dimensionKeyRows)
+        assertEquals(listOf("+−±/", ".% ↩"), dimensionSymbolRows)
+    }
+
+    @Test
+    fun clearResetsInputWithoutChangingConfirmedMeasurement() {
+        val dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH, PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f),
+        ).withManualLength("1/3 in")
+        val draft = DimensionValueDraft(dimension)
+        val cleared = editDimensionInput(TextFieldValue(draft.input, TextRange(3)), 'C')
+        assertEquals(TextFieldValue(), cleared)
+        assertNull(draft.type(cleared.text).confirm(dimension))
+        assertEquals("127/15", dimension.measurement?.length?.displayNumber(LengthUnit.MM))
+    }
+
+    @Test
+    fun unsupportedSymbolsAreEditableButNotValidMeasurements() {
+        for (symbol in "+−±%") {
+            val edited = editDimensionInput(TextFieldValue("12", TextRange(2)), symbol)
+            assertEquals("12$symbol", edited.text)
+            assertNull(ManualLengthMeasurement.parse(edited.text, LengthUnit.MM))
+        }
     }
 
     @Test
