@@ -14,6 +14,7 @@
     <string name="dimension_value">Hodnota kóty</string>
     <string name="dimension_unit">Jednotka: %1$s</string>
     <string name="keep_number_on_unit_change">Ponechat číslo při změně jednotky</string>
+    <string name="convert_number_on_unit_change">Přepočítat hodnotu při změně jednotky</string>
     <string name="use_system_keyboard">Otevřít systémovou klávesnici</string>
     <string name="use_dimension_keypad">Přepnout na číselnou klávesnici</string>
     <string name="hide_system_keyboard">Skrýt klávesnici</string>
@@ -25,8 +26,8 @@
     <string name="dimension_key_reserved">Volné tlačítko</string>
     <string name="dimension_no_unit">Nic</string>
     <string name="dimension_note">Poznámka ke kótě</string>
-    <string name="hide_dimension_notes">Skrýt poznámky</string>
-    <string name="show_dimension_notes">Zobrazit poznámky</string>
+    <string name="dimension_notes_visible">Poznámky jsou viditelné</string>
+    <string name="dimension_notes_hidden">Poznámky jsou skryté</string>
     <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
     <string name="cancel_value">Zrušit</string>
     <string name="confirm_value">Uložit</string>

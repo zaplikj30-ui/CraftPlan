@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,28 +20,28 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
@@ -64,13 +66,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -173,7 +176,7 @@ internal fun DimensionValueDialog(
             keys = keys.open(target)
         }
 
-        Box(
+        BoxWithConstraints(
             Modifier.fillMaxSize().safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -181,109 +184,136 @@ internal fun DimensionValueDialog(
                 detectTapGestures { outsideTap() }
             })
             Surface(
-                modifier = Modifier.padding(horizontal = 4.dp).widthIn(max = 480.dp).fillMaxWidth(),
+                modifier = Modifier.padding(horizontal = 4.dp).widthIn(max = if (portrait) 480.dp else 640.dp).fillMaxWidth(),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                 tonalElevation = 6.dp,
             ) {
-                Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    Column(
-                        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            DimensionInputField(
-                                modifier = Modifier.weight(1f).bringIntoViewRequester(valueBounds),
-                                value = valueField,
-                                label = stringResource(R.string.dimension_value),
-                                editable = keys.systemOpen && keys.field == DimensionField.VALUE,
-                                active = keys.field == DimensionField.VALUE,
-                                focus = valueFocus,
-                                onActivate = { openField(DimensionField.VALUE) },
-                                onValueChange = { applyInput(DimensionField.VALUE, it) },
-                                onDone = hideKeyboard,
-                                isError = showError,
+                val valueInput: @Composable (Modifier) -> Unit = { modifier ->
+                    DimensionInputField(
+                        modifier = modifier.bringIntoViewRequester(valueBounds),
+                        value = valueField,
+                        label = stringResource(R.string.dimension_value),
+                        editable = keys.systemOpen && keys.field == DimensionField.VALUE,
+                        active = keys.field == DimensionField.VALUE,
+                        focus = valueFocus,
+                        onActivate = { openField(DimensionField.VALUE) },
+                        onValueChange = { applyInput(DimensionField.VALUE, it) },
+                        onDone = hideKeyboard,
+                        isError = showError,
+                    )
+                }
+                val unitAndKeyboard: @Composable () -> Unit = {
+                    val unitText = if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit)
+                    val unitLabel = stringResource(R.string.dimension_unit, unitText)
+                    Box(Modifier.padding(horizontal = 4.dp)) {
+                        OutlinedButton(
+                            onClick = { unitsOpen = true },
+                            modifier = Modifier.semantics { contentDescription = unitLabel },
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                        ) { Text(unitText) }
+                        DropdownMenu(
+                            expanded = unitsOpen,
+                            onDismissRequest = { unitsOpen = false },
+                            modifier = Modifier.width(96.dp).heightIn(max = 360.dp),
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_no_unit)) },
+                                onClick = {
+                                    onChange { it.withUnitVisibility(false) }
+                                    unitsOpen = false
+                                },
                             )
-                            val unitText = if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit)
-                            val unitLabel = stringResource(R.string.dimension_unit, unitText)
-                            Box(Modifier.padding(horizontal = 4.dp)) {
-                                OutlinedButton(
-                                    onClick = { unitsOpen = true },
-                                    modifier = Modifier.semantics { contentDescription = unitLabel },
-                                    contentPadding = PaddingValues(horizontal = 8.dp),
-                                ) { Text(unitText) }
-                                DropdownMenu(
-                                    expanded = unitsOpen,
-                                    onDismissRequest = { unitsOpen = false },
-                                    modifier = if (portrait) Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp) else Modifier,
+                            LengthUnit.entries.forEach { unit ->
+                                DropdownMenuItem(
+                                    text = { Text(unit.symbol) },
+                                    onClick = {
+                                        onChange {
+                                            val next = it.selectUnit(unit, keepNumber)
+                                            if (valueField.text != next.input) valueField = editableText(next.input)
+                                            next
+                                        }
+                                        showError = false
+                                        unitsOpen = false
+                                    },
+                                )
+                            }
+                            val conversionMode = stringResource(
+                                if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
+                            )
+                            IconToggleButton(
+                                checked = keepNumber,
+                                onCheckedChange = { keepNumber = it },
+                                modifier = Modifier.fillMaxWidth().semantics {
+                                    contentDescription = conversionMode
+                                },
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.dimension_no_unit)) },
-                                        onClick = {
-                                            onChange { it.withUnitVisibility(false) }
-                                            unitsOpen = false
-                                        },
+                                    Icon(
+                                        painterResource(
+                                            if (keepNumber) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked,
+                                        ),
+                                        contentDescription = null,
                                     )
-                                    LengthUnit.entries.forEach { unit ->
-                                        DropdownMenuItem(
-                                            text = { Text(unit.symbol) },
-                                            onClick = {
-                                                onChange {
-                                                    val next = it.selectUnit(unit, keepNumber)
-                                                    if (valueField.text != next.input) valueField = editableText(next.input)
-                                                    next
-                                                }
-                                                showError = false
-                                                unitsOpen = false
-                                            },
-                                        )
-                                    }
-                                    if (portrait) {
-                                        KeepNumberOption(keepNumber, { keepNumber = it }, Modifier.padding(horizontal = 12.dp))
-                                    }
+                                    Text("123")
                                 }
                             }
-                            val switchLabel = stringResource(
-                                if (keys.mode == DimensionKeyboardMode.SYSTEM) R.string.use_dimension_keypad
-                                else R.string.use_system_keyboard,
+                        }
+                    }
+                    val switchLabel = stringResource(
+                        if (keys.mode == DimensionKeyboardMode.SYSTEM) R.string.use_dimension_keypad
+                        else R.string.use_system_keyboard,
+                    )
+                    IconButton(
+                        onClick = { keys = keys.switch(); showSymbols = false },
+                        modifier = Modifier.semantics { contentDescription = switchLabel },
+                    ) {
+                        Icon(
+                            painterResource(
+                                if (keys.mode == DimensionKeyboardMode.SYSTEM) R.drawable.ic_dimension_keypad
+                                else R.drawable.ic_dimension_keyboard,
+                            ),
+                            contentDescription = null,
+                        )
+                    }
+                }
+                val fields: @Composable () -> Unit = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (!portrait) valueInput(Modifier.fillMaxWidth())
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (portrait) valueInput(Modifier.weight(1f))
+                            unitAndKeyboard()
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            DimensionInputField(
+                                modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
+                                value = noteField,
+                                label = stringResource(R.string.dimension_note),
+                                editable = keys.systemOpen && keys.field == DimensionField.NOTE,
+                                active = keys.field == DimensionField.NOTE,
+                                focus = noteFocus,
+                                onActivate = { openField(DimensionField.NOTE) },
+                                onValueChange = { applyInput(DimensionField.NOTE, it) },
+                                onDone = hideKeyboard,
+                                isNote = true,
                             )
-                            IconButton(
-                                onClick = { keys = keys.switch(); showSymbols = false },
-                                modifier = Modifier.semantics { contentDescription = switchLabel },
+                            val notesState = stringResource(
+                                if (showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden,
+                            )
+                            IconToggleButton(
+                                checked = showNotes,
+                                onCheckedChange = { onToggleNotes() },
+                                modifier = Modifier.semantics {
+                                    contentDescription = notesState
+                                },
                             ) {
                                 Icon(
-                                    painterResource(
-                                        if (keys.mode == DimensionKeyboardMode.SYSTEM) R.drawable.ic_dimension_keypad
-                                        else R.drawable.ic_dimension_keyboard,
-                                    ),
+                                    painterResource(if (showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
                                     contentDescription = null,
                                 )
                             }
-                        }
-                        DimensionInputField(
-                            modifier = Modifier.fillMaxWidth().bringIntoViewRequester(noteBounds),
-                            value = noteField,
-                            label = stringResource(R.string.dimension_note),
-                            editable = keys.systemOpen && keys.field == DimensionField.NOTE,
-                            active = keys.field == DimensionField.NOTE,
-                            focus = noteFocus,
-                            onActivate = { openField(DimensionField.NOTE) },
-                            onValueChange = { applyInput(DimensionField.NOTE, it) },
-                            onDone = hideKeyboard,
-                            isNote = true,
-                        )
-                        if (portrait) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
-                                    value = showNotes, role = Role.Switch, onValueChange = { onToggleNotes() },
-                                ),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Switch(checked = showNotes, onCheckedChange = null)
-                                Text(stringResource(if (showNotes) R.string.hide_dimension_notes else R.string.show_dimension_notes))
-                            }
-                        } else {
-                            KeepNumberOption(keepNumber, { keepNumber = it })
                         }
                         if (showError) {
                             Text(
@@ -292,55 +322,72 @@ internal fun DimensionValueDialog(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        if (keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible) {
-                            DimensionKeypad(
-                                showSymbols = showSymbols,
-                                portrait = portrait,
-                                onToggleSymbols = { showSymbols = !showSymbols },
-                                onKey = { key ->
-                                    val editingNote = keys.field == DimensionField.NOTE
-                                    val field = if (editingNote) noteField else valueField
-                                    val limit = if (editingNote) MAX_DIMENSION_NOTE_LENGTH
-                                        else ManualLengthMeasurement.MAX_INPUT_LENGTH
-                                    applyInput(keys.field, editDimensionInput(field, key, limit))
-                                    showSymbols = false
-                                },
+                    }
+                }
+                val keypadVisible = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible
+                val keypad: @Composable () -> Unit = {
+                    DimensionKeypad(
+                        showSymbols = showSymbols,
+                        keyHeight = if (portrait) 62.dp else landscapeKeyHeight(maxHeight.value).dp,
+                        onToggleSymbols = { showSymbols = !showSymbols },
+                        onKey = { key ->
+                            val editingNote = keys.field == DimensionField.NOTE
+                            val field = if (editingNote) noteField else valueField
+                            val limit = if (editingNote) MAX_DIMENSION_NOTE_LENGTH
+                                else ManualLengthMeasurement.MAX_INPUT_LENGTH
+                            applyInput(keys.field, editDimensionInput(field, key, limit))
+                            showSymbols = false
+                        },
+                    )
+                }
+                val actions: @Composable () -> Unit = {
+                    if (keys.visible || imeVisible) {
+                        IconButton(onClick = hideKeyboard) {
+                            Icon(
+                                painterResource(R.drawable.ic_keyboard_hide),
+                                contentDescription = stringResource(R.string.hide_system_keyboard),
                             )
                         }
                     }
+                    TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_value)) }
+                    Button(onClick = confirm) { Text(stringResource(R.string.confirm_value)) }
+                }
+                if (portrait) {
+                    Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        Column(
+                            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            fields()
+                            if (keypadVisible) keypad()
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) { actions() }
+                    }
+                } else {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (keys.visible || imeVisible) {
-                            IconButton(onClick = hideKeyboard) {
-                                Icon(
-                                    painterResource(R.drawable.ic_keyboard_hide),
-                                    contentDescription = stringResource(R.string.hide_system_keyboard),
-                                )
-                            }
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { fields() }
+                        if (keypadVisible) {
+                            Column(
+                                modifier = Modifier.weight(1.15f).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) { keypad() }
                         }
-                        TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_value)) }
-                        Button(onClick = confirm) { Text(stringResource(R.string.confirm_value)) }
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) { actions() }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun KeepNumberOption(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
-            value = checked, role = Role.Checkbox, onValueChange = onChange,
-        ).then(modifier),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(checked = checked, onCheckedChange = null)
-        Text(stringResource(R.string.keep_number_on_unit_change))
     }
 }
 
@@ -359,23 +406,42 @@ private fun DimensionInputField(
     isError: Boolean = false,
 ) {
     Box(modifier) {
-        OutlinedTextField(
+        val interaction = remember { MutableInteractionSource() }
+        val scheme = MaterialTheme.colorScheme
+        val colors = OutlinedTextFieldDefaults.colors(
+            unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
+        )
+        BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).focusRequester(focus)
+                .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
             singleLine = true,
-            isError = isError,
             readOnly = !editable,
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-            ),
+            // Keep the Material floating label and border with tighter internal padding.
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
+            cursorBrush = SolidColor(if (isError) scheme.error else scheme.primary),
+            interactionSource = interaction,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
                 autoCorrectEnabled = isNote,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(onDone = { onDone() }),
+            decorationBox = { inner ->
+                OutlinedTextFieldDefaults.DecorationBox(
+                    value = value.text,
+                    innerTextField = inner,
+                    enabled = true,
+                    singleLine = true,
+                    visualTransformation = VisualTransformation.None,
+                    interactionSource = interaction,
+                    isError = isError,
+                    label = { Text(label) },
+                    colors = colors,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                )
+            },
         )
         if (!editable) {
             Box(Modifier.matchParentSize().clickable(onClickLabel = label, onClick = onActivate))
@@ -386,23 +452,25 @@ private fun DimensionInputField(
 internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
 internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
-internal fun displayedDimensionKeyRows(showSymbols: Boolean, portrait: Boolean): List<String> = when {
+internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<String> = when {
     !showSymbols -> dimensionKeyRows
-    portrait -> dimensionSymbolRows + listOf("____", "____")
-    else -> dimensionSymbolRows
+    else -> dimensionSymbolRows + listOf("____", "____")
 }
+
+// Four keys, three gaps of 4 dp each and 8 dp vertical panel padding.
+internal fun landscapeKeyHeight(availableHeight: Float): Float =
+    ((availableHeight - 20f) / 4f).coerceIn(48f, 62f)
 
 internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -> Unit, confirm: () -> Unit) {
     if (keyboardOpen) hideKeyboard() else confirm()
 }
 
 @Composable
-private fun DimensionKeypad(showSymbols: Boolean, portrait: Boolean, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
+private fun DimensionKeypad(showSymbols: Boolean, keyHeight: Dp, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
     val colors = MaterialTheme.colorScheme
-    for (row in displayedDimensionKeyRows(showSymbols, portrait)) {
+    for (row in displayedDimensionKeyRows(showSymbols)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for (key in row) {
-                val keyHeight = if (portrait) Modifier.height(62.dp) else Modifier.heightIn(min = 62.dp)
                 val description = when (key) {
                     '\b' -> stringResource(R.string.dimension_key_delete)
                     'C' -> stringResource(R.string.dimension_key_clear)
@@ -422,7 +490,7 @@ private fun DimensionKeypad(showSymbols: Boolean, portrait: Boolean, onToggleSym
                         }
                     },
                     enabled = key != '◷' && key != '_',
-                    modifier = Modifier.weight(1f).then(keyHeight).semantics {
+                    modifier = Modifier.weight(1f).height(keyHeight).semantics {
                         if (description != null) contentDescription = description
                     },
                     shape = RoundedCornerShape(6.dp),

@@ -107,7 +107,6 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 onClose = closePhoto,
                 onEditValue = editorState::openValue,
                 showNotes = editorState.showNotes,
-                onToggleNotes = { editorState.showNotes = !editorState.showNotes },
             )
             editorState.valueDraft?.let { draft ->
                 DimensionValueDialog(
@@ -155,7 +154,6 @@ private fun SamplePhoto(
     onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
-    onToggleNotes: () -> Unit,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val hint = when (placement) {
@@ -164,11 +162,6 @@ private fun SamplePhoto(
         is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
             MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
             MeasurementState.MEASURED -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
-        }
-    }
-    val noteToggle: @Composable () -> Unit = {
-        TextButton(onClick = onToggleNotes) {
-            Text(stringResource(if (showNotes) R.string.hide_dimension_notes else R.string.show_dimension_notes))
         }
     }
     Column(modifier = modifier) {
@@ -200,7 +193,6 @@ private fun SamplePhoto(
                     ) {
                         Text(stringResource(R.string.add_dimension), maxLines = 1)
                     }
-                    noteToggle()
                     Text(
                         text = stringResource(hint),
                         style = MaterialTheme.typography.bodySmall,

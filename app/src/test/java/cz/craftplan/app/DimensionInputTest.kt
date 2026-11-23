@@ -15,13 +15,20 @@ class DimensionInputTest {
     }
 
     @Test
-    fun portraitSymbolGridMatchesNumericGridWithoutAddingActions() {
-        val numbers = displayedDimensionKeyRows(showSymbols = false, portrait = true)
-        val symbols = displayedDimensionKeyRows(showSymbols = true, portrait = true)
+    fun symbolGridMatchesNumericGridInBothOrientationsWithoutAddingActions() {
+        val numbers = displayedDimensionKeyRows(showSymbols = false)
+        val symbols = displayedDimensionKeyRows(showSymbols = true)
         assertEquals(List(4) { 4 }, numbers.map(String::length))
         assertEquals(numbers.map(String::length), symbols.map(String::length))
         assertEquals(dimensionSymbolRows + listOf("____", "____"), symbols)
-        assertEquals(dimensionSymbolRows, displayedDimensionKeyRows(showSymbols = true, portrait = false))
+    }
+
+    @Test
+    fun landscapeKeysFitAvailableHeightOrKeepTouchTargetAndScroll() {
+        assertEquals(62f, landscapeKeyHeight(300f), 0f)
+        assertEquals(50f, landscapeKeyHeight(220f), 0f)
+        assertEquals(48f, landscapeKeyHeight(212f), 0f)
+        assertEquals(48f, landscapeKeyHeight(140f), 0f)
     }
 
     @Test
