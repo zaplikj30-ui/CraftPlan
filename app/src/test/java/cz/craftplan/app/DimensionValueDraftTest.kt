@@ -12,6 +12,23 @@ class DimensionValueDraftTest {
     )
 
     @Test
+    fun conversionExampleDoesNotDependOnOrAlterTheOriginalMeasurement() {
+        val original = dimension.withManualLength("123 mm").copy(note = "poznámka")
+        val draft = DimensionValueDraft(original)
+        val converted = draft.selectUnit(LengthUnit.CM)
+        val locked = draft.selectUnit(LengthUnit.CM, keepNumber = true)
+
+        assertEquals("123", draft.input)
+        assertEquals("12.3", converted.input)
+        assertEquals("123", locked.input)
+        assertSame(original.measurement, converted.confirm(original)!!.measurement)
+        val reinterpreted = locked.confirm(original)!!
+        assertEquals("1230", reinterpreted.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals(original.note, reinterpreted.note)
+        assertEquals("123", original.measurement!!.length.displayNumber(LengthUnit.MM))
+    }
+
+    @Test
     fun confirmsZeroAndPreservesLatestGeometry() {
         val moved = dimension.copy(end = PhotoAnchor(1.2f, 1f))
         val confirmed = DimensionValueDraft(dimension).type("0").confirm(moved)!!

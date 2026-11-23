@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -30,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -75,6 +78,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
@@ -248,16 +252,25 @@ internal fun DimensionValueDialog(
                                 },
                             ) {
                                 Row(
+                                    modifier = Modifier.padding(horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                                 ) {
                                     Icon(
                                         painterResource(
                                             if (keepNumber) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked,
                                         ),
                                         contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
                                     )
-                                    Text("123")
+                                    Text(
+                                        text = stringResource(R.string.dimension_conversion_example),
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        autoSize = TextAutoSize.StepBased(6.sp, 11.sp, 0.5.sp),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        letterSpacing = 0.sp,
+                                    )
                                 }
                             }
                         }
@@ -279,41 +292,58 @@ internal fun DimensionValueDialog(
                         )
                     }
                 }
-                val fields: @Composable () -> Unit = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (!portrait) valueInput(Modifier.fillMaxWidth())
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (portrait) valueInput(Modifier.weight(1f))
-                            unitAndKeyboard()
+                val keypadVisible = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible
+                val noteInput: @Composable (Modifier) -> Unit = { modifier ->
+                    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+                        DimensionInputField(
+                            modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
+                            value = noteField,
+                            label = stringResource(R.string.dimension_note),
+                            editable = keys.systemOpen && keys.field == DimensionField.NOTE,
+                            active = keys.field == DimensionField.NOTE,
+                            focus = noteFocus,
+                            onActivate = { openField(DimensionField.NOTE) },
+                            onValueChange = { applyInput(DimensionField.NOTE, it) },
+                            onDone = hideKeyboard,
+                            isNote = true,
+                        )
+                        val notesState = stringResource(
+                            if (showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden,
+                        )
+                        IconToggleButton(
+                            checked = showNotes,
+                            onCheckedChange = { onToggleNotes() },
+                            modifier = Modifier.semantics {
+                                contentDescription = notesState
+                            },
+                        ) {
+                            Icon(
+                                painterResource(if (showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
+                                contentDescription = null,
+                            )
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            DimensionInputField(
-                                modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
-                                value = noteField,
-                                label = stringResource(R.string.dimension_note),
-                                editable = keys.systemOpen && keys.field == DimensionField.NOTE,
-                                active = keys.field == DimensionField.NOTE,
-                                focus = noteFocus,
-                                onActivate = { openField(DimensionField.NOTE) },
-                                onValueChange = { applyInput(DimensionField.NOTE, it) },
-                                onDone = hideKeyboard,
-                                isNote = true,
-                            )
-                            val notesState = stringResource(
-                                if (showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden,
-                            )
-                            IconToggleButton(
-                                checked = showNotes,
-                                onCheckedChange = { onToggleNotes() },
-                                modifier = Modifier.semantics {
-                                    contentDescription = notesState
-                                },
-                            ) {
-                                Icon(
-                                    painterResource(if (showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
-                                    contentDescription = null,
-                                )
+                    }
+                }
+                val fields: @Composable () -> Unit = {
+                    Column(verticalArrangement = Arrangement.spacedBy(if (portrait || keypadVisible) 4.dp else 0.dp)) {
+                        if (portrait) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                valueInput(Modifier.weight(1f))
+                                unitAndKeyboard()
                             }
+                            noteInput(Modifier.fillMaxWidth())
+                        } else {
+                            // Keep both fields in the first row when the system keyboard takes vertical space.
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                maxItemsInEachRow = if (keypadVisible) 1 else 2,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                valueInput(Modifier.weight(1f))
+                                noteInput(Modifier.weight(1f))
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) { unitAndKeyboard() }
                         }
                         if (showError) {
                             Text(
@@ -324,7 +354,6 @@ internal fun DimensionValueDialog(
                         }
                     }
                 }
-                val keypadVisible = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible
                 val keypad: @Composable () -> Unit = {
                     DimensionKeypad(
                         showSymbols = showSymbols,
@@ -369,7 +398,7 @@ internal fun DimensionValueDialog(
                     }
                 } else {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = if (keypadVisible) 4.dp else 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
