@@ -18,6 +18,7 @@
     <string name="use_dimension_keypad">Číselná klávesnice</string>
     <string name="dimension_key_delete">Smazat znak</string>
     <string name="dimension_key_space">Mezera</string>
+    <string name="dimension_key_fraction">Zlomek /</string>
     <string name="dimension_value_required">Zadej hodnotu kóty.</string>
     <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
     <string name="cancel_value">Zrušit</string>

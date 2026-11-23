@@ -1,16 +1,19 @@
 package cz.craftplan.app
 
-import android.window.OnBackInvokedCallback
-import android.window.OnBackInvokedDispatcher
+import android.view.WindowInsets as AndroidWindowInsets
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
@@ -30,8 +33,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -55,8 +59,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DimensionValueDialog(
     draft: DimensionValueDraft,
@@ -67,6 +71,7 @@ internal fun DimensionValueDialog(
     var showError by rememberSaveable { mutableStateOf(false) }
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var systemKeyboard by rememberSaveable { mutableStateOf(false) }
+    var restoreIme by rememberSaveable { mutableStateOf(false) }
     var field by remember { mutableStateOf(TextFieldValue(draft.input, TextRange(draft.input.length))) }
     var unitsOpen by remember { mutableStateOf(false) }
     val updateField: (TextFieldValue) -> Unit = { edited ->
@@ -78,22 +83,39 @@ internal fun DimensionValueDialog(
         }
     }
     val confirm: () -> Unit = { if (!onConfirm()) showError = true }
+    var handleBack by remember { mutableStateOf<() -> Unit>({}) }
     Dialog(
-        onDismissRequest = confirm,
+        onDismissRequest = { handleBack() },
         properties = DialogProperties(
             dismissOnClickOutside = false,
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
         ),
     ) {
-        val window = (LocalView.current.parent as DialogWindowProvider).window
-        val latestConfirm by rememberUpdatedState(confirm)
-        DisposableEffect(window) {
-            val dispatcher = window.onBackInvokedDispatcher
-            val callback = OnBackInvokedCallback { latestConfirm() }
-            // Back confirms the field even while the IME is visible (UX-39).
-            dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, callback)
-            onDispose { dispatcher.unregisterOnBackInvokedCallback(callback) }
+        val view = LocalView.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        val hideIme: () -> Unit = {
+            restoreIme = false
+            keyboard?.hide()
+        }
+        val imeVisible = WindowInsets.isImeVisible
+        var observedIme by remember { mutableStateOf(false) }
+        LaunchedEffect(imeVisible, systemKeyboard) {
+            if (systemKeyboard && (imeVisible || observedIme)) restoreIme = imeVisible
+            observedIme = systemKeyboard && imeVisible
+        }
+        val isImeOpen: () -> Boolean = {
+            systemKeyboard &&
+                (view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) ?: imeVisible)
+        }
+        // The dialog uses normal Back priority so Android gives the IME the first chance.
+        val latestBack by rememberUpdatedState<() -> Unit> {
+            handleDimensionDialogBack(isImeOpen(), hideIme, confirm)
+        }
+        val dispatchBack = remember { { latestBack() } }
+        SideEffect { handleBack = dispatchBack }
+        val outsideTap by rememberUpdatedState<() -> Unit> {
+            if (isImeOpen()) hideIme()
         }
         // Keep the window at a stable size and lay out the panel in the unobscured area.
         BoxWithConstraints(
@@ -102,13 +124,15 @@ internal fun DimensionValueDialog(
         ) {
             val wide = maxWidth >= 540.dp
             val focus = remember { FocusRequester() }
-            val keyboard = LocalSoftwareKeyboardController.current
             LaunchedEffect(systemKeyboard) {
-                if (systemKeyboard) {
+                if (systemKeyboard && restoreIme) {
                     focus.requestFocus()
                     keyboard?.show()
                 }
             }
+            Box(Modifier.matchParentSize().pointerInput(Unit) {
+                detectTapGestures { outsideTap() }
+            })
             val actions: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_value)) }
@@ -134,7 +158,7 @@ internal fun DimensionValueDialog(
                             autoCorrectEnabled = false,
                             imeAction = ImeAction.Done,
                         ),
-                        keyboardActions = KeyboardActions(onDone = { confirm() }),
+                        keyboardActions = KeyboardActions(onDone = { hideIme() }),
                     )
                     Box {
                         OutlinedButton(onClick = { unitsOpen = true }) {
@@ -204,8 +228,10 @@ internal fun DimensionValueDialog(
                         }
                         TextButton(onClick = {
                             if (systemKeyboard) {
-                                keyboard?.hide()
+                                hideIme()
                                 field = field.copy(composition = null)
+                            } else {
+                                restoreIme = true
                             }
                             systemKeyboard = !systemKeyboard
                         }) {
@@ -226,18 +252,18 @@ internal fun DimensionValueDialog(
     }
 }
 
-private val dimensionKeyRows = listOf("12345", "67890", ",./ \b")
+internal val dimensionKeyRows = listOf("123", "456", "789", ",0\b")
+
+internal fun handleDimensionDialogBack(imeOpen: Boolean, hideIme: () -> Unit, confirm: () -> Unit) {
+    if (imeOpen) hideIme() else confirm()
+}
 
 @Composable
 private fun DimensionKeypad(onKey: (Char) -> Unit) {
     for (row in dimensionKeyRows) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for (key in row) {
-                val description = when (key) {
-                    '\b' -> stringResource(R.string.dimension_key_delete)
-                    ' ' -> stringResource(R.string.dimension_key_space)
-                    else -> null
-                }
+                val description = if (key == '\b') stringResource(R.string.dimension_key_delete) else null
                 OutlinedButton(
                     onClick = { onKey(key) },
                     modifier = Modifier.weight(1f).semantics {
@@ -245,14 +271,16 @@ private fun DimensionKeypad(onKey: (Char) -> Unit) {
                     },
                     contentPadding = PaddingValues(0.dp),
                 ) {
-                    Text(when (key) {
-                        '\b' -> "⌫"
-                        ' ' -> "␣"
-                        else -> key.toString()
-                    })
+                    Text(if (key == '\b') "⌫" else key.toString())
                 }
             }
         }
+    }
+    // Alternate decimal and fraction controls supplement the standard 3 × 4 grid.
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        TextButton(onClick = { onKey('.') }) { Text(".") }
+        TextButton(onClick = { onKey('/') }) { Text(stringResource(R.string.dimension_key_fraction)) }
+        TextButton(onClick = { onKey(' ') }) { Text(stringResource(R.string.dimension_key_space)) }
     }
 }
 

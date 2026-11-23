@@ -7,6 +7,25 @@ import org.junit.Test
 
 class DimensionInputTest {
     @Test
+    fun usesStandardNumericRowsWithDecimalAndBackspace() {
+        assertEquals(listOf("123", "456", "789", ",0\b"), dimensionKeyRows)
+    }
+
+    @Test
+    fun backHidesOpenImeBeforeAllowingConfirmation() {
+        var hidden = 0
+        var confirmed = 0
+        val hide = { hidden += 1 }
+        val confirm = { confirmed += 1 }
+        handleDimensionDialogBack(imeOpen = true, hideIme = hide, confirm = confirm)
+        assertEquals(1, hidden)
+        assertEquals(0, confirmed)
+        handleDimensionDialogBack(imeOpen = false, hideIme = hide, confirm = confirm)
+        assertEquals(1, hidden)
+        assertEquals(1, confirmed)
+    }
+
+    @Test
     fun insertsAtCaretAndReplacesSelection() {
         val decimal = editDimensionInput(TextFieldValue("125", TextRange(1)), ',')
         assertEquals("1,25", decimal.text)
