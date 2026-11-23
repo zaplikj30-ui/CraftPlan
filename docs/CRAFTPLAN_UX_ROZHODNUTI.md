@@ -319,6 +319,25 @@ Když vlastník upozorní na odlišnost, ChatGPT **nejprve ověří plán a skut
 
 **Příklad z M1:** prvotní umístění kóty dvěma klepnutími bylo pouze dočasné zjednodušení malého testovacího řezu; cílové ovládání tažením a přesná lupa zůstávají podle referenčního UX součástí M1. Jejich absence v raném řezu není sama o sobě důkazem regresní chyby. Toto pravidlo šetří opakovanou práci a AI limity, nikoliv bezpečnostní testování.
 
+## M1 – poznatky z praktického testu kóty a lupy (23. 11. 2026)
+
+**Zdroj:** vlastník otestoval na fyzickém Androidu současný syntetický editor, osm základních scénářů ovládání kóty označil 8/8 jako funkční, následně zaslal videa a upřesnil očekávané chování. **8/8 PASS se vztahuje pouze na vyzkoušené základní scénáře, nikoliv na níže uvedené okrajové situace.** Tato evidence je podklad pro další cílený M1 balíček, **ne implementační GO**.
+
+### Potvrzené opravy a věrnost Zaměřovači 1
+
+1. **Kreslení a přesouvání kóty i přes okraj fotografie.** V nynějším APK se koncový bod na hranici fotografie zastaví; náhled se při vyjetí mimo ni může přestat zobrazovat a při návratu se objeví. **Požadováno:** kótu a její koncové body lze umístit také do volné pracovní plochy editoru kolem fotografie, pokud jsou stále v pracovní oblasti obrazovky. Náhled během tahu nesmí mizet a body zůstávají přesně ukotvené po pan/zoom a budoucím save/reopen. Nezaměňovat „mimo fotografii v editoru“ s tažením mimo fyzický displej.
+2. **Lupa vizuálně jako ve schválené referenci v1.** Současná ostrá obdélníková lupa nevyhovuje. Vrátit výrazně **zaoblené rohy** a přiměřenou referenční velikost (historický styl v1 `#loupe`: `136 CSS px`, `border-radius:32px`, odpovídající fyzické velikosti se ověřuje). Zachovat stabilní přepínání strany a umístění tak, aby nepřekrývala upravovaný bod.
+3. **Souměrný jemný zaměřovací kříž.** Na videu působí přerušované úseky kříže v protilehlých směrech nestejně. Upravit symetrii, centrování, kontrast a vzhled podle starého Zaměřovače; střed musí znamenat **skutečný koncový bod kóty**.
+4. **V lupě zobrazovat skutečnou kótu, nikoliv zvláštní žlutou tečku prstu.** Uživatel chce vidět zvětšenou fotografii (např. hranu okna), skutečnou žlutou kótovací čáru a její koncový hrot **přímo ve středu kříže**. Odstranit matoucí žlutou tečku zobrazující samostatně polohu dotyku. Když bod opustí fotografii, správně zobrazit pracovní plochu a skutečnou pozici kóty, ne divergenci dotyku a kotvy. Při puštění potvrdit přesně bod zobrazený v lupě.
+
+**Technická návaznost:** nynější `PhotoAnchor(u,v)`/mapování omezují rozsah na `0..1` a editor ořezává vykreslení na hranice fotografie. Před implementací bodu 1 bezpečně **navrhnout a prověřit souřadnicový kontrakt v PR #3**, aby souřadnice mimo obrázek patřily ke správné identitě fotografie, zůstaly stabilní a byly plně validovatelné při serializaci a obnově. Není dovoleno obejít ochranu dat ani tiše změnit schválený formát; bez samostatného GO nic neprogramovat.
+
+### Pozorování k ověření, nikoliv automatická oprava
+
+- **Vnímaná tloušťka žluté kóty při zoomu:** vlastník na videu uvedl, že mu čára při přiblížení připadá relativně tenčí. Současný renderer používá přibližně stálou tloušťku v jednotkách displeje, takže se její poměr vůči zvětšené fotografii mění. **Dosud není rozhodnuto**, zda se má tloušťka škálovat s fotografií; nejprve porovnat se schválenou referencí v1 a na reálném telefonu. Nepovažovat samotný dojem za potvrzenou regresi a neměnit bez vyhodnocení.
+
+**Postup práce:** před dalším testovacím APK vlastníku explicitně uvést, co je hotové, co je provizorní a co zůstává na další kroky; příbuzné vizuální a ergonomické opravy sdružit do jednoho rozumného balíčku. Nepřidávat podpisový klíč ani zákaznická média do veřejného GitHubu.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
