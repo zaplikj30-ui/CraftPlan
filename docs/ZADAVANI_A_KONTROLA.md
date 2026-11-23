@@ -23,6 +23,13 @@ POVINNÁ AUTORSKÁ BRÁNA: sám na aktuálním SHA proveď hluboké oponentské
        znovu projdi diff na NOVÉM SHA až bez známých opravitelných FAIL.
 PŘEDÁNÍ: do PR zapiš SHA/base, celý rozsah review, PASS/FAIL/SKIP/NOT RUN/BLOCKED,
        přesné důkazy, neověřená místa, rizika a další krok.
+COMMIT/PUSH: Po dokončení schválené implementace vytvoř commit. Push proveď pouze
+       do předem určené existující pracovní větve, jestliže jej pokrývá GO a
+       nespustí nepovolené Actions/APK; předem zkontroluj vzdálený HEAD.
+       Nikdy force-push, automatické nové PR ani merge. Po push ověř vzdálený
+       HEAD/SHA a dej URL commitu. Pokud push není povolen či se nezdaří,
+       nahlas LOCAL ONLY + lokální SHA, důvod a co zbývá před předáním.
+       Lokální HOTOVO neoznačuj za změny dostupné na GitHubu.
 HOTOVO: až autorská brána PASS a bez známých opravitelných FAIL; teprve potom
        jiný nezávislý kontrolor. Nezávislé APPROVE SOURCE není GO pro merge.
 STOP: konflikt HEAD/base, možná ztráta dat, neshoda zadání, blokér, rozpočet.
