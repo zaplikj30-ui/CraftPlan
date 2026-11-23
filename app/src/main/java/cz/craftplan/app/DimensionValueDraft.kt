@@ -6,6 +6,15 @@ internal sealed interface DimensionEntry {
     data class TextOnly(val text: String) : DimensionEntry
 }
 
+private fun isLabelSuffix(text: String): Boolean {
+    if (text.firstOrNull()?.isLetter() != true) return false
+    val firstWord = text.takeWhile(Char::isLetter)
+    // Recognized unit tokens and arithmetic must not rescue a failed numerical parse.
+    return LengthUnit.entries.none { it.symbol.equals(firstWord, ignoreCase = true) } &&
+        !(firstWord.equals("x", ignoreCase = true) && text.drop(firstWord.length).trimStart()
+            .firstOrNull()?.isDigit() == true)
+}
+
 /**
  * A numerical prefix must be a valid exact length. Free text follows it after whitespace.
  * Invalid expressions beginning with a number must never silently become measured values.
@@ -15,21 +24,21 @@ internal fun parseDimensionEntry(
     unit: LengthUnit,
     requireSelectedUnit: Boolean = false,
 ): DimensionEntry? {
-    val trimmed = input.trim()
-    if (trimmed.isEmpty() || trimmed.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
+    if (input.isBlank() || input.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
     val parseNumber: (String) -> ManualLengthMeasurement? = { number ->
         if (requireSelectedUnit) ManualLengthMeasurement.parse(number, unit)
         else ManualLengthMeasurement.parse(number) ?: ManualLengthMeasurement.parse(number, unit)
     }
-    parseNumber(trimmed)?.let { return DimensionEntry.Measured(it, "") }
+    parseNumber(input)?.let { return DimensionEntry.Measured(it, "") }
     // Try the longest numerical prefix first, so imperial compound fractions remain intact.
-    for (i in trimmed.indices.reversed()) {
-        if (!trimmed[i].isWhitespace()) continue
-        val prefix = trimmed.substring(0, i).trimEnd()
-        val suffix = trimmed.substring(i).trimStart()
+    for (i in input.indices.reversed()) {
+        if (!input[i].isWhitespace()) continue
+        val prefix = input.substring(0, i).trimEnd()
+        val suffix = input.substring(i).trim()
         if (suffix.firstOrNull()?.isLetter() != true) continue
-        parseNumber(prefix)?.let { return DimensionEntry.Measured(it, suffix) }
+        parseNumber(prefix)?.let { return if (isLabelSuffix(suffix)) DimensionEntry.Measured(it, suffix) else null }
     }
+    val trimmed = input.trim()
     return if (trimmed.first().isLetter()) DimensionEntry.TextOnly(trimmed) else null
 }
 
@@ -38,7 +47,7 @@ internal class DimensionValueDraft private constructor(
     private val target: PhotoDimension,
     val input: String,
     val unit: LengthUnit,
-    private val unchangedSource: ManualLengthMeasurement?,
+    private val unchangedEntry: DimensionEntry.Measured?,
     private val requireSelectedUnit: Boolean = false,
     val note: String = "",
     val showUnit: Boolean = true,
@@ -49,24 +58,34 @@ internal class DimensionValueDraft private constructor(
             ?.let { number -> listOf(number, dimension.labelSuffix).filter { it.isNotBlank() }.joinToString(" ") }
             .orEmpty(),
         dimension.displayUnit,
-        dimension.measurement,
+        dimension.measurement?.let { DimensionEntry.Measured(it, dimension.labelSuffix) },
         note = dimension.note,
         showUnit = dimension.showUnit,
     )
 
-    fun type(text: String): DimensionValueDraft =
-        if (text == input) this else DimensionValueDraft(
-            target, text, unit, null, requireSelectedUnit, note, showUnit,
-        )
+    fun type(text: String): DimensionValueDraft {
+        if (text == input) return this
+        val preserved = unchangedEntry?.let { entry ->
+            val number = entry.value.length.displayNumber(unit)
+            val trimmed = text.trim()
+            if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) null
+            else if (trimmed == number) entry.copy(suffix = "")
+            else if (trimmed.startsWith(number) && trimmed.getOrNull(number.length)?.isWhitespace() == true) {
+                val suffix = trimmed.drop(number.length).trimStart()
+                entry.copy(suffix = suffix)
+            } else null
+        }
+        return DimensionValueDraft(target, text, unit, preserved, requireSelectedUnit, note, showUnit)
+    }
 
     fun withNote(text: String): DimensionValueDraft =
         if (text == note) this else DimensionValueDraft(
-            target, input, unit, unchangedSource, requireSelectedUnit, text, showUnit,
+            target, input, unit, unchangedEntry, requireSelectedUnit, text, showUnit,
         )
 
     fun withUnitVisibility(visible: Boolean): DimensionValueDraft =
         if (visible == showUnit) this else DimensionValueDraft(
-            target, input, unit, unchangedSource, requireSelectedUnit, note, visible,
+            target, input, unit, unchangedEntry, requireSelectedUnit, note, visible,
         )
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
@@ -76,20 +95,19 @@ internal class DimensionValueDraft private constructor(
             // Conflicting explicit suffixes must be fixed by the user.
             return DimensionValueDraft(target, input, newUnit, null, true, note, true)
         }
-        val entry = parseDimensionEntry(input, unit, requireSelectedUnit)
-        val source = unchangedSource ?: (entry as? DimensionEntry.Measured)?.value
-        val suffix = (entry as? DimensionEntry.Measured)?.suffix.orEmpty()
-        val converted = source?.length?.displayNumber(newUnit)?.let {
-            listOf(it, suffix).filter(String::isNotBlank).joinToString(" ")
+        val entry = entry() as? DimensionEntry.Measured
+        val converted = entry?.value?.length?.displayNumber(newUnit)?.let {
+            listOf(it, entry.suffix).filter(String::isNotBlank).joinToString(" ")
         } ?: input
         return DimensionValueDraft(
-            target, converted, newUnit, source,
-            requireSelectedUnit && source == null, note, true,
+            target, converted, newUnit, entry,
+            requireSelectedUnit && entry == null, note, true,
         )
     }
 
-    fun validated(): ManualLengthMeasurement? = unchangedSource
-        ?: (parseDimensionEntry(input, unit, requireSelectedUnit) as? DimensionEntry.Measured)?.value
+    private fun entry(): DimensionEntry? = unchangedEntry?.let {
+        if (it.suffix.isEmpty() || isLabelSuffix(it.suffix)) it else return null
+    } ?: parseDimensionEntry(input, unit, requireSelectedUnit)
 
     fun confirm(current: PhotoDimension): PhotoDimension? {
         if (target.id != current.id || target.photoId != current.photoId ||
@@ -97,24 +115,17 @@ internal class DimensionValueDraft private constructor(
             target.labelSuffix != current.labelSuffix || target.textLabel != current.textLabel ||
             target.note != current.note || target.showUnit != current.showUnit
         ) return null
-        if (note.length > 2000) return null
-        // The original exact source wins when only presentation or notes have changed.
-        val parsed = parseDimensionEntry(input, unit, requireSelectedUnit)
-        // A converted rational can have a display form not accepted as manual metric input.
-        // Preserve its exact original source when the numerical text was not edited.
-        val entry = if (unchangedSource != null && parsed == null) {
-            DimensionEntry.Measured(unchangedSource, target.labelSuffix)
-        } else parsed
-        return when (entry) {
+        if (note.length > MAX_DIMENSION_NOTE_LENGTH) return null
+        return when (val entry = entry()) {
             is DimensionEntry.Measured -> current.copy(
-                measurement = unchangedSource ?: entry.value, displayUnit = unit,
+                measurement = entry.value, displayUnit = unit,
                 labelSuffix = entry.suffix, textLabel = null, note = note, showUnit = showUnit,
             )
             is DimensionEntry.TextOnly -> current.copy(
                 measurement = null, displayUnit = unit, labelSuffix = "",
                 textLabel = entry.text, note = note, showUnit = showUnit,
             )
-            null -> if (input.isBlank() && (note.isNotBlank() || target.note.isNotBlank() ||
+            null -> if (input.isBlank() && target.measurement == null && (note.isNotBlank() || target.note.isNotBlank() ||
                 target.textLabel != null)
             ) current.copy(
                 measurement = null, displayUnit = unit, labelSuffix = "",
@@ -123,3 +134,5 @@ internal class DimensionValueDraft private constructor(
         }
     }
 }
+
+internal const val MAX_DIMENSION_NOTE_LENGTH = 2000

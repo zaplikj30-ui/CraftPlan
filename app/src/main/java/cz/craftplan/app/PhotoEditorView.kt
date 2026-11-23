@@ -222,7 +222,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         if (noteIndicator) {
             // A tiny notebook marker; the note text itself stays off the photograph.
-            val x = (label?.let { labelPaint.measureText(it) / 2f } ?: 14f * density) + 10f * density
+            val x = notebookLeft(label)
             val top = -24f * density
             overlayPaint.color = Color.rgb(247, 220, 39)
             canvas.drawRoundRect(x, top, x + 15f * density, top + 17f * density,
@@ -245,10 +245,17 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
         val halfText = valueLabel?.let { labelPaint.measureText(it) / 2f } ?: 0f
-        val halfWidth = maxOf(24f * density, halfText + if (hasNote) 30f * density else 8f * density)
+        val halfWidth = maxOf(24f * density, halfText + 8f * density)
         val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
-        return along in -halfWidth..halfWidth && across in -height..12f * density
+        if (along in -halfWidth..halfWidth && across in -height..12f * density) return true
+        if (!hasNote) return false
+        val left = notebookLeft(valueLabel)
+        return along in (left - 8f * density)..(left + 23f * density) &&
+            across in (-32f * density)..(1f * density)
     }
+
+    private fun notebookLeft(label: String?): Float =
+        (label?.let { labelPaint.measureText(it) / 2f } ?: 14f * density) + 10f * density
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
         val x1 = viewport.screenX(start)

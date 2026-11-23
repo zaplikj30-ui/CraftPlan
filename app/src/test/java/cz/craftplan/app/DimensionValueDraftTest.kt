@@ -133,4 +133,28 @@ class DimensionValueDraftTest {
         }
         assertNull(DimensionValueDraft(original).withNote("změna").confirm(original.copy(note = "jinde")))
     }
+
+    @Test
+    fun repeatingConversionKeepsRationalSourceAndVisibleSuffix() {
+        val draft = DimensionValueDraft(dimension).type("1/3 in pracovní deska").selectUnit(LengthUnit.CM)
+        assertEquals("127/150 pracovní deska", draft.input)
+        val changed = draft.type("127/150 m").type("127/150 montáž").withNote("Přeměřit")
+        val converted = changed.selectUnit(LengthUnit.MM).withUnitVisibility(false).confirm(dimension)!!
+        assertEquals("127/15 montáž", converted.displayLabel())
+        assertEquals("1/3 in", converted.measurement?.originalInput)
+        assertEquals("Přeměřit", converted.note)
+    }
+
+    @Test
+    fun invalidUnitOrExpressionCannotBeReclassifiedAsVisibleSuffix() {
+        val original = dimension.withManualLength("850 mm").copy(note = "Ponechat")
+        val draft = DimensionValueDraft(original).selectUnit(LengthUnit.CM, keepNumber = true)
+        for (bad in listOf("850 mm popis", "3 ft 1/0 in", "12 x 2", "12 MM", " ".repeat(96) + "9", "")) {
+            assertNull(bad, draft.type(bad).confirm(original))
+        }
+        val edited = DimensionValueDraft(original).withNote("Nová poznámka").confirm(original)!!
+        assertSame(original.measurement, edited.measurement)
+        assertEquals("850 mm", edited.displayLabel())
+        assertNull(DimensionValueDraft(original).withNote("a".repeat(MAX_DIMENSION_NOTE_LENGTH + 1)).confirm(original))
+    }
 }

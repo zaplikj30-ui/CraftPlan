@@ -1,7 +1,6 @@
 package cz.craftplan.app
 
 import android.view.WindowInsets as AndroidWindowInsets
-import android.view.WindowManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -39,7 +37,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -67,7 +64,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -104,12 +100,6 @@ internal fun DimensionValueDialog(
         ),
     ) {
         val view = LocalView.current
-        val window = (view.parent as DialogWindowProvider).window
-        DisposableEffect(window) {
-            val previous = window.attributes.softInputMode
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-            onDispose { window.setSoftInputMode(previous) }
-        }
         val keyboard = LocalSoftwareKeyboardController.current
         val hideIme: () -> Unit = {
             restoreIme = false
@@ -135,7 +125,7 @@ internal fun DimensionValueDialog(
         }
         // Keep the window at a stable size and lay out the panel in the unobscured area.
         BoxWithConstraints(
-            Modifier.fillMaxSize().imePadding().safeDrawingPadding().padding(horizontal = 4.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 4.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             val wide = maxWidth >= 540.dp
@@ -162,12 +152,12 @@ internal fun DimensionValueDialog(
             Box(Modifier.matchParentSize().pointerInput(Unit) {
                 detectTapGestures { outsideTap() }
             })
-            val noteField: @Composable () -> Unit = {
-                Box(Modifier.fillMaxWidth()) {
+            val noteField: @Composable (Modifier) -> Unit = { modifier ->
+                Box(modifier) {
                     OutlinedTextField(
                         value = draft.note,
                         onValueChange = {
-                            if (it.length <= 2000) {
+                            if (it.length <= MAX_DIMENSION_NOTE_LENGTH) {
                                 onChange(draft.withNote(it))
                                 showError = false
                             }
@@ -218,7 +208,7 @@ internal fun DimensionValueDialog(
                             label = { Text(stringResource(R.string.dimension_value)) },
                             singleLine = true,
                             isError = showError,
-                            readOnly = !systemKeyboard,
+                            readOnly = !systemKeyboard || editingNote,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Text,
                                 autoCorrectEnabled = false,
@@ -236,13 +226,14 @@ internal fun DimensionValueDialog(
                         }
                     }
                     Box {
-                        val unitLabel = stringResource(R.string.dimension_unit, draft.unit.symbol)
+                        val unitText = if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit)
+                        val unitLabel = stringResource(R.string.dimension_unit, unitText)
                         OutlinedButton(
                             onClick = { unitsOpen = true },
                             modifier = Modifier.semantics { contentDescription = unitLabel },
                             contentPadding = PaddingValues(horizontal = 8.dp),
                         ) {
-                            Text(if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit))
+                            Text(unitText)
                         }
                         DropdownMenu(expanded = unitsOpen, onDismissRequest = { unitsOpen = false }) {
                             DropdownMenuItem(
@@ -288,7 +279,7 @@ internal fun DimensionValueDialog(
                 }
             }
             Surface(
-                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight),
+                modifier = Modifier.widthIn(max = if (wide) 760.dp else 500.dp).fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 tonalElevation = 6.dp,
             ) {
@@ -299,13 +290,13 @@ internal fun DimensionValueDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             inputRow(Modifier.weight(1f))
+                            if (editingNote) noteField(Modifier.weight(1f))
                             actions()
                         }
                     } else {
                         inputRow(Modifier.fillMaxWidth())
                     }
-                    // With an open IME the active field and the value row take priority.
-                    if (!imeVisible || editingNote) noteField()
+                    if (!wide && editingNote) noteField(Modifier.fillMaxWidth())
                     if (wide && systemKeyboard && imeVisible) {
                         TextButton(onClick = hideIme) { Text(stringResource(R.string.hide_system_keyboard)) }
                     }
@@ -313,6 +304,7 @@ internal fun DimensionValueDialog(
                         modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
+                        if (!editingNote && !imeVisible) noteField(Modifier.fillMaxWidth())
                         Row(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
                                 value = keepNumber,
