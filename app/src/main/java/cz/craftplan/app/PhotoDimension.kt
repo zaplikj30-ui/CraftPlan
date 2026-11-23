@@ -18,6 +18,7 @@ internal data class PhotoAnchor(val u: Float, val v: Float) {
 
 internal enum class MeasurementState {
     UNMEASURED,
+    MEASURED,
 }
 
 internal data class PhotoDimension(
@@ -25,8 +26,15 @@ internal data class PhotoDimension(
     val photoId: PhotoId,
     val start: PhotoAnchor,
     val end: PhotoAnchor,
+    val measurement: ManualLengthMeasurement? = null,
 ) {
-    val measurementState = MeasurementState.UNMEASURED
+    val measurementState: MeasurementState
+        get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED
+
+    fun withManualLength(input: String, selectedUnit: LengthUnit? = null): PhotoDimension {
+        val validated = ManualLengthMeasurement.parse(input, selectedUnit) ?: return this
+        return copy(measurement = validated)
+    }
 
     init {
         require(start != end)

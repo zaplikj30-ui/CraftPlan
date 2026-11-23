@@ -132,6 +132,7 @@ private fun SamplePhoto(
         is DimensionPlacement.Ready -> if (isLandscape) R.string.drag_dimension_short else R.string.drag_dimension
         is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
             MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+            MeasurementState.MEASURED -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
         }
     }
     Column(modifier = modifier) {
