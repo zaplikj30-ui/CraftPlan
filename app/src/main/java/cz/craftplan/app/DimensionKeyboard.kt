@@ -1,25 +1,35 @@
 package cz.craftplan.app
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
+
 internal enum class DimensionField { VALUE, NOTE }
 internal enum class DimensionKeyboardMode { NUMERIC, SYSTEM }
 
 internal data class DimensionKeyboard(
     val field: DimensionField = DimensionField.VALUE,
-    val valueMode: DimensionKeyboardMode = DimensionKeyboardMode.NUMERIC,
-    val noteMode: DimensionKeyboardMode = DimensionKeyboardMode.SYSTEM,
+    val mode: DimensionKeyboardMode = DimensionKeyboardMode.NUMERIC,
     val visible: Boolean = true,
 ) {
-    val mode: DimensionKeyboardMode
-        get() = if (this.field == DimensionField.VALUE) valueMode else noteMode
-
     val systemOpen: Boolean get() = visible && mode == DimensionKeyboardMode.SYSTEM
 
-    fun open(field: DimensionField) = copy(field = field, visible = true)
+    fun open(field: DimensionField): DimensionKeyboard {
+        val nextMode = when {
+            field == this.field -> mode
+            field == DimensionField.VALUE -> DimensionKeyboardMode.NUMERIC
+            else -> DimensionKeyboardMode.SYSTEM
+        }
+        return copy(field = field, mode = nextMode, visible = true)
+    }
     fun hide() = copy(visible = false)
 
     fun switch(): DimensionKeyboard {
         val next = if (mode == DimensionKeyboardMode.NUMERIC) DimensionKeyboardMode.SYSTEM else DimensionKeyboardMode.NUMERIC
-        return if (field == DimensionField.VALUE) copy(valueMode = next, visible = true)
-        else copy(noteMode = next, visible = true)
+        return copy(mode = next, visible = true)
     }
+}
+
+internal suspend fun awaitSystemImeDismissal(visibility: Flow<Boolean>) {
+    visibility.dropWhile { !it }.first { !it }
 }

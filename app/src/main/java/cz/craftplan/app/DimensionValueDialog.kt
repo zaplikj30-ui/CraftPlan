@@ -57,6 +57,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -82,15 +84,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
-    save = { listOf(it.field.name, it.valueMode.name, it.noteMode.name, it.visible) },
+    save = { listOf(it.field.name, it.mode.name, it.visible) },
     restore = {
+        val field = DimensionField.valueOf(it[0] as String)
+        // Older dialog state stored both field preferences before the visibility flag.
+        val modeIndex = if (it.size == 4 && field == DimensionField.NOTE) 2 else 1
         DimensionKeyboard(
-            DimensionField.valueOf(it[0] as String),
-            DimensionKeyboardMode.valueOf(it[1] as String),
-            DimensionKeyboardMode.valueOf(it[2] as String),
-            it[3] as Boolean,
+            field,
+            DimensionKeyboardMode.valueOf(it[modeIndex] as String),
+            it.last() as Boolean,
         )
     },
 )
@@ -143,25 +149,44 @@ internal fun DimensionValueDialog(
         val valueBounds = remember { BringIntoViewRequester() }
         val noteBounds = remember { BringIntoViewRequester() }
         val imeVisible = WindowInsets.isImeVisible
-        var observedIme by remember { mutableStateOf(false) }
+        val latestImeVisible by rememberUpdatedState(imeVisible)
+        var imeHidePending by remember { mutableStateOf(false) }
         val hideKeyboard: () -> Unit = {
             keys = keys.hide()
             showSymbols = false
-            ime?.hide()
-            focusManager.clearFocus()
         }
-        LaunchedEffect(imeVisible) {
-            // Native Back can be handled entirely by the system keyboard.
-            if (observedIme && !imeVisible && keys.systemOpen) hideKeyboard()
-            observedIme = imeVisible
+        LaunchedEffect(imeVisible, keys.systemOpen) {
+            // Finish an app-requested hide if the IME becomes visible late.
+            if (imeVisible && !keys.systemOpen) {
+                imeHidePending = true
+                ime?.hide()
+            }
         }
         LaunchedEffect(keys.systemOpen, keys.field) {
-            if (keys.systemOpen) {
-                if (keys.field == DimensionField.VALUE) valueFocus.requestFocus() else noteFocus.requestFocus()
+            val requested = keys
+            if (requested.systemOpen) {
+                // A delayed close from the previous mode must not close this request.
+                val previousHideSettled = !imeHidePending || !latestImeVisible ||
+                    withTimeoutOrNull(500) { snapshotFlow { latestImeVisible }.first { !it } } != null
+                imeHidePending = false
+                if (keys != requested) return@LaunchedEffect
+                if (requested.field == DimensionField.VALUE) valueFocus.requestFocus() else noteFocus.requestFocus()
+                withFrameNanos { } // Let the focused editor establish its input connection.
+                if (keys != requested) return@LaunchedEffect
                 ime?.show()
+                if (!previousHideSettled) {
+                    snapshotFlow { latestImeVisible }.first { !it }
+                    if (keys != requested) return@LaunchedEffect
+                    ime?.show()
+                }
+                // Native Back can close the IME itself; only observe dismissal after showing this session.
+                awaitSystemImeDismissal(snapshotFlow { latestImeVisible })
+                if (keys == requested) hideKeyboard()
             } else {
-                ime?.hide()
                 focusManager.clearFocus()
+                imeHidePending = imeHidePending || latestImeVisible ||
+                    view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) == true
+                ime?.hide()
             }
         }
         LaunchedEffect(keys.field, keys.systemOpen, imeVisible) {
@@ -345,6 +370,7 @@ internal fun DimensionValueDialog(
                         showSymbols = showSymbols,
                         keyHeight = keyHeight,
                         onToggleSymbols = { showSymbols = !showSymbols },
+                        onHide = hideKeyboard,
                         onKey = { key ->
                             val editingNote = keys.field == DimensionField.NOTE
                             val field = if (editingNote) noteField else valueField
@@ -356,8 +382,8 @@ internal fun DimensionValueDialog(
                     )
                 }
                 val actions: @Composable () -> Unit = {
-                    if (!portrait || keys.visible || imeVisible) {
-                        IconButton(onClick = hideKeyboard, enabled = keys.visible || imeVisible) {
+                    if (keys.systemOpen) {
+                        IconButton(onClick = hideKeyboard) {
                             Icon(
                                 painterResource(R.drawable.ic_keyboard_hide),
                                 contentDescription = stringResource(R.string.hide_system_keyboard),
@@ -421,7 +447,10 @@ internal fun DimensionValueDialog(
                         }
                         errorMessage()
                         if (keypadVisible) {
-                            BoxWithConstraints(Modifier.weight(1f, fill = false).fillMaxWidth()) {
+                            BoxWithConstraints(
+                                Modifier.weight(1f, fill = false).widthIn(max = 480.dp).fillMaxWidth()
+                                    .align(Alignment.CenterHorizontally),
+                            ) {
                                 val keyHeight = landscapeKeyHeight(maxHeight.value).dp
                                 Column(
                                     modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -498,13 +527,16 @@ private fun DimensionInputField(
     }
 }
 
-internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
+internal const val DIMENSION_KEY_HIDE = '↓'
+internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,$DIMENSION_KEY_HIDE")
 internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
 internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<String> = when {
     !showSymbols -> dimensionKeyRows
-    else -> dimensionSymbolRows + listOf("____", "____")
+    else -> dimensionSymbolRows + listOf("____", "___$DIMENSION_KEY_HIDE")
 }
+
+internal fun isDimensionKeyEnabled(key: Char): Boolean = key != '◷' && key != '_'
 
 internal fun landscapeInputRowWidth(availableWidth: Float): Float = availableWidth.coerceAtLeast(360f)
 
@@ -517,7 +549,13 @@ internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -
 }
 
 @Composable
-private fun DimensionKeypad(showSymbols: Boolean, keyHeight: Dp, onToggleSymbols: () -> Unit, onKey: (Char) -> Unit) {
+private fun DimensionKeypad(
+    showSymbols: Boolean,
+    keyHeight: Dp,
+    onToggleSymbols: () -> Unit,
+    onHide: () -> Unit,
+    onKey: (Char) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     for (row in displayedDimensionKeyRows(showSymbols)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -528,6 +566,7 @@ private fun DimensionKeypad(showSymbols: Boolean, keyHeight: Dp, onToggleSymbols
                     '◷' -> stringResource(R.string.dimension_key_history)
                     '⋯' -> stringResource(R.string.dimension_key_symbols)
                     '↩' -> stringResource(R.string.use_dimension_keypad)
+                    DIMENSION_KEY_HIDE -> stringResource(R.string.hide_system_keyboard)
                     '_' -> stringResource(R.string.dimension_key_reserved)
                     ' ' -> stringResource(R.string.dimension_key_space)
                     else -> null
@@ -536,11 +575,12 @@ private fun DimensionKeypad(showSymbols: Boolean, keyHeight: Dp, onToggleSymbols
                     onClick = {
                         when (key) {
                             '⋯', '↩' -> onToggleSymbols()
+                            DIMENSION_KEY_HIDE -> onHide()
                             '◷', '_' -> Unit
                             else -> onKey(key)
                         }
                     },
-                    enabled = key != '◷' && key != '_',
+                    enabled = isDimensionKeyEnabled(key),
                     modifier = Modifier.weight(1f).height(keyHeight).semantics {
                         if (description != null) contentDescription = description
                     },
@@ -553,7 +593,9 @@ private fun DimensionKeypad(showSymbols: Boolean, keyHeight: Dp, onToggleSymbols
                     ),
                     contentPadding = PaddingValues(0.dp),
                 ) {
-                    if (key == '↩') {
+                    if (key == DIMENSION_KEY_HIDE) {
+                        Icon(painterResource(R.drawable.ic_keyboard_hide), contentDescription = null)
+                    } else if (key == '↩') {
                         Icon(painterResource(R.drawable.ic_dimension_keypad), contentDescription = null)
                     } else {
                         Text(

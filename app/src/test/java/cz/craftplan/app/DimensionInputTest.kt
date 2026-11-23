@@ -10,7 +10,7 @@ import org.junit.Test
 class DimensionInputTest {
     @Test
     fun usesSpecifiedNumericAndSymbolRows() {
-        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,_"), dimensionKeyRows)
+        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,↓"), dimensionKeyRows)
         assertEquals(listOf("+−±/", ".% ↩"), dimensionSymbolRows)
     }
 
@@ -20,7 +20,13 @@ class DimensionInputTest {
         val symbols = displayedDimensionKeyRows(showSymbols = true)
         assertEquals(List(4) { 4 }, numbers.map(String::length))
         assertEquals(numbers.map(String::length), symbols.map(String::length))
-        assertEquals(dimensionSymbolRows + listOf("____", "____"), symbols)
+        assertEquals(dimensionSymbolRows + listOf("____", "___↓"), symbols)
+        for (rows in listOf(numbers, symbols)) {
+            val hide = rows.last().last()
+            assertEquals(DIMENSION_KEY_HIDE, hide)
+            assertEquals(true, isDimensionKeyEnabled(hide))
+        }
+        assertEquals(false, isDimensionKeyEnabled('_'))
     }
 
     @Test
