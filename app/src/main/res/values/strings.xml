@@ -14,6 +14,10 @@
     <string name="dimension_value">Hodnota kóty</string>
     <string name="dimension_unit">Jednotka: %1$s</string>
     <string name="keep_number_on_unit_change">Ponechat číslo při změně jednotky</string>
+    <string name="use_system_keyboard">Systémová klávesnice</string>
+    <string name="use_dimension_keypad">Číselná klávesnice</string>
+    <string name="dimension_key_delete">Smazat znak</string>
+    <string name="dimension_key_space">Mezera</string>
     <string name="dimension_value_required">Zadej hodnotu kóty.</string>
     <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
     <string name="cancel_value">Zrušit</string>

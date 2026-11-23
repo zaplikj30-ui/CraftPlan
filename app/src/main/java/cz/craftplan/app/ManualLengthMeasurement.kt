@@ -20,6 +20,7 @@ internal data class ManualLengthMeasurement private constructor(
     val source = LengthSource.MANUAL
 
     companion object {
+        const val MAX_INPUT_LENGTH = 96
         // Anchored ASCII grammar. Spaces can separate parts; they cannot group digits.
         private const val DIGITS = "[0-9]{1,18}"
         private const val DECIMAL = "$DIGITS(?:[.,]$DIGITS)?"
@@ -33,7 +34,7 @@ internal data class ManualLengthMeasurement private constructor(
          * With an explicit unit, use the text alone or supply the same unit as the picker.
          */
         fun parse(input: String, selectedUnit: LengthUnit? = null): ManualLengthMeasurement? {
-            if (input.length > 96 || ('.' in input && ',' in input)) return null
+            if (input.length > MAX_INPUT_LENGTH || ('.' in input && ',' in input)) return null
             val text = input.trim(' ')
             return try {
                 val compound = feetAndInches.matchEntire(text)
