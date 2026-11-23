@@ -397,6 +397,8 @@ Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchope
 
 **Provedeno ve zdrojích:** [`8d0915ab`](https://github.com/zaplikj30-ui/CraftPlan/commit/8d0915aba5137586037859a52f32a83a5911785d) na větvi `m1/first-dimension` včetně cílených jednotkových testů výpočtu. Commit má `[skip ci]`: **build, nové JVM testy i fyzické ověření tohoto commitu NOT RUN**. Fyzické hodnocení uživatele „funguje to“ platí pro **předchozí build 19**, nikoli tuto následnou úpravu. Ostatní pravidla bezpečného ukončení tahu, horní lupy a citlivosti úchopů zůstávají beze změny.
 
+**FYZICKY OVĚŘENO VLASTNÍKEM NA BUILD 19:** po uvolnění prstu i S Penu při auto-panu se posun skutečně zastavil a sám nepokračoval (**PASS pro tento scénář**). Neznamená to test výpadku, pádu procesu, ztráty okna ani ochrany trvalého uložení; tyto scénáře zůstávají bez fyzického důkazu.
+
 ### Budoucí samostatný režim – vícefotkové kótování na společném plátně (23. 11. 2026)
 
 **SCHVÁLENO VLASTNÍKEM jako budoucí funkce, nikoli GO k implementaci.** Zachovat stávající režim kótování **jedné fotografie** jako samostatný pracovní postup. Vedle něj později nabídnout **vícefotkové kótování**: uživatel může do jednoho logického seskupení/pracovního dokumentu vložit několik fotografií (např. 3–4 snímky kuchyně), libovolně je rozmístit na společné posuvné a přibližovatelné ploše, jednotlivé snímky přesouvat a vizuálně zvětšovat/zmenšovat, přitom nezávisle kótovat každou fotografii.
