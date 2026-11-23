@@ -105,12 +105,15 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         val nextScale = (scale * factor).coerceIn(minScale, photoFitScale * MAX_ZOOM)
         val ratio = nextScale.toDouble() / scale
         val active = dimension
+        val requestedLeft = (toX - (fromX - left) * ratio).toFloat()
+        val requestedTop = (toY - (fromY - top) * ratio).toFloat()
+        if (!requestedLeft.isFinite() || !requestedTop.isFinite()) return
         left = boundedOffset(
-            (toX - (fromX - left) * ratio).toFloat(), width, imageWidth * nextScale,
+            requestedLeft, width, imageWidth * nextScale,
             active?.start?.u, active?.end?.u, extendingForDrag,
         )
         top = boundedOffset(
-            (toY - (fromY - top) * ratio).toFloat(), height, imageHeight * nextScale,
+            requestedTop, height, imageHeight * nextScale,
             active?.start?.v, active?.end?.v, extendingForDrag,
         )
         scale = nextScale
@@ -172,9 +175,10 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         if (nearAnchor < 0f) upper = maxOf(upper, viewportSize - margin - nearAnchor * imageSize)
         if (farAnchor > 1f) lower = minOf(lower, margin - farAnchor * imageSize)
 
-        // A held drag can explore one view beyond the established content in each direction.
-        val allowance = if (extendingForDrag) viewportSize.toFloat() else 0f
-        return offset.coerceIn(lower - allowance, upper + allowance)
+        // While a dimension is held, the user controls how far to extend the canvas.
+        // Do not impose a per-gesture screen-width stop. Normal panning stays bounded.
+        if (extendingForDrag) return offset
+        return offset.coerceIn(lower, upper)
     }
 
     private companion object {

@@ -233,12 +233,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
         lensOnRight = onRight
         val oppositeX = if (onRight) width - margin - size else margin
         val otherX = if (onRight) margin else width - margin - size
-        val bottom = height - margin - size
-
+        // Keep the magnifier above the hand: select only a top corner.
         if (!positionLens(oppositeX, margin, size, target, contact) &&
-            !positionLens(otherX, margin, size, target, contact) &&
-            !positionLens(oppositeX, bottom, size, target, contact) &&
-            !positionLens(otherX, bottom, size, target, contact)
+            !positionLens(otherX, margin, size, target, contact)
         ) return
 
         val centerX = lensBounds.centerX()

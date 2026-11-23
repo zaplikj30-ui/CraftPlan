@@ -195,15 +195,16 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun heldContactTracksAutopanAndTheTemporaryRangeIsFinite() {
+    fun heldContactTracksAutopanBeyondThePreviousOneScreenLimit() {
         val viewport = PhotoViewport(400, 400)
         viewport.fit(400, 400)
         val contact = requireNotNull(viewport.clampContact(403f, 200f))
         val initial = requireNotNull(viewport.toPhotoAnchor(contact.x, contact.y))
 
-        repeat(10) { viewport.transform(0f, 0f, -100f, 0f, extendingForDrag = true) }
+        repeat(20) { viewport.transform(0f, 0f, -100f, 0f, extendingForDrag = true) }
         val current = requireNotNull(viewport.toPhotoAnchor(contact.x, contact.y))
-        assertEquals(2.5f, current.u, 0.001f)
+        assertEquals(-2000f, viewport.left, 0.001f)
+        assertEquals(6f, current.u, 0.001f)
         assertEquals(contact, viewport.screenPoint(current))
         assertEquals(1f, initial.u, 0.001f)
         assertNull(viewport.clampContact(Float.NaN, 200f))
@@ -241,17 +242,15 @@ class PhotoViewportTest {
         viewport.updateContentBounds(dimension, 24f)
         repeat(3) {
             val startOffset = viewport.left
-            viewport.transform(0f, 0f, -9000f, 0f, extendingForDrag = true)
-            val limit = viewport.left
-            viewport.transform(0f, 0f, -9000f, 0f, extendingForDrag = true)
-            assertEquals(limit, viewport.left, 0f)
-            assertTrue(limit < startOffset)
+            viewport.transform(0f, 0f, -500f, 0f, extendingForDrag = true)
+            val movedOffset = viewport.left
+            assertEquals(startOffset - 500f, movedOffset, 0f)
 
             val edge = requireNotNull(viewport.toPhotoAnchor(380f, 200f))
             assertTrue(edge.u > dimension.end.u)
             dimension = dimension.copy(end = edge)
             viewport.updateContentBounds(dimension, 24f)
-            assertEquals(limit, viewport.left, 0f)
+            assertEquals(movedOffset, viewport.left, 0f)
             assertEquals(380f, viewport.screenX(dimension.end), 0.001f)
         }
         assertTrue(viewport.left + 400f < 0f)
