@@ -14,6 +14,14 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     private var width = 0
     private var height = 0
     private var fitScale = 1f
+    private var dimension: PhotoDimension? = null
+    private var handleMargin = 0f
+
+    fun updateContentBounds(dimension: PhotoDimension?, handleMargin: Float) {
+        this.dimension = dimension
+        this.handleMargin = handleMargin
+        transform(0f, 0f, 0f, 0f)
+    }
 
     var scale = 1f
         private set
@@ -33,20 +41,35 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         top = (height - imageHeight * scale) / 2f
     }
 
-    fun transform(fromX: Float, fromY: Float, toX: Float, toY: Float, factor: Float = 1f) {
+    fun transform(
+        fromX: Float, fromY: Float, toX: Float, toY: Float, factor: Float = 1f,
+        extendingForDrag: Boolean = false,
+    ) {
         if (width <= 0 || height <= 0 || !factor.isFinite() || factor <= 0f ||
             !fromX.isFinite() || !fromY.isFinite() || !toX.isFinite() || !toY.isFinite()
         ) return
 
         val nextScale = (scale * factor).coerceIn(fitScale, fitScale * MAX_ZOOM)
         val ratio = nextScale / scale
-        left = boundedOffset(toX - (fromX - left) * ratio, width, imageWidth * nextScale)
-        top = boundedOffset(toY - (fromY - top) * ratio, height, imageHeight * nextScale)
+        val active = dimension
+        left = boundedOffset(
+            toX - (fromX - left) * ratio, width, imageWidth * nextScale,
+            active?.start?.u, active?.end?.u, extendingForDrag,
+        )
+        top = boundedOffset(
+            toY - (fromY - top) * ratio, height, imageHeight * nextScale,
+            active?.start?.v, active?.end?.v, extendingForDrag,
+        )
         scale = nextScale
     }
 
     fun contains(x: Float, y: Float): Boolean =
         width > 0 && height > 0 && x in 0f..width.toFloat() && y in 0f..height.toFloat()
+
+    fun clampContact(x: Float, y: Float): EditorPoint? {
+        if (width <= 0 || height <= 0 || !x.isFinite() || !y.isFinite()) return null
+        return EditorPoint(x.coerceIn(0f, width.toFloat()), y.coerceIn(0f, height.toFloat()))
+    }
 
     fun toPhotoAnchor(x: Float, y: Float): PhotoAnchor? {
         if (!contains(x, y)) return null
@@ -83,9 +106,22 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
             (point.y + delta.y).coerceIn(minOf(0f, point.y), maxOf(height.toFloat(), point.y)),
         ) - point
 
-    private fun boundedOffset(offset: Float, viewportSize: Int, imageSize: Float): Float {
+    private fun boundedOffset(
+        offset: Float, viewportSize: Int, imageSize: Float,
+        start: Float?, end: Float?, extendingForDrag: Boolean,
+    ): Float {
         val visible = minOf(viewportSize.toFloat(), imageSize) / 2f
-        return offset.coerceIn(visible - imageSize, viewportSize - visible)
+        val margin = minOf(handleMargin, viewportSize / 2f)
+        val nearAnchor = minOf(start ?: 0f, end ?: 0f)
+        val farAnchor = maxOf(start ?: 1f, end ?: 1f)
+        var lower = visible - imageSize
+        var upper = viewportSize - visible
+        if (nearAnchor < 0f) upper = maxOf(upper, margin - nearAnchor * imageSize)
+        if (farAnchor > 1f) lower = minOf(lower, viewportSize - margin - farAnchor * imageSize)
+
+        // A held drag can explore one view beyond the established content in each direction.
+        val allowance = if (extendingForDrag) viewportSize.toFloat() else 0f
+        return offset.coerceIn(lower - allowance, upper + allowance)
     }
 
     private companion object {

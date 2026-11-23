@@ -75,3 +75,12 @@ internal fun magnifierOnRight(x: Float, width: Int, previous: Boolean?): Boolean
 
 internal fun passesDragThreshold(down: EditorPoint, current: EditorPoint, threshold: Float): Boolean =
     down.distanceTo(current) > threshold
+
+/** Signed camera speed. The photo moves toward the middle of the view. */
+internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed: Float): Float {
+    val edge = minOf(edgeSize, size / 2f)
+    if (edge <= 0f || !position.isFinite()) return 0f
+    val near = ((edge - position) / edge).coerceIn(0f, 1f)
+    val far = ((position - (size - edge)) / edge).coerceIn(0f, 1f)
+    return (near - far) * maxSpeed
+}

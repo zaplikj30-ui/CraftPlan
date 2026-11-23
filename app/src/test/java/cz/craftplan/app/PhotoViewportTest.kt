@@ -1,6 +1,8 @@
 package cz.craftplan.app
 
+import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PhotoViewportTest {
@@ -78,5 +80,68 @@ class PhotoViewportTest {
         assertEquals(0.75f, viewport.scale, 0.001f)
         assertEquals(150f, viewport.left, 0.001f)
         assertEquals(0f, viewport.top, 0.001f)
+    }
+
+    @Test
+    fun outsideAnchorsExtendOnlyTheRequiredDirectionsAtMaximumZoom() {
+        val viewport = PhotoViewport(800, 800)
+        viewport.fit(400, 400)
+        val dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(-0.75f, 0.25f), PhotoAnchor(0.75f, 1.75f),
+        )
+        viewport.updateContentBounds(dimension, 24f)
+        viewport.transform(200f, 200f, 200f, 200f, factor = 8f)
+        viewport.transform(0f, 0f, 9000f, -9000f)
+
+        assertEquals(24f, viewport.screenX(dimension.start), 0.001f)
+        assertEquals(376f, viewport.screenY(dimension.end), 0.001f)
+
+        viewport.transform(0f, 0f, -9000f, 9000f)
+        assertEquals(-3000f, viewport.left, 0.001f)
+        assertEquals(200f, viewport.top, 0.001f)
+
+        viewport.transform(0f, 0f, 9000f, -9000f)
+        viewport.updateContentBounds(dimension.copy(start = PhotoAnchor(0.25f, 0.25f)), 24f)
+        assertEquals(200f, viewport.left, 0.001f)
+        assertEquals(376f, viewport.screenY(dimension.end), 0.001f)
+        viewport.updateContentBounds(null, 24f)
+        assertEquals(-3000f, viewport.top, 0.001f)
+    }
+
+    @Test
+    fun heldContactTracksAutopanAndTheTemporaryRangeIsFinite() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+        val contact = requireNotNull(viewport.clampContact(403f, 200f))
+        val initial = requireNotNull(viewport.toPhotoAnchor(contact.x, contact.y))
+
+        repeat(10) { viewport.transform(0f, 0f, -100f, 0f, extendingForDrag = true) }
+        val current = requireNotNull(viewport.toPhotoAnchor(contact.x, contact.y))
+        assertEquals(2.5f, current.u, 0.001f)
+        assertEquals(contact, viewport.screenPoint(current))
+        assertEquals(1f, initial.u, 0.001f)
+        assertNull(viewport.clampContact(Float.NaN, 200f))
+
+        viewport.updateContentBounds(null, 24f)
+        assertEquals(-200f, viewport.left, 0.001f)
+    }
+
+    @Test
+    fun endpointEditUsesTheMovedViewportWithoutMovingTheFixedAnchor() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+        val dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(0.25f, 0.5f), PhotoAnchor(0.75f, 0.5f),
+        )
+        val downAnchor = requireNotNull(viewport.toPhotoAnchor(295f, 200f))
+        viewport.transform(0f, 0f, -300f, 0f, extendingForDrag = true)
+
+        val contact = EditorPoint(380f, 200f)
+        val edited = viewport.moveDimension(dimension, DimensionHit.END, contact - viewport.screenPoint(downAnchor))
+        assertEquals(385f, viewport.screenX(edited.end), 0.001f)
+        assertEquals(dimension.start, edited.start)
+        assertEquals(dimension.id, edited.id)
     }
 }

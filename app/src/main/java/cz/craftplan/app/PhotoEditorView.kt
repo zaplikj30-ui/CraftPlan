@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -32,6 +33,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val hit: DimensionHit,
         val pointerId: Int,
         val down: EditorPoint,
+        val downAnchor: PhotoAnchor,
         val preview: PhotoDimension? = null,
     )
 
@@ -44,6 +46,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var lensOnRight: Boolean? = null
     private var lensContact: EditorPoint? = null
     private var placingDimension = false
+    private var autoPanTime: Long? = null
+    private val autoPan = Runnable { stepAutoPan() }
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
@@ -252,8 +256,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (end != null && start != end) drawDimensionLine(canvas, start, end, selected = false)
         canvas.restore()
 
-        drawCrosshair(canvas, centerX, centerY, Color.BLACK, 1.6f * density)
-        drawCrosshair(canvas, centerX, centerY, Color.WHITE, 0.8f * density)
+        drawCrosshair(canvas, centerX, centerY, 0x99000000.toInt(), 1.5f * density)
+        drawCrosshair(canvas, centerX, centerY, 0xCCFFFFFF.toInt(), 0.75f * density)
         canvas.restore()
 
         overlayPaint.color = Color.WHITE
@@ -266,14 +270,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun drawCrosshair(canvas: Canvas, x: Float, y: Float, color: Int, stroke: Float) {
         crosshairPaint.color = color
         crosshairPaint.strokeWidth = stroke
-        for (mark in 2..10 step 4) {
-            val near = mark * density
-            val far = near + 2f * density
-            canvas.drawLine(x - far, y, x - near, y, crosshairPaint)
-            canvas.drawLine(x + near, y, x + far, y, crosshairPaint)
-            canvas.drawLine(x, y - far, x, y - near, crosshairPaint)
-            canvas.drawLine(x, y + near, x, y + far, crosshairPaint)
-        }
+        val arm = lensBounds.width() / 2f
+        canvas.drawLine(x - arm, y, x + arm, y, crosshairPaint)
+        canvas.drawLine(x, y - arm, x, y + arm, crosshairPaint)
     }
 
     private fun positionLens(
@@ -304,10 +303,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             val dimension = (placement as? DimensionPlacement.Complete)?.dimension
             val down = EditorPoint(event.x, event.y)
-            if (dimension != null && viewport.toPhotoAnchor(down.x, down.y) != null) {
+            val downAnchor = viewport.toPhotoAnchor(down.x, down.y)
+            if (dimension != null && downAnchor != null) {
                 val hit = hitDimension(down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end), density)
                 if (hit != null) {
-                    dimensionEdit = DimensionEdit(dimension, hit, event.getPointerId(0), down)
+                    dimensionEdit = DimensionEdit(dimension, hit, event.getPointerId(0), down, downAnchor)
                     activePointerId = MotionEvent.INVALID_POINTER_ID
                     clickCandidate = false
                     return true
@@ -373,8 +373,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
             clearDimensionGesture()
             return
         }
-        val contact = EditorPoint(event.getX(index), event.getY(index))
-        if (!viewport.contains(contact.x, contact.y)) {
+        val contact = viewport.clampContact(event.getX(index), event.getY(index))
+        if (contact == null) {
             if (event.actionMasked == MotionEvent.ACTION_UP) clearDimensionGesture()
             return
         }
@@ -382,24 +382,25 @@ internal class PhotoEditorView(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> if (moved) {
                 dimensionSelected = true
-                lensContact = contact
-                val preview = viewport.moveDimension(draft.original, draft.hit, contact - draft.down)
-                dimensionEdit = draft.copy(preview = preview)
-                invalidate()
+                updateDraft(contact)
+                if (draft.hit != DimensionHit.BODY) scheduleAutoPan()
             }
             MotionEvent.ACTION_UP -> {
+                val result = if (moved) editedDimension(draft, contact) else null
                 dimensionSelected = true
-                clearDimensionGesture()
-                invalidate()
-                if (moved) {
-                    val result = viewport.moveDimension(draft.original, draft.hit, contact - draft.down)
-                    if (result != draft.original) onDimension(DimensionPlacement.Complete(result))
-                } else {
+                clearDimensionGesture(result ?: draft.original)
+                if (result != null && result != draft.original) {
+                    onDimension(DimensionPlacement.Complete(result))
+                } else if (!moved) {
                     performClick()
                 }
+                invalidate()
             }
         }
     }
+
+    private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension =
+        viewport.moveDimension(draft.original, draft.hit, contact - viewport.screenPoint(draft.downAnchor))
 
     private fun handleDimensionTouch(event: MotionEvent) {
         when (event.actionMasked) {
@@ -417,30 +418,75 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     clearDimensionGesture()
                     return
                 }
-                val contact = EditorPoint(event.getX(index), event.getY(index))
-                val end = viewport.toPhotoAnchor(contact.x, contact.y) ?: return
-                lensContact = contact
-                dimensionDrag = draft.copy(end = end)
-                invalidate()
+                val contact = viewport.clampContact(event.getX(index), event.getY(index)) ?: return
+                updateDraft(contact)
+                if (passesDragThreshold(viewport.screenPoint(draft.start), contact, touchSlop.toFloat())) {
+                    scheduleAutoPan()
+                }
             }
             MotionEvent.ACTION_UP -> {
                 val draft = dimensionDrag
-                clearDimensionGesture()
-                val ready = placement as? DimensionPlacement.Ready ?: return
-                if (draft == null || event.getPointerId(0) != draft.pointerId) return
-
-                val end = viewport.dragEnd(draft.start, event.x, event.y, touchSlop)
-                ready.finishDrag(draft.start, end)?.let(onDimension)
+                val ready = placement as? DimensionPlacement.Ready
+                val contact = viewport.clampContact(event.x, event.y)
+                val result = if (draft != null && ready != null && contact != null &&
+                    event.getPointerId(0) == draft.pointerId
+                ) {
+                    ready.finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
+                } else null
+                clearDimensionGesture(result?.dimension)
+                result?.let(onDimension)
             }
         }
     }
 
-    private fun clearDimensionGesture() {
+    private fun updateDraft(contact: EditorPoint) {
+        lensContact = contact
+        dimensionDrag = dimensionDrag?.let { it.copy(end = viewport.toPhotoAnchor(contact.x, contact.y)) }
+        dimensionEdit = dimensionEdit?.let { it.copy(preview = editedDimension(it, contact)) }
+        invalidate()
+    }
+
+    private fun autoPanVelocity(contact: EditorPoint): EditorPoint = EditorPoint(
+        edgePanSpeed(contact.x, width, 48f * density, 440f * density),
+        edgePanSpeed(contact.y, height, 48f * density, 440f * density),
+    )
+
+    private fun scheduleAutoPan() {
+        if (autoPanTime != null) return
+        val contact = lensContact ?: return
+        if (autoPanVelocity(contact) == EditorPoint(0f, 0f)) return
+        autoPanTime = SystemClock.uptimeMillis()
+        postOnAnimation(autoPan)
+    }
+
+    private fun stepAutoPan() {
+        val previous = autoPanTime ?: return
+        autoPanTime = null
+        val contact = lensContact ?: return
+        val velocity = autoPanVelocity(contact)
+        val now = SystemClock.uptimeMillis()
+        val seconds = (now - previous).coerceIn(1L, 32L) / 1000f
+        val left = viewport.left
+        val top = viewport.top
+        viewport.transform(0f, 0f, velocity.x * seconds, velocity.y * seconds, extendingForDrag = true)
+        if (viewport.left != left || viewport.top != top) {
+            updateDraft(contact)
+            autoPanTime = now
+            postOnAnimation(autoPan)
+        }
+    }
+
+    private fun clearDimensionGesture(
+        dimension: PhotoDimension? = (placement as? DimensionPlacement.Complete)?.dimension,
+    ) {
         val needsRedraw = dimensionDrag != null || dimensionEdit != null
         dimensionDrag = null
         dimensionEdit = null
         lensOnRight = null
         lensContact = null
+        autoPanTime = null
+        removeCallbacks(autoPan)
+        viewport.updateContentBounds(dimension, 24f * density)
         if (needsRedraw) invalidate()
     }
 

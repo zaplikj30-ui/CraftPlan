@@ -105,4 +105,14 @@ class DimensionGeometryTest {
         assertFalse(magnifierOnRight(46f, 100, false))
         assertTrue(magnifierOnRight(44f, 100, false))
     }
+
+    @Test
+    fun autoPanSpeedIsSymmetricAndActiveOnlyNearAnEdge() {
+        assertEquals(0f, edgePanSpeed(200f, 400, 48f, 440f), 0f)
+        assertEquals(220f, edgePanSpeed(24f, 400, 48f, 440f), 0f)
+        assertEquals(-220f, edgePanSpeed(376f, 400, 48f, 440f), 0f)
+        assertEquals(440f, edgePanSpeed(0f, 400, 48f, 440f), 0f)
+        assertEquals(-440f, edgePanSpeed(400f, 400, 48f, 440f), 0f)
+        assertEquals(0f, edgePanSpeed(15f, 30, 48f, 440f), 0f)
+    }
 }
