@@ -379,6 +379,16 @@ Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchope
 
 **Implementační stav:** cílená změna zdrojů na větvi `m1/first-dimension` v commitu [`367f47c6`](https://github.com/zaplikj30-ui/CraftPlan/commit/367f47c61645148940b9e8ea12dd51a10d8de7be), včetně aktualizace dvou viewportových testů. Commit má `[skip ci]`: **kompilace, testy tohoto commitu i fyzické ověření nového chování NOT RUN**. Dřívější PASS buildu 18 platí pouze pro předchozí commit. Zdrojové úpravy nejsou důkaz reálného ovládání.
 
+### M1 – pohybující se tečkovaná mřížka a bezpečné ukončení auto-panu (23. 11. 2026)
+
+**SCHVÁLENO vlastníkem:** při automatickém posouvání pracovního prostoru při kreslení či úpravě kóty zobrazit **jemné tečky, které se pohybují společně s plátnem**, aby byl pohyb zřejmý i tehdy, když fotografie není vidět. Jde **pouze o vizuální indikátor pohybu**, ne o měřicí mřížku, souřadnice či úchopy; mimo auto-pan se nezobrazuje a nemění uložené fotografie/kóty. Zastavení auto-panu musí znamenat také okamžité skrytí teček. Vizuál otestovat na telefonu s různým pozadím a při delším tahu.
+
+**SCHVÁLENO bezpečnostní pravidlo dotyku:** po zvednutí aktivního prstu nebo S Penu, ztrátě aktivního okna či zrušení gesta už nesmí pokračovat softwarově naplánované posouvání. Při skutečném **zrušení** rozpracovaného tahu se vrací původní geometrie kóty (u nové nedokončené kóty nic nepřibude); **řádné uvolnění prstu je dokončení tahu, nikoli zrušení**. Zachovat dosavadní příjemné ovládání u systémových okrajů a **záměrně neblokovat systémové Zpět/Domů**. To, že Android u současně drženého prstu/S Penu další gesto nezachytí, není samo důkaz chyby. Finální zpracování akcí Zpět musí být konzistentní pro prst i S Pen, nikoli závislé na přítomnosti testovacího horního tlačítka.
+
+**Citlivost úchopů:** nynější velikost ponechat beze změny; při přidání více kót ověřit přednost výběru a zásahy překrývajících se dotykových oblastí. Nynější referenční jednofotkový test 5 bodů potvrdil vlastník na telefonu; **neznamená otestování budoucího více-kótového výběru**.
+
+**Implementační poznámka:** změna editoru a malý jednotkový test v commitu [`a11a7b27`](https://github.com/zaplikj30-ui/CraftPlan/commit/a11a7b2770828ab440290306954ad59e2a4941de), nové podepsané CI sestavení [build 19](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45177130364). Dokud není doložen stav CI a fyzický test, nepovažovat nový runtime za PASS; skutečné chování na telefonu prověří vlastník.
+
 ### Budoucí samostatný režim – vícefotkové kótování na společném plátně (23. 11. 2026)
 
 **SCHVÁLENO VLASTNÍKEM jako budoucí funkce, nikoli GO k implementaci.** Zachovat stávající režim kótování **jedné fotografie** jako samostatný pracovní postup. Vedle něj později nabídnout **vícefotkové kótování**: uživatel může do jednoho logického seskupení/pracovního dokumentu vložit několik fotografií (např. 3–4 snímky kuchyně), libovolně je rozmístit na společné posuvné a přibližovatelné ploše, jednotlivé snímky přesouvat a vizuálně zvětšovat/zmenšovat, přitom nezávisle kótovat každou fotografii.
