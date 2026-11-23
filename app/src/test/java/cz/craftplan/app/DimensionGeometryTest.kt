@@ -136,18 +136,20 @@ class DimensionGeometryTest {
     fun verticalAutoPanGraduallyTiltsBeforeTheScreenEdgeAndStaysStraightInTheMiddle() {
         val height = 800
         val maxSpeed = 440f
-        val edge = verticalAutoPanEdgeSize(height, 1f)
-        assertEquals(180f, edge, 0f)
+        val edge = verticalAutoPanEdgeSize(height, 1f, isLandscape = false)
+        assertEquals(240f, edge, 0f)
         assertEquals(0f, edgePanSpeed(400f, height, edge, maxSpeed), 0f)
         assertEquals(0f, edgePanSpeed(250f, height, edge, maxSpeed), 0f)
-        assertEquals(0f, edgePanSpeed(180f, height, edge, maxSpeed), 0f)
-        assertEquals(220f, edgePanSpeed(90f, height, edge, maxSpeed), 0.0001f)
+        assertEquals(0f, edgePanSpeed(240f, height, edge, maxSpeed), 0f)
+        assertEquals(220f, edgePanSpeed(120f, height, edge, maxSpeed), 0.0001f)
         assertEquals(440f, edgePanSpeed(0f, height, edge, maxSpeed), 0f)
         assertEquals(-220f, edgePanSpeed(710f, height, edge, maxSpeed), 0.0001f)
         assertEquals(-440f, edgePanSpeed(800f, height, edge, maxSpeed), 0f)
-        assertEquals(96f, verticalAutoPanEdgeSize(320, 1f), 0f)
-        assertEquals(0f, verticalAutoPanEdgeSize(0, 1f), 0f)
-        assertEquals(0f, verticalAutoPanEdgeSize(800, Float.NaN), 0f)
+        assertEquals(128f, verticalAutoPanEdgeSize(320, 1f, isLandscape = false), 0f)
+        assertEquals(180f, verticalAutoPanEdgeSize(800, 1f, isLandscape = true), 0f)
+        assertEquals(96f, verticalAutoPanEdgeSize(320, 1f, isLandscape = true), 0f)
+        assertEquals(0f, verticalAutoPanEdgeSize(0, 1f, isLandscape = false), 0f)
+        assertEquals(0f, verticalAutoPanEdgeSize(800, Float.NaN, isLandscape = true), 0f)
     }
 
     @Test

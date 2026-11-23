@@ -203,14 +203,53 @@ class PhotoViewportTest {
 
         repeat(20) { viewport.transform(0f, 0f, -100f, 0f, extendingForDrag = true) }
         val current = requireNotNull(viewport.toPhotoAnchor(contact.x, contact.y))
-        assertEquals(-2000f, viewport.left, 0.001f)
-        assertEquals(6f, current.u, 0.001f)
+        assertEquals(-1400f, viewport.left, 0.001f)
+        assertEquals(4.5f, current.u, 0.001f)
         assertEquals(contact, viewport.screenPoint(current))
         assertEquals(1f, initial.u, 0.001f)
         assertNull(viewport.clampContact(Float.NaN, 200f))
 
         viewport.updateContentBounds(null, 24f)
         assertEquals(-200f, viewport.left, 0.001f)
+    }
+
+    @Test
+    fun heldWorkspaceBoundaryIsStableAcrossTouchesAndBothAxes() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+
+        repeat(50) { viewport.transform(0f, 0f, -100f, -100f, extendingForDrag = true) }
+        assertEquals(-1400f, viewport.left, 0.001f)
+        assertEquals(-1400f, viewport.top, 0.001f)
+
+        // A new gesture cannot enlarge the allowed workspace by resetting a counter.
+        repeat(20) { viewport.transform(0f, 0f, -100f, -100f, extendingForDrag = true) }
+        assertEquals(-1400f, viewport.left, 0.001f)
+        assertEquals(-1400f, viewport.top, 0.001f)
+
+        repeat(40) { viewport.transform(0f, 0f, 100f, 100f, extendingForDrag = true) }
+        assertEquals(1400f, viewport.left, 0.001f)
+        assertEquals(1400f, viewport.top, 0.001f)
+        viewport.updateContentBounds(null, 24f)
+        assertEquals(200f, viewport.left, 0.001f)
+        assertEquals(200f, viewport.top, 0.001f)
+    }
+
+    @Test
+    fun confirmedDimensionExtendsTheWorkspaceBoundaryWithoutChangingItsAnchors() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+        val dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(0.25f, 0.5f), PhotoAnchor(4f, 0.5f),
+        )
+        viewport.updateContentBounds(dimension, 24f)
+        viewport.transform(0f, 0f, -10000f, 0f, extendingForDrag = true)
+        assertEquals(-2776f, viewport.left, 0.001f)
+        assertEquals(PhotoAnchor(4f, 0.5f), dimension.end)
+        assertEquals(4f, (viewport.screenX(dimension.end) - viewport.left) / (400f * viewport.scale), 0.001f)
+        viewport.transform(0f, 0f, 10000f, 0f, extendingForDrag = true)
+        assertEquals(1400f, viewport.left, 0.001f)
     }
 
     @Test

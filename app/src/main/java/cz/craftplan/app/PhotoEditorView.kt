@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
@@ -481,7 +482,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun autoPanVelocity(contact: EditorPoint): EditorPoint = EditorPoint(
         edgePanSpeed(contact.x, width, 48f * density, 440f * density),
         // Straight in the middle; progressively more diagonal toward top/bottom.
-        edgePanSpeed(contact.y, height, verticalAutoPanEdgeSize(height, density), 440f * density),
+        edgePanSpeed(
+            contact.y, height,
+            verticalAutoPanEdgeSize(
+                height, density, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+            ),
+            440f * density,
+        ),
     )
 
     private fun resumeAutoPanIfDragging() {

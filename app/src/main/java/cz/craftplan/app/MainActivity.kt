@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -10,9 +11,11 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Button
@@ -31,8 +34,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
@@ -121,41 +126,73 @@ private fun SamplePhoto(
     onDimension: (DimensionPlacement.Complete) -> Unit,
     onClose: () -> Unit,
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val hint = when (placement) {
+        DimensionPlacement.Idle -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
+        is DimensionPlacement.Ready -> if (isLandscape) R.string.drag_dimension_short else R.string.drag_dimension
+        is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
+            MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+        }
+    }
     Column(modifier = modifier) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Column {
-                TextButton(onClick = onClose, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(stringResource(R.string.back_to_start))
-                }
-                Text(
-                    text = stringResource(R.string.sample_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Button(
-                    onClick = onStartDimension,
-                    enabled = placement == DimensionPlacement.Idle,
-                    modifier = Modifier.padding(horizontal = 16.dp),
+            if (isLandscape) {
+                // In landscape the test controls occupy just one compact row.
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(R.string.add_dimension))
-                }
-                val hint = when (placement) {
-                    DimensionPlacement.Idle -> R.string.photo_gestures
-                    is DimensionPlacement.Ready -> R.string.drag_dimension
-                    is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
-                        MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+                    TextButton(onClick = onClose) {
+                        Text(stringResource(R.string.back_to_start))
                     }
+                    Text(
+                        text = stringResource(R.string.sample_title),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Button(
+                        onClick = onStartDimension,
+                        enabled = placement == DimensionPlacement.Idle,
+                    ) {
+                        Text(stringResource(R.string.add_dimension), maxLines = 1)
+                    }
+                    Text(
+                        text = stringResource(hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                    )
                 }
-                Text(
-                    text = stringResource(hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    minLines = 2,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+            } else {
+                Column {
+                    TextButton(onClick = onClose, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(stringResource(R.string.back_to_start))
+                    }
+                    Text(
+                        text = stringResource(R.string.sample_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    Button(
+                        onClick = onStartDimension,
+                        enabled = placement == DimensionPlacement.Idle,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    ) {
+                        Text(stringResource(R.string.add_dimension))
+                    }
+                    Text(
+                        text = stringResource(hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        minLines = 2,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
             }
         }
         AndroidView(

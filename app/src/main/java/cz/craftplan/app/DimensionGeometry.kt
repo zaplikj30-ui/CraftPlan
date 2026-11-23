@@ -91,9 +91,12 @@ internal fun workspaceGridOffset(workspaceOffset: Float, spacing: Float): Float 
  * Vertical auto-pan begins well before the very top/bottom of the editor.
  * The middle stays neutral so horizontal drags remain straight.
  */
-internal fun verticalAutoPanEdgeSize(height: Int, density: Float): Float {
+internal fun verticalAutoPanEdgeSize(height: Int, density: Float, isLandscape: Boolean): Float {
     if (height <= 0 || !density.isFinite() || density <= 0f) return 0f
-    return minOf(height * 0.30f, 180f * density)
+    // Orientation only adjusts activation distance; gesture mechanics stay identical.
+    val portion = if (isLandscape) 0.30f else 0.40f
+    val maxDp = if (isLandscape) 180f else 240f
+    return minOf(height * portion, maxDp * density)
 }
 
 /** Signed camera speed. The photo moves toward the middle of the view. */

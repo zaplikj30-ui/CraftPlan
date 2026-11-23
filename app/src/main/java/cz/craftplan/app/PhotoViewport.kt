@@ -175,13 +175,20 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         if (nearAnchor < 0f) upper = maxOf(upper, viewportSize - margin - nearAnchor * imageSize)
         if (farAnchor > 1f) lower = minOf(lower, margin - farAnchor * imageSize)
 
-        // While a dimension is held, the user controls how far to extend the canvas.
-        // Do not impose a per-gesture screen-width stop. Normal panning stays bounded.
-        if (extendingForDrag) return offset
+        // During a held dimension, allow extra workspace around the photo and already
+        // committed dimension anchors. This is a content-based limit, not a per-gesture
+        // distance limit: releasing and touching again cannot reset the boundary.
+        if (extendingForDrag) {
+            val reserve = viewportSize.toDouble() * WORKSPACE_RESERVE_SCREENS
+            val minOffset = (lower.toDouble() - reserve).coerceAtLeast(-Float.MAX_VALUE.toDouble())
+            val maxOffset = (upper.toDouble() + reserve).coerceAtMost(Float.MAX_VALUE.toDouble())
+            return offset.toDouble().coerceIn(minOffset, maxOffset).toFloat()
+        }
         return offset.coerceIn(lower, upper)
     }
 
     private companion object {
         const val MAX_ZOOM = 8f
+        const val WORKSPACE_RESERVE_SCREENS = 3.0
     }
 }
