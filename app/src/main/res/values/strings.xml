@@ -9,4 +9,5 @@
     <string name="add_dimension">Přidat kótu</string>
     <string name="drag_dimension">Táhni po fotografii od prvního bodu k druhému.</string>
     <string name="dimension_unmeasured">NEZMĚŘENO</string>
+    <string name="installed_version">Verze %1$s · sestavení %2$d</string>
 </resources>

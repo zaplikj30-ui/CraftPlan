@@ -6,10 +6,13 @@ internal enum class PhotoId {
     SYNTHETIC_WORKBENCH,
 }
 
-/** Coordinates in the canonical photo, with (0, 0) at its upper-left corner. */
+/**
+ * In-memory editor coordinates relative to the canonical photo. (0, 0) and (1, 1)
+ * are its corners; the same axes extend into the workspace around it.
+ */
 internal data class PhotoAnchor(val u: Float, val v: Float) {
     init {
-        require(u in 0f..1f && v in 0f..1f)
+        require(u.isFinite() && v.isFinite())
     }
 }
 

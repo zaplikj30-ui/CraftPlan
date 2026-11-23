@@ -26,20 +26,45 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun panClampsAtTheEdgesAndZoomOutReturnsToFit() {
+    fun zoomedPanRetainsHalfTheViewportAndZoomOutRespectsTheNewBounds() {
         val viewport = PhotoViewport(1200, 800)
         viewport.fit(600, 600)
         viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
         viewport.transform(300f, 300f, -1000f, 1400f)
 
-        assertEquals(-600f, viewport.left, 0.001f)
-        assertEquals(0f, viewport.top, 0.001f)
+        assertEquals(-900f, viewport.left, 0.001f)
+        assertEquals(300f, viewport.top, 0.001f)
 
         viewport.transform(300f, 300f, 300f, 300f, factor = 0.1f)
 
         assertEquals(0.5f, viewport.scale, 0.001f)
+        assertEquals(-300f, viewport.left, 0.001f)
+        assertEquals(300f, viewport.top, 0.001f)
+    }
+
+    @Test
+    fun panAtFitLeavesHalfOfEachPhotoAxisAvailableToGrab() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        viewport.transform(0f, 0f, 900f, -900f)
+
+        assertEquals(300f, viewport.left, 0.001f)
+        assertEquals(-200f, viewport.top, 0.001f)
+        viewport.transform(0f, 0f, -900f, 900f)
+        assertEquals(-300f, viewport.left, 0.001f)
+        assertEquals(400f, viewport.top, 0.001f)
+    }
+
+    @Test
+    fun malformedTransformDoesNotChangeTheViewport() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        viewport.transform(0f, 0f, Float.NaN, 120f)
+        viewport.transform(0f, 0f, 120f, 120f, factor = Float.POSITIVE_INFINITY)
+
         assertEquals(0f, viewport.left, 0.001f)
         assertEquals(100f, viewport.top, 0.001f)
+        assertEquals(0.5f, viewport.scale, 0.001f)
     }
 
     @Test

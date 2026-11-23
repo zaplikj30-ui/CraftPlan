@@ -2,6 +2,7 @@ package cz.craftplan.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PhotoDimensionTest {
@@ -35,24 +36,29 @@ class PhotoDimensionTest {
     }
 
     @Test
-    fun releasingOutsideTheVisiblePhotoDoesNotCompleteADimension() {
+    fun releaseCanFinishInTheWorkspaceButNotOutsideTheEditor() {
         val viewport = PhotoViewport(1200, 800)
         viewport.fit(600, 600)
         val ready = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
         val start = requireNotNull(viewport.toPhotoAnchor(150f, 300f))
-        assertNull(ready.finishDrag(start, viewport.dragEnd(start, 150f, 90f, touchSlop = 8)))
+        val dimension = requireNotNull(ready.finishDrag(start, viewport.dragEnd(start, 150f, 50f, touchSlop = 8))).dimension
+        assertEquals(PhotoAnchor(0.25f, -0.125f), dimension.end)
 
         viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
         assertNull(ready.finishDrag(start, viewport.dragEnd(start, 610f, 300f, touchSlop = 8)))
     }
 
     @Test
-    fun emptyMarginsAndUnlaidOutViewportCannotCreateAnchors() {
+    fun onlyLaidOutWorkspaceAcceptsFiniteTouchCoordinates() {
         val viewport = PhotoViewport(1200, 800)
         assertNull(viewport.toPhotoAnchor(0f, 0f))
 
         viewport.fit(600, 600)
-        assertNull(viewport.toPhotoAnchor(300f, 99f))
+        assertEquals(PhotoAnchor(0.5f, -0.25f), viewport.toPhotoAnchor(300f, 0f))
+        assertEquals(PhotoAnchor(0.5f, 1.25f), viewport.toPhotoAnchor(300f, 600f))
+        assertNull(viewport.toPhotoAnchor(Float.NaN, 300f))
+        assertNull(viewport.toPhotoAnchor(300f, Float.NEGATIVE_INFINITY))
+        assertThrows(IllegalArgumentException::class.java) { PhotoAnchor(Float.POSITIVE_INFINITY, 0f) }
         assertNull(viewport.toPhotoAnchor(601f, 300f))
         assertEquals(PhotoAnchor(0f, 0f), viewport.toPhotoAnchor(0f, 100f))
         assertEquals(PhotoAnchor(1f, 1f), viewport.toPhotoAnchor(600f, 500f))
@@ -74,5 +80,23 @@ class PhotoDimensionTest {
         assertEquals(375f, viewport.screenY(end), 0.001f)
         assertEquals(start, viewport.toPhotoAnchor(viewport.screenX(start), viewport.screenY(start)))
         assertEquals(end, viewport.toPhotoAnchor(viewport.screenX(end), viewport.screenY(end)))
+    }
+
+    @Test
+    fun anchorOutsideThePhotoRoundTripsAfterPanZoomAndRefit() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        val outside = requireNotNull(viewport.toPhotoAnchor(150f, 50f))
+        assertEquals(PhotoAnchor(0.25f, -0.125f), outside)
+
+        viewport.transform(300f, 300f, 300f, 470f, factor = 1.5f)
+        val projected = viewport.screenPoint(outside)
+        assertEquals(75f, projected.x, 0.001f)
+        assertEquals(95f, projected.y, 0.001f)
+        assertEquals(outside, viewport.toPhotoAnchor(projected.x, projected.y))
+
+        viewport.fit(600, 900)
+        val refitted = viewport.screenPoint(outside)
+        assertEquals(outside, viewport.toPhotoAnchor(refitted.x, refitted.y))
     }
 }

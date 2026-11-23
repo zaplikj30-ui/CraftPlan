@@ -7,6 +7,10 @@ import kotlin.math.hypot
  * are independent of this transform.
  */
 internal class PhotoViewport(private val imageWidth: Int, private val imageHeight: Int) {
+    init {
+        require(imageWidth > 0 && imageHeight > 0)
+    }
+
     private var width = 0
     private var height = 0
     private var fitScale = 1f
@@ -25,12 +29,14 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
         fitScale = minOf(width.toFloat() / imageWidth, height.toFloat() / imageHeight)
         scale = fitScale
-        left = boundedOffset(0f, width, imageWidth * scale)
-        top = boundedOffset(0f, height, imageHeight * scale)
+        left = (width - imageWidth * scale) / 2f
+        top = (height - imageHeight * scale) / 2f
     }
 
     fun transform(fromX: Float, fromY: Float, toX: Float, toY: Float, factor: Float = 1f) {
-        if (width <= 0 || height <= 0 || !factor.isFinite() || factor <= 0f) return
+        if (width <= 0 || height <= 0 || !factor.isFinite() || factor <= 0f ||
+            !fromX.isFinite() || !fromY.isFinite() || !toX.isFinite() || !toY.isFinite()
+        ) return
 
         val nextScale = (scale * factor).coerceIn(fitScale, fitScale * MAX_ZOOM)
         val ratio = nextScale / scale
@@ -39,14 +45,12 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         scale = nextScale
     }
 
-    fun toPhotoAnchor(x: Float, y: Float): PhotoAnchor? {
-        if (width <= 0 || height <= 0 || x !in 0f..width.toFloat() || y !in 0f..height.toFloat()) {
-            return null
-        }
+    fun contains(x: Float, y: Float): Boolean =
+        width > 0 && height > 0 && x in 0f..width.toFloat() && y in 0f..height.toFloat()
 
-        val u = (x - left) / (imageWidth * scale)
-        val v = (y - top) / (imageHeight * scale)
-        return if (u in 0f..1f && v in 0f..1f) PhotoAnchor(u, v) else null
+    fun toPhotoAnchor(x: Float, y: Float): PhotoAnchor? {
+        if (!contains(x, y)) return null
+        return PhotoAnchor((x - left) / (imageWidth * scale), (y - top) / (imageHeight * scale))
     }
 
     fun dragEnd(start: PhotoAnchor, x: Float, y: Float, touchSlop: Int): PhotoAnchor? {
@@ -61,15 +65,28 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
     fun screenPoint(anchor: PhotoAnchor) = EditorPoint(screenX(anchor), screenY(anchor))
 
-    fun moveDimension(dimension: PhotoDimension, hit: DimensionHit, delta: EditorPoint): PhotoDimension =
-        dimension.move(hit, delta.x / (imageWidth * scale), delta.y / (imageHeight * scale))
+    fun moveDimension(dimension: PhotoDimension, hit: DimensionHit, delta: EditorPoint): PhotoDimension {
+        if (width <= 0 || height <= 0 || !delta.x.isFinite() || !delta.y.isFinite()) return dimension
 
-    private fun boundedOffset(offset: Float, viewportSize: Int, imageSize: Float): Float =
-        if (imageSize <= viewportSize) {
-            (viewportSize - imageSize) / 2f
-        } else {
-            offset.coerceIn(viewportSize - imageSize, 0f)
+        // A grabbed endpoint retains its touch offset up to the edge of the editor.
+        val movement = when (hit) {
+            DimensionHit.START -> limitEndpointMovement(screenPoint(dimension.start), delta)
+            DimensionHit.END -> limitEndpointMovement(screenPoint(dimension.end), delta)
+            DimensionHit.BODY -> delta
         }
+        return dimension.move(hit, movement.x / (imageWidth * scale), movement.y / (imageHeight * scale))
+    }
+
+    private fun limitEndpointMovement(point: EditorPoint, delta: EditorPoint): EditorPoint =
+        EditorPoint(
+            (point.x + delta.x).coerceIn(minOf(0f, point.x), maxOf(width.toFloat(), point.x)),
+            (point.y + delta.y).coerceIn(minOf(0f, point.y), maxOf(height.toFloat(), point.y)),
+        ) - point
+
+    private fun boundedOffset(offset: Float, viewportSize: Int, imageSize: Float): Float {
+        val visible = minOf(viewportSize.toFloat(), imageSize) / 2f
+        return offset.coerceIn(visible - imageSize, viewportSize - visible)
+    }
 
     private companion object {
         const val MAX_ZOOM = 8f

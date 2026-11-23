@@ -32,20 +32,31 @@ internal fun hitDimension(
 }
 
 internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): PhotoDimension {
-    if (hit == DimensionHit.BODY) {
-        val u = du.coerceIn(-minOf(start.u, end.u), 1f - maxOf(start.u, end.u))
-        val v = dv.coerceIn(-minOf(start.v, end.v), 1f - maxOf(start.v, end.v))
-        val movedStart = start.shift(u, v)
-        val movedEnd = end.shift(u, v)
-        return if (movedStart == movedEnd) this else copy(start = movedStart, end = movedEnd)
-    }
-    val movedStart = if (hit == DimensionHit.START) start.shift(du, dv) else start
-    val movedEnd = if (hit == DimensionHit.END) end.shift(du, dv) else end
+    val movedStart = if (hit == DimensionHit.END) start else start.shift(du, dv) ?: return this
+    val movedEnd = if (hit == DimensionHit.START) end else end.shift(du, dv) ?: return this
     return if (movedStart == movedEnd) this else copy(start = movedStart, end = movedEnd)
 }
 
-private fun PhotoAnchor.shift(du: Float, dv: Float) =
-    PhotoAnchor((u + du).coerceIn(0f, 1f), (v + dv).coerceIn(0f, 1f))
+private fun PhotoAnchor.shift(du: Float, dv: Float): PhotoAnchor? {
+    val x = u + du
+    val y = v + dv
+    return if (x.isFinite() && y.isFinite()) PhotoAnchor(x, y) else null
+}
+
+internal enum class DimensionInterruption {
+    CONTINUE, CANCEL, HAND_OFF_TO_PINCH,
+}
+
+internal fun dimensionInterruption(
+    canceled: Boolean,
+    secondPointer: Boolean,
+    creating: Boolean,
+): DimensionInterruption = when {
+    canceled -> DimensionInterruption.CANCEL
+    !secondPointer -> DimensionInterruption.CONTINUE
+    creating -> DimensionInterruption.CANCEL
+    else -> DimensionInterruption.HAND_OFF_TO_PINCH
+}
 
 internal fun readableAngle(axis: EditorPoint): Float {
     val degrees = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
