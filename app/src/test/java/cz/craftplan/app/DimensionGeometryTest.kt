@@ -123,6 +123,16 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun workspaceDotsMoveWithPanInBothDirectionsAndDoNotOverflow() {
+        assertEquals(0f, workspaceGridOffset(0f, 44f), 0f)
+        assertEquals(10f, workspaceGridOffset(10f, 44f), 0.0001f)
+        assertEquals(34f, workspaceGridOffset(-10f, 44f), 0.0001f)
+        assertEquals(24f, workspaceGridOffset(-20f, 44f), 0.0001f)
+        assertEquals(0f, workspaceGridOffset(Float.NaN, 44f), 0f)
+        assertEquals(0f, workspaceGridOffset(20f, 0f), 0f)
+    }
+
+    @Test
     fun autoPanSpeedIsSymmetricAndActiveOnlyNearAnEdge() {
         assertEquals(0f, edgePanSpeed(200f, 400, 48f, 440f), 0f)
         assertEquals(220f, edgePanSpeed(24f, 400, 48f, 440f), 0f)

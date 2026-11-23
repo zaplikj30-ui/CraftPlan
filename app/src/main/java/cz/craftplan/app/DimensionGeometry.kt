@@ -81,6 +81,12 @@ internal fun magnifierOnRight(x: Float, width: Int, previous: Boolean?): Boolean
 internal fun passesDragThreshold(down: EditorPoint, current: EditorPoint, threshold: Float): Boolean =
     down.distanceTo(current) > threshold
 
+/** Screen-space dot grid phase following the workspace offset in either direction. */
+internal fun workspaceGridOffset(workspaceOffset: Float, spacing: Float): Float {
+    if (!workspaceOffset.isFinite() || !spacing.isFinite() || spacing <= 0f) return 0f
+    return ((workspaceOffset % spacing) + spacing) % spacing
+}
+
 /** Signed camera speed. The photo moves toward the middle of the view. */
 internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed: Float): Float {
     val edge = minOf(edgeSize, size / 2f)

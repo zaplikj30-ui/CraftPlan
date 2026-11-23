@@ -21,6 +21,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(100, 120, 131, 142)
+    }
     private val density = resources.displayMetrics.density
     private data class DimensionDrag(
         val pointerId: Int,
@@ -109,6 +112,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (!hasWindowFocus) clearDimensionGesture()
     }
 
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility != VISIBLE) clearDimensionGesture()
+    }
+
     override fun onDetachedFromWindow() {
         clearDimensionGesture()
         super.onDetachedFromWindow()
@@ -119,6 +127,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val saveCount = canvas.save()
         canvas.clipRect(0, 0, width, height)
         canvas.drawColor(WORKSPACE_COLOR)
+        if (autoPanTime != null) drawMovingWorkspaceGrid(canvas)
         photoBounds.set(
             viewport.left,
             viewport.top,
@@ -149,6 +158,25 @@ internal class PhotoEditorView(context: Context) : View(context) {
             drawMagnifier(canvas, viewport.screenPoint(target), start, end)
         }
         canvas.restoreToCount(saveCount)
+    }
+
+    private fun drawMovingWorkspaceGrid(canvas: Canvas) {
+        // A visual motion cue only; not a ruler or a measurement coordinate system.
+        // Keep it tied to the moving workspace, rather than to screen coordinates.
+        val spacing = 44f * density
+        if (spacing <= 0f) return
+        val radius = 1.4f * density
+        val x0 = workspaceGridOffset(viewport.left, spacing)
+        val y0 = workspaceGridOffset(viewport.top, spacing)
+        var y = y0
+        while (y < height) {
+            var x = x0
+            while (x < width) {
+                canvas.drawCircle(x, y, radius, gridPaint)
+                x += spacing
+            }
+            y += spacing
+        }
     }
 
     private fun drawDimension(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
@@ -455,30 +483,51 @@ internal class PhotoEditorView(context: Context) : View(context) {
     )
 
     private fun resumeAutoPanIfDragging() {
-        if (panPointerId != null || autoPanTime != null) return
-        val contact = lensContact ?: return
+        val contact = lensContact
         val drag = dimensionDrag
         val edit = dimensionEdit
-        val canPan = if (drag != null) {
-            passesDragThreshold(viewport.screenPoint(drag.start), contact, touchSlop.toFloat())
-        } else {
-            edit?.preview != null && edit.hit != DimensionHit.BODY
+        val canPan = ownsDimensionStream && panPointerId == null && contact != null &&
+            if (drag != null) {
+                passesDragThreshold(viewport.screenPoint(drag.start), contact, touchSlop.toFloat())
+            } else {
+                edit?.preview != null && edit.hit != DimensionHit.BODY
+            }
+        if (!canPan || autoPanVelocity(contact!!) == EditorPoint(0f, 0f)) {
+            stopAutoPan()
+            return
         }
-        if (!canPan || autoPanVelocity(contact) == EditorPoint(0f, 0f)) return
+        if (autoPanTime != null) return
         autoPanTime = SystemClock.uptimeMillis()
+        invalidate()
         postOnAnimation(autoPan)
     }
 
     private fun stopAutoPan() {
+        val wasMoving = autoPanTime != null
         autoPanTime = null
         removeCallbacks(autoPan)
+        if (wasMoving) invalidate()
     }
 
     private fun stepAutoPan() {
         val previous = autoPanTime ?: return
+        // A scheduled callback must never continue without an active held pointer.
+        if (!ownsDimensionStream || panPointerId != null ||
+            (dimensionDrag == null && dimensionEdit == null)
+        ) {
+            stopAutoPan()
+            return
+        }
         autoPanTime = null
-        val contact = lensContact ?: return
+        val contact = lensContact ?: run {
+            invalidate()
+            return
+        }
         val velocity = autoPanVelocity(contact)
+        if (velocity == EditorPoint(0f, 0f)) {
+            invalidate()
+            return
+        }
         val now = SystemClock.uptimeMillis()
         val seconds = (now - previous).coerceIn(1L, 32L) / 1000f
         val left = viewport.left
@@ -488,6 +537,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
             updateDraft(contact)
             autoPanTime = now
             postOnAnimation(autoPan)
+        } else {
+            invalidate()
         }
     }
 
@@ -501,6 +552,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         lensContact = null
         panPointerId = null
         panContact = null
+        ownsDimensionStream = false
         stopAutoPan()
         viewport.updateContentBounds(dimension, 24f * density)
         if (needsRedraw) invalidate()
