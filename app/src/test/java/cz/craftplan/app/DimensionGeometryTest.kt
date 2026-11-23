@@ -82,12 +82,28 @@ class DimensionGeometryTest {
     }
 
     @Test
-    fun cancelDiscardsDraftAndOnlyExistingDimensionEditsHandOffToPinch() {
-        assertEquals(DimensionInterruption.CANCEL, dimensionInterruption(true, false, false))
-        assertEquals(DimensionInterruption.CANCEL, dimensionInterruption(true, true, false))
-        assertEquals(DimensionInterruption.CANCEL, dimensionInterruption(false, true, true))
-        assertEquals(DimensionInterruption.HAND_OFF_TO_PINCH, dimensionInterruption(false, true, false))
-        assertEquals(DimensionInterruption.CONTINUE, dimensionInterruption(false, false, false))
+    fun releasingThePanFingerDoesNotFinishOrCancelTheHeldDimension() {
+        assertEquals(HeldPointerRelease.END_PAN, heldPointerRelease(7, 3, 3, canceled = false))
+        assertEquals(HeldPointerRelease.END_PAN, heldPointerRelease(7, 3, 3, canceled = true))
+        assertEquals(HeldPointerRelease.IGNORE, heldPointerRelease(7, 3, 4, canceled = false))
+        assertEquals(HeldPointerRelease.FINISH, heldPointerRelease(7, 3, 7, canceled = false))
+        assertEquals(HeldPointerRelease.CANCEL, heldPointerRelease(7, 3, 7, canceled = true))
+    }
+
+    @Test
+    fun everyPointOnLongShortVerticalAndDiagonalDimensionsIsSelectable() {
+        val start = EditorPoint(50f, 70f)
+        for (end in listOf(EditorPoint(650f, 70f), EditorPoint(90f, 70f), EditorPoint(50f, 670f), EditorPoint(450f, 370f))) {
+            val axis = end - start
+            for (i in 0..200) {
+                val t = i / 200f
+                val point = EditorPoint(start.x + t * axis.x, start.y + t * axis.y)
+                assertTrue("Missing hit at t=$t on $start to $end", hitDimension(point, start, end, 1f) != null)
+            }
+            assertEquals(DimensionHit.START, hitDimension(start, start, end, 1f))
+            assertEquals(DimensionHit.END, hitDimension(end, start, end, 1f))
+        }
+        assertEquals(DimensionHit.BODY, hitDimension(EditorPoint(100f, 80f), start, EditorPoint(650f, 70f), 1f))
     }
 
     @Test

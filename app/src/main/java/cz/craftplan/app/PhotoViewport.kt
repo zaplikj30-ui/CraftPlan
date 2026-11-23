@@ -116,8 +116,8 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         val farAnchor = maxOf(start ?: 1f, end ?: 1f)
         var lower = visible - imageSize
         var upper = viewportSize - visible
-        if (nearAnchor < 0f) upper = maxOf(upper, margin - nearAnchor * imageSize)
-        if (farAnchor > 1f) lower = minOf(lower, viewportSize - margin - farAnchor * imageSize)
+        if (nearAnchor < 0f) upper = maxOf(upper, viewportSize - margin - nearAnchor * imageSize)
+        if (farAnchor > 1f) lower = minOf(lower, margin - farAnchor * imageSize)
 
         // A held drag can explore one view beyond the established content in each direction.
         val allowance = if (extendingForDrag) viewportSize.toFloat() else 0f

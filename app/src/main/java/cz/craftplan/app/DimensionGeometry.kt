@@ -23,11 +23,16 @@ internal fun hitDimension(
     if (lengthSquared == 0f) return null
     val relative = point - start
     val t = (relative.x * axis.x + relative.y * axis.y) / lengthSquared
-    val endRadius = 31f * density
-    if (t <= 0.27f && point.distanceTo(start) < endRadius) return DimensionHit.START
-    if (t >= 0.73f && point.distanceTo(end) < endRadius) return DimensionHit.END
-    if (t !in 0.27f..0.73f) return null
-    val onLine = EditorPoint(start.x + t * axis.x, start.y + t * axis.y)
+    val startDistance = point.distanceTo(start)
+    val endDistance = point.distanceTo(end)
+    val handleRadius = 31f * density
+    if (minOf(startDistance, endDistance) < handleRadius) {
+        if (t <= 0.27f && startDistance <= endDistance) return DimensionHit.START
+        if (t >= 0.73f && endDistance < startDistance) return DimensionHit.END
+    }
+
+    val alongLine = t.coerceIn(0f, 1f)
+    val onLine = EditorPoint(start.x + alongLine * axis.x, start.y + alongLine * axis.y)
     return DimensionHit.BODY.takeIf { point.distanceTo(onLine) <= 20f * density }
 }
 
@@ -43,19 +48,19 @@ private fun PhotoAnchor.shift(du: Float, dv: Float): PhotoAnchor? {
     return if (x.isFinite() && y.isFinite()) PhotoAnchor(x, y) else null
 }
 
-internal enum class DimensionInterruption {
-    CONTINUE, CANCEL, HAND_OFF_TO_PINCH,
+internal enum class HeldPointerRelease {
+    FINISH, CANCEL, END_PAN, IGNORE,
 }
 
-internal fun dimensionInterruption(
+internal fun heldPointerRelease(
+    heldId: Int,
+    panId: Int?,
+    releasedId: Int,
     canceled: Boolean,
-    secondPointer: Boolean,
-    creating: Boolean,
-): DimensionInterruption = when {
-    canceled -> DimensionInterruption.CANCEL
-    !secondPointer -> DimensionInterruption.CONTINUE
-    creating -> DimensionInterruption.CANCEL
-    else -> DimensionInterruption.HAND_OFF_TO_PINCH
+): HeldPointerRelease = when (releasedId) {
+    heldId -> if (canceled) HeldPointerRelease.CANCEL else HeldPointerRelease.FINISH
+    panId -> HeldPointerRelease.END_PAN
+    else -> HeldPointerRelease.IGNORE
 }
 
 internal fun readableAngle(axis: EditorPoint): Float {

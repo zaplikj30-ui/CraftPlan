@@ -45,7 +45,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var dimensionSelected = false
     private var lensOnRight: Boolean? = null
     private var lensContact: EditorPoint? = null
-    private var placingDimension = false
+    private var ownsDimensionStream = false
+    private var panPointerId: Int? = null
+    private var panContact: EditorPoint? = null
     private var autoPanTime: Long? = null
     private val autoPan = Runnable { stepAutoPan() }
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
@@ -288,41 +290,15 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            placingDimension = placement is DimensionPlacement.Ready
+            clearDimensionGesture()
+            ownsDimensionStream = beginDimensionGesture(event)
         }
-        if (placingDimension) {
-            if (interruption(event, creating = true) == DimensionInterruption.CANCEL) {
-                clearDimensionGesture()
-            } else {
-                handleDimensionTouch(event)
-            }
+        if (ownsDimensionStream) {
+            handleHeldDimension(event)
             return true
         }
 
         scaleDetector.onTouchEvent(event)
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            val dimension = (placement as? DimensionPlacement.Complete)?.dimension
-            val down = EditorPoint(event.x, event.y)
-            val downAnchor = viewport.toPhotoAnchor(down.x, down.y)
-            if (dimension != null && downAnchor != null) {
-                val hit = hitDimension(down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end), density)
-                if (hit != null) {
-                    dimensionEdit = DimensionEdit(dimension, hit, event.getPointerId(0), down, downAnchor)
-                    activePointerId = MotionEvent.INVALID_POINTER_ID
-                    clickCandidate = false
-                    return true
-                }
-            }
-        }
-        if (dimensionEdit != null) {
-            val interruption = interruption(event, creating = false)
-            if (interruption == DimensionInterruption.CONTINUE) {
-                handleEditTouch(event)
-                return true
-            }
-            clearDimensionGesture()
-            if (interruption != DimensionInterruption.HAND_OFF_TO_PINCH) return true
-        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 startTracking(event, 0)
@@ -357,87 +333,117 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return true
     }
 
-    private fun interruption(event: MotionEvent, creating: Boolean): DimensionInterruption =
-        dimensionInterruption(
-            canceled = event.actionMasked == MotionEvent.ACTION_CANCEL ||
-                event.flags and MotionEvent.FLAG_CANCELED != 0,
-            secondPointer = event.actionMasked == MotionEvent.ACTION_POINTER_DOWN,
-            creating = creating,
-        )
-
-    private fun handleEditTouch(event: MotionEvent) {
-        val draft = dimensionEdit ?: return
-
-        val index = event.findPointerIndex(draft.pointerId)
-        if (index < 0) {
-            clearDimensionGesture()
-            return
-        }
-        val contact = viewport.clampContact(event.getX(index), event.getY(index))
-        if (contact == null) {
-            if (event.actionMasked == MotionEvent.ACTION_UP) clearDimensionGesture()
-            return
-        }
-        val moved = draft.preview != null || passesDragThreshold(draft.down, contact, 7f * density)
-        when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> if (moved) {
-                dimensionSelected = true
-                updateDraft(contact)
-                if (draft.hit != DimensionHit.BODY) scheduleAutoPan()
-            }
-            MotionEvent.ACTION_UP -> {
-                val result = if (moved) editedDimension(draft, contact) else null
-                dimensionSelected = true
-                clearDimensionGesture(result ?: draft.original)
-                if (result != null && result != draft.original) {
-                    onDimension(DimensionPlacement.Complete(result))
-                } else if (!moved) {
-                    performClick()
-                }
+    private fun beginDimensionGesture(event: MotionEvent): Boolean {
+        val down = EditorPoint(event.x, event.y)
+        val downAnchor = viewport.toPhotoAnchor(down.x, down.y) ?: return false
+        val pointerId = event.getPointerId(0)
+        when (val current = placement) {
+            is DimensionPlacement.Ready -> {
+                lensContact = down
+                dimensionDrag = DimensionDrag(pointerId, downAnchor)
                 invalidate()
             }
+            is DimensionPlacement.Complete -> {
+                val dimension = current.dimension
+                val hit = hitDimension(
+                    down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end), density,
+                ) ?: return false
+                dimensionEdit = DimensionEdit(dimension, hit, pointerId, down, downAnchor)
+            }
+            DimensionPlacement.Idle -> return false
         }
+        clickCandidate = false
+        activePointerId = MotionEvent.INVALID_POINTER_ID
+        return true
+    }
+
+    private fun handleHeldDimension(event: MotionEvent) {
+        val heldId = dimensionDrag?.pointerId ?: dimensionEdit?.pointerId ?: return
+        val canceled = event.flags and MotionEvent.FLAG_CANCELED != 0
+        when (event.actionMasked) {
+            MotionEvent.ACTION_CANCEL -> clearDimensionGesture()
+            MotionEvent.ACTION_POINTER_DOWN -> if (!canceled && panPointerId == null) {
+                val index = event.actionIndex
+                panPointerId = event.getPointerId(index)
+                panContact = viewport.clampContact(event.getX(index), event.getY(index))
+                stopAutoPan()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val heldIndex = event.findPointerIndex(heldId)
+                if (canceled || heldIndex < 0) {
+                    clearDimensionGesture()
+                    return
+                }
+                val contact = viewport.clampContact(event.getX(heldIndex), event.getY(heldIndex)) ?: return
+                val cameraMoved = panWithSecondPointer(event)
+                val edit = dimensionEdit
+                if (edit == null || cameraMoved || edit.preview != null ||
+                    passesDragThreshold(edit.down, contact, 7f * density)
+                ) {
+                    if (edit != null) dimensionSelected = true
+                    updateDraft(contact)
+                    resumeAutoPanIfDragging()
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                val index = event.actionIndex
+                when (heldPointerRelease(heldId, panPointerId, event.getPointerId(index), canceled)) {
+                    HeldPointerRelease.FINISH -> finishHeldDimension(
+                        viewport.clampContact(event.getX(index), event.getY(index)),
+                    )
+                    HeldPointerRelease.CANCEL -> clearDimensionGesture()
+                    HeldPointerRelease.END_PAN -> {
+                        panPointerId = null
+                        panContact = null
+                        resumeAutoPanIfDragging()
+                    }
+                    HeldPointerRelease.IGNORE -> Unit
+                }
+            }
+        }
+    }
+
+    private fun panWithSecondPointer(event: MotionEvent): Boolean {
+        val index = panPointerId?.let(event::findPointerIndex) ?: return false
+        if (index < 0) return false
+        val contact = viewport.clampContact(event.getX(index), event.getY(index)) ?: return false
+        val previous = panContact
+        panContact = contact
+        if (previous == null || previous == contact) return false
+        val left = viewport.left
+        val top = viewport.top
+        viewport.transform(previous.x, previous.y, contact.x, contact.y, extendingForDrag = true)
+        return left != viewport.left || top != viewport.top
+    }
+
+    private fun finishHeldDimension(contact: EditorPoint?) {
+        val draft = dimensionDrag
+        val ready = placement as? DimensionPlacement.Ready
+        val edit = dimensionEdit
+        val result = when {
+            contact == null -> null
+            draft != null && ready != null -> {
+                ready.finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
+            }
+            edit != null -> {
+                dimensionSelected = true
+                invalidate()
+                if (edit.preview != null || passesDragThreshold(edit.down, contact, 7f * density)) {
+                    editedDimension(edit, contact).takeIf { it != edit.original }
+                        ?.let { DimensionPlacement.Complete(it) }
+                } else {
+                    performClick()
+                    null
+                }
+            }
+            else -> null
+        }
+        clearDimensionGesture(result?.dimension ?: edit?.original)
+        result?.let(onDimension)
     }
 
     private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension =
         viewport.moveDimension(draft.original, draft.hit, contact - viewport.screenPoint(draft.downAnchor))
-
-    private fun handleDimensionTouch(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lensContact = EditorPoint(event.x, event.y)
-                dimensionDrag = viewport.toPhotoAnchor(event.x, event.y)?.let { start ->
-                    DimensionDrag(event.getPointerId(0), start)
-                }
-                invalidate()
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val draft = dimensionDrag ?: return
-                val index = event.findPointerIndex(draft.pointerId)
-                if (index < 0) {
-                    clearDimensionGesture()
-                    return
-                }
-                val contact = viewport.clampContact(event.getX(index), event.getY(index)) ?: return
-                updateDraft(contact)
-                if (passesDragThreshold(viewport.screenPoint(draft.start), contact, touchSlop.toFloat())) {
-                    scheduleAutoPan()
-                }
-            }
-            MotionEvent.ACTION_UP -> {
-                val draft = dimensionDrag
-                val ready = placement as? DimensionPlacement.Ready
-                val contact = viewport.clampContact(event.x, event.y)
-                val result = if (draft != null && ready != null && contact != null &&
-                    event.getPointerId(0) == draft.pointerId
-                ) {
-                    ready.finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
-                } else null
-                clearDimensionGesture(result?.dimension)
-                result?.let(onDimension)
-            }
-        }
-    }
 
     private fun updateDraft(contact: EditorPoint) {
         lensContact = contact
@@ -451,12 +457,24 @@ internal class PhotoEditorView(context: Context) : View(context) {
         edgePanSpeed(contact.y, height, 48f * density, 440f * density),
     )
 
-    private fun scheduleAutoPan() {
-        if (autoPanTime != null) return
+    private fun resumeAutoPanIfDragging() {
+        if (panPointerId != null || autoPanTime != null) return
         val contact = lensContact ?: return
-        if (autoPanVelocity(contact) == EditorPoint(0f, 0f)) return
+        val drag = dimensionDrag
+        val edit = dimensionEdit
+        val canPan = if (drag != null) {
+            passesDragThreshold(viewport.screenPoint(drag.start), contact, touchSlop.toFloat())
+        } else {
+            edit?.preview != null && edit.hit != DimensionHit.BODY
+        }
+        if (!canPan || autoPanVelocity(contact) == EditorPoint(0f, 0f)) return
         autoPanTime = SystemClock.uptimeMillis()
         postOnAnimation(autoPan)
+    }
+
+    private fun stopAutoPan() {
+        autoPanTime = null
+        removeCallbacks(autoPan)
     }
 
     private fun stepAutoPan() {
@@ -484,8 +502,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
         dimensionEdit = null
         lensOnRight = null
         lensContact = null
-        autoPanTime = null
-        removeCallbacks(autoPan)
+        panPointerId = null
+        panContact = null
+        stopAutoPan()
         viewport.updateContentBounds(dimension, 24f * density)
         if (needsRedraw) invalidate()
     }

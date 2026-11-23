@@ -3,6 +3,7 @@ package cz.craftplan.app
 import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhotoViewportTest {
@@ -94,8 +95,8 @@ class PhotoViewportTest {
         viewport.transform(200f, 200f, 200f, 200f, factor = 8f)
         viewport.transform(0f, 0f, 9000f, -9000f)
 
-        assertEquals(24f, viewport.screenX(dimension.start), 0.001f)
-        assertEquals(376f, viewport.screenY(dimension.end), 0.001f)
+        assertEquals(376f, viewport.screenX(dimension.start), 0.001f)
+        assertEquals(24f, viewport.screenY(dimension.end), 0.001f)
 
         viewport.transform(0f, 0f, -9000f, 9000f)
         assertEquals(-3000f, viewport.left, 0.001f)
@@ -104,7 +105,7 @@ class PhotoViewportTest {
         viewport.transform(0f, 0f, 9000f, -9000f)
         viewport.updateContentBounds(dimension.copy(start = PhotoAnchor(0.25f, 0.25f)), 24f)
         assertEquals(200f, viewport.left, 0.001f)
-        assertEquals(376f, viewport.screenY(dimension.end), 0.001f)
+        assertEquals(24f, viewport.screenY(dimension.end), 0.001f)
         viewport.updateContentBounds(null, 24f)
         assertEquals(-3000f, viewport.top, 0.001f)
     }
@@ -143,5 +144,35 @@ class PhotoViewportTest {
         assertEquals(385f, viewport.screenX(edited.end), 0.001f)
         assertEquals(dimension.start, edited.start)
         assertEquals(dimension.id, edited.id)
+    }
+
+    @Test
+    fun eachFinishedEdgeDragAllowsAnotherWithoutDriftingAfterRelease() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+        var dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(0.25f, 0.5f), PhotoAnchor(0.75f, 0.5f),
+        )
+        viewport.updateContentBounds(dimension, 24f)
+        repeat(3) {
+            val startOffset = viewport.left
+            viewport.transform(0f, 0f, -9000f, 0f, extendingForDrag = true)
+            val limit = viewport.left
+            viewport.transform(0f, 0f, -9000f, 0f, extendingForDrag = true)
+            assertEquals(limit, viewport.left, 0f)
+            assertTrue(limit < startOffset)
+
+            val edge = requireNotNull(viewport.toPhotoAnchor(380f, 200f))
+            assertTrue(edge.u > dimension.end.u)
+            dimension = dimension.copy(end = edge)
+            viewport.updateContentBounds(dimension, 24f)
+            assertEquals(limit, viewport.left, 0f)
+            assertEquals(380f, viewport.screenX(dimension.end), 0.001f)
+        }
+        assertTrue(viewport.left + 400f < 0f)
+        viewport.transform(0f, 0f, 9000f, 0f)
+        assertEquals(200f, viewport.left, 0.001f)
+        assertEquals(PhotoAnchor(0.25f, 0.5f), dimension.start)
     }
 }
