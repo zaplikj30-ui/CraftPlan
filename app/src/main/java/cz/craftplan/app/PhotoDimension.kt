@@ -27,6 +27,7 @@ internal data class PhotoDimension(
     val start: PhotoAnchor,
     val end: PhotoAnchor,
     val measurement: ManualLengthMeasurement? = null,
+    val displayUnit: LengthUnit = LengthUnit.MM,
 ) {
     val measurementState: MeasurementState
         get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED

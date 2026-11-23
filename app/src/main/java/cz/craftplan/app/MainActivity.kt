@@ -59,6 +59,20 @@ class MainActivity : ComponentActivity() {
 
 internal class PhotoEditorState : ViewModel() {
     var placement by mutableStateOf<DimensionPlacement>(DimensionPlacement.Idle)
+    var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
+
+    fun openValue(dimension: PhotoDimension) {
+        val current = (placement as? DimensionPlacement.Complete)?.dimension ?: return
+        if (current == dimension) valueDraft = DimensionValueDraft(current)
+    }
+
+    fun confirmValue(): Boolean {
+        val current = (placement as? DimensionPlacement.Complete)?.dimension ?: return false
+        val confirmed = valueDraft?.confirm(current) ?: return false
+        placement = DimensionPlacement.Complete(confirmed)
+        valueDraft = null
+        return true
+    }
 }
 
 @Composable
@@ -70,7 +84,7 @@ private fun CraftPlan(editorState: PhotoEditorState) {
         }
         photoOpen = false
     }
-    BackHandler(enabled = photoOpen, onBack = closePhoto)
+    BackHandler(enabled = photoOpen && editorState.valueDraft == null, onBack = closePhoto)
 
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { insets ->
         val screen = Modifier.fillMaxSize().padding(insets)
@@ -90,7 +104,16 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                     }
                 },
                 onClose = closePhoto,
+                onEditValue = editorState::openValue,
             )
+            editorState.valueDraft?.let { draft ->
+                DimensionValueDialog(
+                    draft = draft,
+                    onChange = { editorState.valueDraft = it },
+                    onConfirm = editorState::confirmValue,
+                    onCancel = { editorState.valueDraft = null },
+                )
+            }
         } else {
             Column(
                 modifier = screen.padding(24.dp),
@@ -125,6 +148,7 @@ private fun SamplePhoto(
     onStartDimension: () -> Unit,
     onDimension: (DimensionPlacement.Complete) -> Unit,
     onClose: () -> Unit,
+    onEditValue: (PhotoDimension) -> Unit,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val hint = when (placement) {
@@ -201,6 +225,7 @@ private fun SamplePhoto(
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
                 view.onDimension = onDimension
+                view.onEditValue = onEditValue
                 view.placement = placement
             },
         )

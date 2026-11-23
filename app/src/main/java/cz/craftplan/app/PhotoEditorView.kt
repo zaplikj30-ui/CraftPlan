@@ -9,12 +9,15 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 
 internal class PhotoEditorView(context: Context) : View(context) {
     private val photo = BitmapFactory.decodeResource(resources, R.drawable.synthetic_workbench)
@@ -22,6 +25,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        color = Color.WHITE
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 15f, resources.displayMetrics)
+    }
     private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(100, 120, 131, 142)
     }
@@ -38,6 +46,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val pointerId: Int,
         val down: EditorPoint,
         val downAnchor: PhotoAnchor,
+        val opensValueOnTap: Boolean,
         val preview: PhotoDimension? = null,
     )
 
@@ -55,6 +64,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var autoPanTime: Long? = null
     private val autoPan = Runnable { stepAutoPan() }
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
+    var onEditValue: (PhotoDimension) -> Unit = {}
+    private var valueLabel: String? = null
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
             if (field != value) {
@@ -62,6 +73,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     dimensionSelected = true
                 }
                 field = value
+                val dimension = (value as? DimensionPlacement.Complete)?.dimension
+                valueLabel = dimension?.measurement?.let {
+                    val unit = dimension.displayUnit
+                    "${it.length.displayNumber(unit)} ${unit.symbol}"
+                }
                 clearDimensionGesture()
                 invalidate()
             }
@@ -144,7 +160,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val end = drag?.end ?: dimension?.end
         if (start != null) {
             if (end == null || start == end) drawAnchor(canvas, start)
-            else drawDimension(canvas, start, end, drag != null || dimensionSelected)
+            else drawDimension(canvas, start, end, drag != null || dimensionSelected, valueLabel)
         }
 
         val target = when {
@@ -181,7 +197,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
     }
 
-    private fun drawDimension(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
+    private fun drawDimension(
+        canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, label: String?,
+    ) {
         drawDimensionLine(canvas, start, end, selected)
         if (selected) {
             drawAnchor(canvas, start)
@@ -189,7 +207,33 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         val origin = viewport.screenPoint(start)
         val axis = viewport.screenPoint(end) - origin
-        drawUnmeasuredMarker(canvas, origin.x + axis.x / 2f, origin.y + axis.y / 2f, readableAngle(axis))
+        canvas.save()
+        canvas.translate(origin.x + axis.x / 2f, origin.y + axis.y / 2f)
+        canvas.rotate(readableAngle(axis))
+        if (label == null) {
+            drawUnmeasuredMarker(canvas)
+        } else {
+            val halfWidth = labelPaint.measureText(label) / 2f + 5f * density
+            val bottom = -5f * density
+            val top = bottom - (labelPaint.descent() - labelPaint.ascent()) - 4f * density
+            overlayPaint.color = WORKSPACE_COLOR
+            canvas.drawRoundRect(-halfWidth, top, halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
+            canvas.drawText(label, 0f, bottom - labelPaint.descent() - 2f * density, labelPaint)
+        }
+        canvas.restore()
+    }
+
+    private fun hitsValue(point: EditorPoint, start: EditorPoint, end: EditorPoint): Boolean {
+        val axis = end - start
+        val x = point.x - (start.x + axis.x / 2f)
+        val y = point.y - (start.y + axis.y / 2f)
+        val angle = Math.toRadians(readableAngle(axis).toDouble())
+        val along = (x * cos(angle) + y * sin(angle)).toFloat()
+        val across = (-x * sin(angle) + y * cos(angle)).toFloat()
+        val halfText = valueLabel?.let { labelPaint.measureText(it) / 2f } ?: 0f
+        val halfWidth = maxOf(24f * density, halfText + 8f * density)
+        val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
+        return along in -halfWidth..halfWidth && across in -height..12f * density
     }
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
@@ -235,10 +279,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         overlayPaint.style = Paint.Style.FILL
     }
 
-    private fun drawUnmeasuredMarker(canvas: Canvas, x: Float, y: Float, angle: Float) {
+    private fun drawUnmeasuredMarker(canvas: Canvas) {
         canvas.save()
-        canvas.translate(x, y)
-        canvas.rotate(angle)
         canvas.translate(0f, -12f * density)
         canvas.scale(density, density)
         overlayPaint.color = Color.rgb(65, 72, 77)
@@ -372,10 +414,12 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
             is DimensionPlacement.Complete -> {
                 val dimension = current.dimension
-                val hit = hitDimension(
-                    down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end), density,
-                ) ?: return false
-                dimensionEdit = DimensionEdit(dimension, hit, pointerId, down, downAnchor)
+                val start = viewport.screenPoint(dimension.start)
+                val end = viewport.screenPoint(dimension.end)
+                val hitsLabel = hitsValue(down, start, end)
+                val hit = hitDimension(down, start, end, density)
+                    ?: DimensionHit.BODY.takeIf { hitsLabel } ?: return false
+                dimensionEdit = DimensionEdit(dimension, hit, pointerId, down, downAnchor, hitsLabel)
             }
             DimensionPlacement.Idle -> return false
         }
@@ -390,6 +434,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_CANCEL -> clearDimensionGesture()
             MotionEvent.ACTION_POINTER_DOWN -> if (!canceled && panPointerId == null) {
+                dimensionEdit = dimensionEdit?.copy(opensValueOnTap = false)
                 val index = event.actionIndex
                 panPointerId = event.getPointerId(index)
                 panContact = viewport.clampContact(event.getX(index), event.getY(index))
@@ -447,6 +492,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val draft = dimensionDrag
         val ready = placement as? DimensionPlacement.Ready
         val edit = dimensionEdit
+        var valueTarget: PhotoDimension? = null
         val result = when {
             contact == null -> null
             draft != null && ready != null -> {
@@ -460,6 +506,10 @@ internal class PhotoEditorView(context: Context) : View(context) {
                         ?.let { DimensionPlacement.Complete(it) }
                 } else {
                     performClick()
+                    if (edit.opensValueOnTap && hitsValue(
+                            contact, viewport.screenPoint(edit.original.start), viewport.screenPoint(edit.original.end),
+                        )
+                    ) valueTarget = edit.original
                     null
                 }
             }
@@ -467,6 +517,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         clearDimensionGesture(result?.dimension ?: edit?.original)
         result?.let(onDimension)
+        valueTarget?.let(onEditValue)
     }
 
     private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension =

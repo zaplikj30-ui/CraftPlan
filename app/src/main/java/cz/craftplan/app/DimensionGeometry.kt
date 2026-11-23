@@ -94,8 +94,8 @@ internal fun workspaceGridOffset(workspaceOffset: Float, spacing: Float): Float 
 internal fun verticalAutoPanEdgeSize(height: Int, density: Float, isLandscape: Boolean): Float {
     if (height <= 0 || !density.isFinite() || density <= 0f) return 0f
     // Orientation only adjusts activation distance; gesture mechanics stay identical.
-    val portion = if (isLandscape) 0.30f else 0.40f
-    val maxDp = if (isLandscape) 180f else 240f
+    val portion = if (isLandscape) 0.30f else 0.43f
+    val maxDp = if (isLandscape) 180f else 260f
     return minOf(height * portion, maxDp * density)
 }
 
