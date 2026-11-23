@@ -26,9 +26,16 @@ class DimensionInputTest {
     @Test
     fun landscapeKeysFitAvailableHeightOrKeepTouchTargetAndScroll() {
         assertEquals(62f, landscapeKeyHeight(300f), 0f)
-        assertEquals(50f, landscapeKeyHeight(220f), 0f)
-        assertEquals(48f, landscapeKeyHeight(212f), 0f)
+        assertEquals(50f, landscapeKeyHeight(212f), 0f)
+        assertEquals(48f, landscapeKeyHeight(204f), 0f)
         assertEquals(48f, landscapeKeyHeight(140f), 0f)
+    }
+
+    @Test
+    fun landscapeInputsUseAvailableWidthOrKeepRoomForHorizontalScrolling() {
+        assertEquals(440f, landscapeInputRowWidth(440f), 0f)
+        assertEquals(360f, landscapeInputRowWidth(360f), 0f)
+        assertEquals(360f, landscapeInputRowWidth(240f), 0f)
     }
 
     @Test

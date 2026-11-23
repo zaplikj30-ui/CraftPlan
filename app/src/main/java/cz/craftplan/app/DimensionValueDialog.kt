@@ -5,12 +5,12 @@ import android.view.WindowInsets as AndroidWindowInsets
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,6 +76,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -188,7 +189,9 @@ internal fun DimensionValueDialog(
                 detectTapGestures { outsideTap() }
             })
             Surface(
-                modifier = Modifier.padding(horizontal = 4.dp).widthIn(max = if (portrait) 480.dp else 640.dp).fillMaxWidth(),
+                modifier = Modifier.padding(horizontal = 4.dp)
+                    .then(if (portrait) Modifier.widthIn(max = 480.dp) else Modifier)
+                    .fillMaxWidth(),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                 tonalElevation = 6.dp,
             ) {
@@ -204,12 +207,13 @@ internal fun DimensionValueDialog(
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
                         isError = showError,
+                        compactLabel = !portrait,
                     )
                 }
-                val unitAndKeyboard: @Composable () -> Unit = {
+                val unitControl: @Composable () -> Unit = {
                     val unitText = if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit)
                     val unitLabel = stringResource(R.string.dimension_unit, unitText)
-                    Box(Modifier.padding(horizontal = 4.dp)) {
+                    Box(Modifier.padding(horizontal = if (portrait) 4.dp else 0.dp)) {
                         OutlinedButton(
                             onClick = { unitsOpen = true },
                             modifier = Modifier.semantics { contentDescription = unitLabel },
@@ -275,6 +279,8 @@ internal fun DimensionValueDialog(
                             }
                         }
                     }
+                }
+                val keyboardControl: @Composable () -> Unit = {
                     val switchLabel = stringResource(
                         if (keys.mode == DimensionKeyboardMode.SYSTEM) R.string.use_dimension_keypad
                         else R.string.use_system_keyboard,
@@ -306,6 +312,7 @@ internal fun DimensionValueDialog(
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
                             isNote = true,
+                            compactLabel = !portrait,
                         )
                         val notesState = stringResource(
                             if (showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden,
@@ -324,40 +331,19 @@ internal fun DimensionValueDialog(
                         }
                     }
                 }
-                val fields: @Composable () -> Unit = {
-                    Column(verticalArrangement = Arrangement.spacedBy(if (portrait || keypadVisible) 4.dp else 0.dp)) {
-                        if (portrait) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                valueInput(Modifier.weight(1f))
-                                unitAndKeyboard()
-                            }
-                            noteInput(Modifier.fillMaxWidth())
-                        } else {
-                            // Keep both fields in the first row when the system keyboard takes vertical space.
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                maxItemsInEachRow = if (keypadVisible) 1 else 2,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                valueInput(Modifier.weight(1f))
-                                noteInput(Modifier.weight(1f))
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) { unitAndKeyboard() }
-                        }
-                        if (showError) {
-                            Text(
-                                stringResource(R.string.dimension_value_invalid),
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
+                val errorMessage: @Composable () -> Unit = {
+                    if (showError) {
+                        Text(
+                            stringResource(R.string.dimension_value_invalid),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
-                val keypad: @Composable () -> Unit = {
+                val keypad: @Composable (Dp) -> Unit = { keyHeight ->
                     DimensionKeypad(
                         showSymbols = showSymbols,
-                        keyHeight = if (portrait) 62.dp else landscapeKeyHeight(maxHeight.value).dp,
+                        keyHeight = keyHeight,
                         onToggleSymbols = { showSymbols = !showSymbols },
                         onKey = { key ->
                             val editingNote = keys.field == DimensionField.NOTE
@@ -370,16 +356,22 @@ internal fun DimensionValueDialog(
                     )
                 }
                 val actions: @Composable () -> Unit = {
-                    if (keys.visible || imeVisible) {
-                        IconButton(onClick = hideKeyboard) {
+                    if (!portrait || keys.visible || imeVisible) {
+                        IconButton(onClick = hideKeyboard, enabled = keys.visible || imeVisible) {
                             Icon(
                                 painterResource(R.drawable.ic_keyboard_hide),
                                 contentDescription = stringResource(R.string.hide_system_keyboard),
                             )
                         }
                     }
-                    TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_value)) }
-                    Button(onClick = confirm) { Text(stringResource(R.string.confirm_value)) }
+                    TextButton(
+                        onClick = onCancel,
+                        contentPadding = if (portrait) ButtonDefaults.TextButtonContentPadding else PaddingValues(horizontal = 8.dp),
+                    ) { Text(stringResource(R.string.cancel_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
+                    Button(
+                        onClick = confirm,
+                        contentPadding = if (portrait) ButtonDefaults.ContentPadding else PaddingValues(horizontal = 10.dp),
+                    ) { Text(stringResource(R.string.confirm_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
                 }
                 if (portrait) {
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -387,8 +379,16 @@ internal fun DimensionValueDialog(
                             modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            fields()
-                            if (keypadVisible) keypad()
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    valueInput(Modifier.weight(1f))
+                                    unitControl()
+                                    keyboardControl()
+                                }
+                                noteInput(Modifier.fillMaxWidth())
+                                errorMessage()
+                            }
+                            if (keypadVisible) keypad(62.dp)
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -397,22 +397,38 @@ internal fun DimensionValueDialog(
                         ) { actions() }
                     }
                 } else {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = if (keypadVisible) 4.dp else 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { fields() }
-                        if (keypadVisible) {
-                            Column(
-                                modifier = Modifier.weight(1.15f).verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) { keypad() }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // On narrow displays only the inputs scroll horizontally; actions stay at the right edge.
+                            BoxWithConstraints(Modifier.weight(1f)) {
+                                val inputWidth = landscapeInputRowWidth(maxWidth.value).dp
+                                val inputScroll = if (inputWidth > maxWidth) Modifier.horizontalScroll(rememberScrollState())
+                                    else Modifier
+                                Row(inputScroll.width(inputWidth), verticalAlignment = Alignment.CenterVertically) {
+                                    valueInput(Modifier.weight(1f))
+                                    unitControl()
+                                    noteInput(Modifier.weight(1.35f))
+                                    keyboardControl()
+                                }
+                            }
+                            actions()
                         }
-                        Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) { actions() }
+                        errorMessage()
+                        if (keypadVisible) {
+                            BoxWithConstraints(Modifier.weight(1f, fill = false).fillMaxWidth()) {
+                                val keyHeight = landscapeKeyHeight(maxHeight.value).dp
+                                Column(
+                                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) { keypad(keyHeight) }
+                            }
+                        }
                     }
                 }
             }
@@ -433,6 +449,7 @@ private fun DimensionInputField(
     onDone: () -> Unit,
     isNote: Boolean = false,
     isError: Boolean = false,
+    compactLabel: Boolean = false,
 ) {
     Box(modifier) {
         val interaction = remember { MutableInteractionSource() }
@@ -466,7 +483,10 @@ private fun DimensionInputField(
                     visualTransformation = VisualTransformation.None,
                     interactionSource = interaction,
                     isError = isError,
-                    label = { Text(label) },
+                    label = {
+                        if (compactLabel) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        else Text(label)
+                    },
                     colors = colors,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
                 )
@@ -486,9 +506,11 @@ internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<String> = whe
     else -> dimensionSymbolRows + listOf("____", "____")
 }
 
-// Four keys, three gaps of 4 dp each and 8 dp vertical panel padding.
+internal fun landscapeInputRowWidth(availableWidth: Float): Float = availableWidth.coerceAtLeast(360f)
+
+// The measured keypad area excludes the header and panel padding.
 internal fun landscapeKeyHeight(availableHeight: Float): Float =
-    ((availableHeight - 20f) / 4f).coerceIn(48f, 62f)
+    ((availableHeight - 12f) / 4f).coerceIn(48f, 62f)
 
 internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -> Unit, confirm: () -> Unit) {
     if (keyboardOpen) hideKeyboard() else confirm()
