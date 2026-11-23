@@ -407,6 +407,19 @@ Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchope
 
 **Stav:** rozhodnutí z testu buildu 20 zapsáno do PR #4; **kód změny, nový build, automatické a fyzické testy NOT RUN**. Předchozí technický návrh 30 % / 180 dp výše zůstává historickým stavem buildu 20; pro příští změnu jej nahrazuje zde schválené 40 % / 240 dp.
 
+### M1 – rozložení horního panelu a auto-pan podle orientace (23. 11. 2026)
+
+**SCHVÁLENO vlastníkem po snímku a fyzickém testování buildu 20:** testovací horní panel při orientaci telefonu na šířku zabírá příliš mnoho užitečné výšky, takže znesnadňuje vyhodnocení auto-panu i úpravy kóty. Na šířku změnit jeho několik svisle naskládaných prvků (Zpět, název, Přidat kótu, stav/nápověda) na **kompaktní jediný řádek o cílové výšce přibližně 56–64 dp**; zachovat dostupnost všech akcí a srozumitelný stav (nápovědu lze stručně přizpůsobit). Nevypínat systémový stavový a navigační pruh telefonu; nepřekrývat editor panelem. Na výšku prozatím ponechat přehledné současné rozložení. Jde o **M1 testovací ergonomii**, nikoli schválení konečné produkční lišty.
+
+**Novější upřesnění pro příští testovací build (NAHRAZUJE výše uvedenou celoplošnou hodnotu 40 % pro oba režimy):**
+- **Na výšku:** horní a spodní svislá aktivační zóna 40 % **výšky samotného editoru**, maximálně 240 dp (zmenšit neutrální střed, aby šikmý posun začínal dříve).
+- **Na šířku:** po zkompaktnění panelu zachovat dosavadních 30 % výšky samotného editoru, maximálně 180 dp, a až podle nového fyzického testu případně doladit.
+- **V obou orientacích:** boční zóna 48 dp a dosavadní maximální rychlost; náběh svislého posunu a diagonály zůstává plynulý. Panel **není součástí rozměrů editoru ani jeho zón**.
+
+Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro stejný následující krok: orientační rezerva přibližně 3 rozměry editoru kolem fotografie a již potvrzených kót, nikoli opětovný limit podle začátku každého tahu. Bez ztráty kót a se zachováním možnosti vrátit se k obsahu; detail geometrie ověřit testy.
+
+**Stav:** jde o výslovné schválení UX návrhu; **kód, build 21, JVM/lint ani fyzický test nového rozložení NOT RUN**. Implementace a sestavení vyžadují samostatně schválené GO; nezasahovat do `main`, nevytvářet nové PR ani nepředělávat už ověřené ovládání.
+
 ### Budoucí samostatný režim – vícefotkové kótování na společném plátně (23. 11. 2026)
 
 **SCHVÁLENO VLASTNÍKEM jako budoucí funkce, nikoli GO k implementaci.** Zachovat stávající režim kótování **jedné fotografie** jako samostatný pracovní postup. Vedle něj později nabídnout **vícefotkové kótování**: uživatel může do jednoho logického seskupení/pracovního dokumentu vložit několik fotografií (např. 3–4 snímky kuchyně), libovolně je rozmístit na společné posuvné a přibližovatelné ploše, jednotlivé snímky přesouvat a vizuálně zvětšovat/zmenšovat, přitom nezávisle kótovat každou fotografii.
