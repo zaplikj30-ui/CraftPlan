@@ -365,6 +365,12 @@ Když vlastník upozorní na odlišnost, ChatGPT **nejprve ověří plán a skut
 
 **Akceptace další M1 opravy:** dlouhá, krátká, šikmá a svislá kóta; označení v libovolném místě čáry a těsně vedle obou konců; žádné hluché úseky ani poskočení při klepnutí; oddělení konce a celku; konečný rozsah **jednoho** auto-pan tahu, správné dokončení a navazující další gesto, postupné opuštění obrazu a návrat, zoom, prst i S Pen. **Implementace a fyzický retest tohoto upřesnění NOT RUN.** Bez samostatného GO nedělat kód, build ani APK.
 
+### Novější rozhodnutí po fyzickém testu M1 buildu 18 (23. 11. 2026)
+
+**SCHVÁLENO vlastníkem, NAHRAZUJE starší požadavek na pevnou hranici jednoho auto-pan tahu v bodě 2 a v akceptaci výše.** Vlastník na skutečném telefonu s M1 buildem 18 výslovně potvrdil, že pomalý a plynulý automatický posun při držení konce kóty u kraje obrazovky vyhovuje **bez dodatečného zastavování po určité ujeté vzdálenosti**. Jakmile prst posune mírně zpět od okraje, auto-pan se zastaví; toto chování vlastník výslovně fyzicky ověřil. Po puštění musí automatický posun skončit a další úprava začíná novým uchopením. Orientaci chrání přiměřená rychlost a možnost zastavit pohyb odsunutím prstu od kraje, nikoli pevný limit dráhy na jedno gesto. **Nezavádět do M1 opět pevný limit jednoho auto-pan tahu bez nového rozhodnutí vlastníka.**
+
+Ostatní pravidla zůstávají: klepnutí označí kótu po celé délce; uchopení konce se liší od posunu celku; druhý prst při aktivním uchopení kóty posouvá pracovní plochu a nepřibližuje, kdežto mimo aktivní gesto funguje pinch zoom. **Fyzicky potvrzeno pouze výše uvedené plynulé chování auto-panu** a úspěšná instalace buildu 18; tím není doložen systematický fyzický průchod všech kombinací dvou prstů, S Penu, přerušení gest a extrémních souřadnic (**NOT RUN / neprokázáno**). JVM testy, lint a sestavení podepsané APK v GitHub Actions buildu 18 byly PASS; tyto automatické výsledky nenahrazují fyzický test.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
