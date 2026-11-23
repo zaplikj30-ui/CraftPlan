@@ -342,6 +342,18 @@ Když vlastník upozorní na odlišnost, ChatGPT **nejprve ověří plán a skut
 
 **POTVRZENO vlastníkem:** Po otevření editoru je celá fotografie automaticky vycentrovaná, ale uživatel ji může **posouvat prstem i bez předchozího přiblížení (fit/minimální zoom)**. Fotografie se smí částečně posunout mimo původní středovou pozici a případně za okraj pracovní oblasti, aby kolem vzniklo místo pro kóty; pohyb má **rozumné hranice**, takže fotografii nelze odsunout úplně mimo pracovní plochu a ztratit ji z dosahu. Po přiblížení se přípustné meze přizpůsobí zoomu. **Upřesnění vlastníka:** orientačně může fotografie při posunu odjet za okraj pracovní plochy až přibližně do poloviny rozměru displeje v daném směru; vždy musí zůstat dostatečná viditelná část fotografie pro snadné uchopení a návrat. **„Cirka půlka displeje“ je přibližná ergonomická představa, nikoli pevně schválené exaktní 50 % nebo počet pixelů**; hranice ověřit na telefonu včetně rozdílů mezi orientacemi a velikostmi obrazovky. Pan/zoom nesmějí měnit ukotvení kót k fotografii. Toto je **cílové UX pro další M1 krok**, nikoliv tvrzení, že již funguje v APK: nynější `PhotoViewport.boundedOffset` při obrazu menším než viewport vynucuje vycentrování. Samostatný požadavek kreslení kót mimo fotografii zůstává platný. Záznam není samostatné GO k implementaci, buildu či nové APK.
 
+### M1 – fyzický retest: lupa, okraje kót a auto-pan (23. 11. 2026)
+
+**Stav:** Vlastník potvrdil na fyzickém Androidu funkční lupu, kótu mimo fotografii, posun ve fit zoomu a pan/zoom bez posunutí kotev. Následující nedostatky byly zjištěny při dalším ověření na telefonu; schváleno jejich cílové UX. Podklad: uživatelem zaslaná testovací videa (nezveřejňovat).
+
+1. **Lupa:** jemný symetrický zaměřovací kříž přes celý průměr lupy; střed odpovídá skutečnému konci žluté kóty.
+2. **Gesto u okraje:** při dotyku/tažení konce kóty k hranici editoru se editace nesmí sama dokončit ani vrátit bod na původní pozici. Pokračuje, dokud uživatel skutečně neuvolní prst/S Pen; skutečné `CANCEL` a druhý prst zpracovat bezpečně podle gest.
+3. **Auto-pan při vytváření i editaci kóty:** když držený konec dosáhne blízkosti okraje displeje, pracovní plocha se začne plynule posouvat příslušným směrem, zatímco dotyk zůstává aktivní. Uživatel tak protáhne kótu za původně viditelnou oblast, bez puštění. Lupa nadále ukazuje pravdivý cíl.
+4. **Meze běžného pan/zoom:** bez přesahujících kót zachovat omezený pohyb fotografie (dle předchozího schválení). Pokud kóta přesahuje snímek, rozšířit dosah posunu **jen v potřebných směrech** podle aktuální polohy konců kóty a zoomu, s malou rezervou pro uchopení šipek. Umožnit zobrazit a upravit každý konec i při max. zoomu, nikoliv neomezeně posouvat prázdnou plochu.
+5. **Změny obsahu:** po posunu/smazání kóty přepočítat hranice. Nesmí dojít k posunu kotev vůči fotografii, ztrátě rozpracovaného gesta ani změně významu přesných měření.
+
+**Akceptace pro následující M1 opravný krok:** cílené testy geometrie/hranice/zoomu a přerušení gest; při fyzickém testu ověřit auto-pan při držení prstu i pera nahoře/dole/vlevo/vpravo, dostupnost obou koncových šipek mimo fotografii při max. zoomu, návrat k běžným mezím bez přesahujících kót a kříž přes lupu. **Implementace, build a fyzické ověření oprav dosud NOT RUN.** Není povolen samovolný merge, nové PR ani APK bez konkrétního GO.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
