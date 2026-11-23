@@ -50,7 +50,7 @@ class DimensionValueDraftTest {
     fun rejectsInvalidAndStaleConfirmation() {
         val original = dimension.withManualLength("850 mm")
         val draft = DimensionValueDraft(original).type("950")
-        for (input in listOf("", "1/0 in", "1.2,3", "85 zz", "1000000001", "1".repeat(97))) {
+        for (input in listOf("", "1/0 in", "1.2,3", "85 + zz", "1000000001", "1".repeat(97))) {
             assertNull(input, draft.type(input).confirm(original))
         }
         assertNull(draft.confirm(original.copy(id = UUID.randomUUID())))
@@ -91,5 +91,46 @@ class DimensionValueDraftTest {
         assertNull(draft.confirm(original))
         assertNull(draft.type("100000001").confirm(original))
         assertEquals(LengthMmEncoding.Decimal("8500"), draft.type("850").confirm(original)?.measurement?.length?.encoding)
+    }
+    @Test
+    fun mixedVisibleTextAndExactValueStaySeparate() {
+        val numeric = DimensionValueDraft(dimension).type("1250 výška pracovní desky")
+            .withNote("Přeměřit po montáži").confirm(dimension)!!
+        assertEquals(MeasurementState.MEASURED, numeric.measurementState)
+        assertEquals("1250", numeric.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals("1250 mm výška pracovní desky", numeric.displayLabel())
+        assertEquals("Přeměřit po montáži", numeric.note)
+        assertEquals("1250 výška pracovní desky", DimensionValueDraft(numeric).input)
+
+        val noUnit = DimensionValueDraft(numeric).withUnitVisibility(false).confirm(numeric)!!
+        assertEquals("1250 výška pracovní desky", noUnit.displayLabel())
+        assertEquals(numeric.measurement, noUnit.measurement)
+        assertEquals(LengthUnit.MM, noUnit.displayUnit)
+    }
+
+    @Test
+    fun textOnlyAndNoteDoNotInventMeasurements() {
+        val text = DimensionValueDraft(dimension).type("PŘEMĚŘIT")
+            .withNote("Soukromá poznámka").confirm(dimension)!!
+        assertNull(text.measurement)
+        assertEquals(MeasurementState.UNMEASURED, text.measurementState)
+        assertEquals("PŘEMĚŘIT", text.displayLabel())
+        assertEquals("Soukromá poznámka", text.note)
+        val noteOnly = DimensionValueDraft(dimension).withNote("poznámka").confirm(dimension)!!
+        assertNull(noteOnly.displayLabel())
+        assertNull(noteOnly.measurement)
+        assertEquals("poznámka", noteOnly.note)
+    }
+
+    @Test
+    fun mixedFractionsConvertAndBadNumericExpressionsAreRejected() {
+        val original = DimensionValueDraft(dimension).type("1 1/16 převýšení")
+            .selectUnit(LengthUnit.IN, keepNumber = true).confirm(dimension)!!
+        assertEquals("26.9875", original.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals("1.0625 in převýšení", original.displayLabel())
+        for (bad in listOf("12%", "12 + 2", "12−3", "1/0 poznámka")) {
+            assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))
+        }
+        assertNull(DimensionValueDraft(original).withNote("změna").confirm(original.copy(note = "jinde")))
     }
 }
