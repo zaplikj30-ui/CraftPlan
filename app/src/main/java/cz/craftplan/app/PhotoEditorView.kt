@@ -127,7 +127,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val saveCount = canvas.save()
         canvas.clipRect(0, 0, width, height)
         canvas.drawColor(WORKSPACE_COLOR)
-        if (autoPanTime != null) drawMovingWorkspaceGrid(canvas)
+        // Always visible on the empty workspace; the opaque photo covers the dots.
+        drawWorkspaceGrid(canvas)
         photoBounds.set(
             viewport.left,
             viewport.top,
@@ -160,7 +161,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.restoreToCount(saveCount)
     }
 
-    private fun drawMovingWorkspaceGrid(canvas: Canvas) {
+    private fun drawWorkspaceGrid(canvas: Canvas) {
         // A visual motion cue only; not a ruler or a measurement coordinate system.
         // Keep it tied to the moving workspace, rather than to screen coordinates.
         val spacing = 44f * density
@@ -479,7 +480,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     private fun autoPanVelocity(contact: EditorPoint): EditorPoint = EditorPoint(
         edgePanSpeed(contact.x, width, 48f * density, 440f * density),
-        edgePanSpeed(contact.y, height, 48f * density, 440f * density),
+        // Straight in the middle; progressively more diagonal toward top/bottom.
+        edgePanSpeed(contact.y, height, verticalAutoPanEdgeSize(height, density), 440f * density),
     )
 
     private fun resumeAutoPanIfDragging() {
