@@ -3,6 +3,7 @@ package cz.craftplan.app
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal enum class DimensionField { VALUE, NOTE }
 internal enum class DimensionKeyboardMode { NUMERIC, SYSTEM }
@@ -30,6 +31,14 @@ internal data class DimensionKeyboard(
     }
 }
 
+// A delayed Android IME hide must never suspend the next keyboard opening forever.
+internal suspend fun awaitSystemImeHidden(visibility: Flow<Boolean>, timeoutMs: Long = 500L): Boolean =
+    withTimeoutOrNull(timeoutMs) {
+        visibility.first { !it }
+        true
+    } ?: false
+
+// Observes the user dismissing an already opened system keyboard; cancelled on mode change.
 internal suspend fun awaitSystemImeDismissal(visibility: Flow<Boolean>) {
     visibility.dropWhile { !it }.first { !it }
 }

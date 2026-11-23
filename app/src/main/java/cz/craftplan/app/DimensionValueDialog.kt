@@ -84,8 +84,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
     save = { listOf(it.field.name, it.mode.name, it.visible) },
@@ -167,7 +165,7 @@ internal fun DimensionValueDialog(
             if (requested.systemOpen) {
                 // A delayed close from the previous mode must not close this request.
                 val previousHideSettled = !imeHidePending || !latestImeVisible ||
-                    withTimeoutOrNull(500) { snapshotFlow { latestImeVisible }.first { !it } } != null
+                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
                 imeHidePending = false
                 if (keys != requested) return@LaunchedEffect
                 if (requested.field == DimensionField.VALUE) valueFocus.requestFocus() else noteFocus.requestFocus()
@@ -175,7 +173,8 @@ internal fun DimensionValueDialog(
                 if (keys != requested) return@LaunchedEffect
                 ime?.show()
                 if (!previousHideSettled) {
-                    snapshotFlow { latestImeVisible }.first { !it }
+                    // A late hide may still arrive. Retry showing, but never wait without a deadline.
+                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
                     if (keys != requested) return@LaunchedEffect
                     ime?.show()
                 }

@@ -2,6 +2,7 @@ package cz.craftplan.app
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
@@ -62,6 +63,15 @@ class DimensionKeyboardTest {
         val seen = mutableListOf<Boolean>()
         awaitSystemImeDismissal(flowOf(false, false, true, false, true).onEach { seen.add(it) })
         assertEquals(listOf(false, false, true, false), seen)
+    }
+
+    @Test
+    fun delayedImeHideHasDeadlineAndDoesNotPreventFollowingTransition() = runBlocking {
+        // A visible IME that never reports hidden must not suspend the transition indefinitely.
+        assertFalse(awaitSystemImeHidden(MutableStateFlow(true), timeoutMs = 20L))
+        assertTrue(awaitSystemImeHidden(flowOf(true, false), timeoutMs = 20L))
+        val keyboard = DimensionKeyboard().switch().switch().switch()
+        assertTrue(keyboard.systemOpen)
     }
 
     @Test
