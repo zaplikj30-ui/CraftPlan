@@ -1,4 +1,4 @@
-name: CraftPlan M1 - debug APK
+name: CraftPlan M1 - signed test APK
 
 on:
   push:
@@ -9,7 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  publish:
+    if: contains(github.event.head_commit.message, '[publish m1 apk]') && github.run_attempt == 1
+    concurrency:
+      group: craftplan-m1-apk
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -35,18 +39,22 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Build, JVM tests and lint
-        run: gradle --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+      - name: JVM tests and lint
+        run: gradle --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" :app:testDebugUnitTest :app:lintDebug
 
-      - name: Record APK SHA-256
-        run: sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256SUMS.txt
+      - name: Build and verify signed M1 APK
+        env:
+          CRAFTPLAN_M1_KEYSTORE_BASE64: ${{ secrets.CRAFTPLAN_M1_KEYSTORE_BASE64 }}
+          CRAFTPLAN_M1_KEYSTORE_PASSWORD: ${{ secrets.CRAFTPLAN_M1_KEYSTORE_PASSWORD }}
+          CRAFTPLAN_M1_CERT_SHA256: ${{ vars.CRAFTPLAN_M1_CERT_SHA256 }}
+        run: bash .github/scripts/build-m1-apk.sh
 
-      - name: Publish test APK
+      - name: Publish verified test APK
         uses: actions/upload-artifact@v4
         with:
-          name: CraftPlan-M1-dimension-${{ github.sha }}
+          name: CraftPlan-M1-${{ github.run_number }}-${{ github.sha }}
           path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/debug/SHA256SUMS.txt
+            app/build/outputs/apk/m1/app-m1.apk
+            app/build/outputs/apk/m1/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
