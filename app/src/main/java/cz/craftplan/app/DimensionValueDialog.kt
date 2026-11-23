@@ -370,7 +370,6 @@ internal fun DimensionValueDialog(
                         showSymbols = showSymbols,
                         keyHeight = keyHeight,
                         onToggleSymbols = { showSymbols = !showSymbols },
-                        onHide = hideKeyboard,
                         onKey = { key ->
                             val editingNote = keys.field == DimensionField.NOTE
                             val field = if (editingNote) noteField else valueField
@@ -382,8 +381,8 @@ internal fun DimensionValueDialog(
                     )
                 }
                 val actions: @Composable () -> Unit = {
-                    if (keys.systemOpen) {
-                        IconButton(onClick = hideKeyboard) {
+                    if (!portrait || keys.visible || imeVisible) {
+                        IconButton(onClick = hideKeyboard, enabled = keys.visible || imeVisible) {
                             Icon(
                                 painterResource(R.drawable.ic_keyboard_hide),
                                 contentDescription = stringResource(R.string.hide_system_keyboard),
@@ -527,13 +526,12 @@ private fun DimensionInputField(
     }
 }
 
-internal const val DIMENSION_KEY_HIDE = '↓'
-internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,$DIMENSION_KEY_HIDE")
+internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
 internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
 
 internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<String> = when {
     !showSymbols -> dimensionKeyRows
-    else -> dimensionSymbolRows + listOf("____", "___$DIMENSION_KEY_HIDE")
+    else -> dimensionSymbolRows + listOf("____", "____")
 }
 
 internal fun isDimensionKeyEnabled(key: Char): Boolean = key != '◷' && key != '_'
@@ -553,7 +551,6 @@ private fun DimensionKeypad(
     showSymbols: Boolean,
     keyHeight: Dp,
     onToggleSymbols: () -> Unit,
-    onHide: () -> Unit,
     onKey: (Char) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -566,7 +563,6 @@ private fun DimensionKeypad(
                     '◷' -> stringResource(R.string.dimension_key_history)
                     '⋯' -> stringResource(R.string.dimension_key_symbols)
                     '↩' -> stringResource(R.string.use_dimension_keypad)
-                    DIMENSION_KEY_HIDE -> stringResource(R.string.hide_system_keyboard)
                     '_' -> stringResource(R.string.dimension_key_reserved)
                     ' ' -> stringResource(R.string.dimension_key_space)
                     else -> null
@@ -575,7 +571,6 @@ private fun DimensionKeypad(
                     onClick = {
                         when (key) {
                             '⋯', '↩' -> onToggleSymbols()
-                            DIMENSION_KEY_HIDE -> onHide()
                             '◷', '_' -> Unit
                             else -> onKey(key)
                         }
@@ -593,9 +588,7 @@ private fun DimensionKeypad(
                     ),
                     contentPadding = PaddingValues(0.dp),
                 ) {
-                    if (key == DIMENSION_KEY_HIDE) {
-                        Icon(painterResource(R.drawable.ic_keyboard_hide), contentDescription = null)
-                    } else if (key == '↩') {
+                    if (key == '↩') {
                         Icon(painterResource(R.drawable.ic_dimension_keypad), contentDescription = null)
                     } else {
                         Text(

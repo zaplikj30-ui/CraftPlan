@@ -4,13 +4,14 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DimensionInputTest {
     @Test
     fun usesSpecifiedNumericAndSymbolRows() {
-        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,↓"), dimensionKeyRows)
+        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,_"), dimensionKeyRows)
         assertEquals(listOf("+−±/", ".% ↩"), dimensionSymbolRows)
     }
 
@@ -20,13 +21,12 @@ class DimensionInputTest {
         val symbols = displayedDimensionKeyRows(showSymbols = true)
         assertEquals(List(4) { 4 }, numbers.map(String::length))
         assertEquals(numbers.map(String::length), symbols.map(String::length))
-        assertEquals(dimensionSymbolRows + listOf("____", "___↓"), symbols)
+        assertEquals(dimensionSymbolRows + listOf("____", "____"), symbols)
         for (rows in listOf(numbers, symbols)) {
-            val hide = rows.last().last()
-            assertEquals(DIMENSION_KEY_HIDE, hide)
-            assertEquals(true, isDimensionKeyEnabled(hide))
+            val reserved = rows.last().last()
+            assertEquals('_', reserved)
+            assertFalse(isDimensionKeyEnabled(reserved))
         }
-        assertEquals(false, isDimensionKeyEnabled('_'))
     }
 
     @Test
