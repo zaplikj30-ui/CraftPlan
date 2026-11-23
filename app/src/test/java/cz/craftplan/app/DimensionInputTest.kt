@@ -68,17 +68,19 @@ class DimensionInputTest {
     }
 
     @Test
-    fun backHidesOpenImeBeforeAllowingConfirmation() {
-        var hidden = 0
-        var confirmed = 0
-        val hide = { hidden += 1 }
-        val confirm = { confirmed += 1 }
-        handleDimensionDialogBack(keyboardOpen = true, hideKeyboard = hide, confirm = confirm)
-        assertEquals(1, hidden)
-        assertEquals(0, confirmed)
-        handleDimensionDialogBack(keyboardOpen = false, hideKeyboard = hide, confirm = confirm)
-        assertEquals(1, hidden)
-        assertEquals(1, confirmed)
+    fun backHidesEitherKeyboardBeforeAllowingConfirmation() {
+        for (mode in DimensionKeyboardMode.entries) {
+            var keyboard = DimensionKeyboard(mode = mode)
+            var confirmed = 0
+            val hide = { keyboard = keyboard.hide() }
+            val confirm = { confirmed += 1 }
+            handleDimensionDialogBack(keyboardOpen = keyboard.visible, hideKeyboard = hide, confirm = confirm)
+            assertFalse(keyboard.visible)
+            assertEquals(mode, keyboard.mode)
+            assertEquals(0, confirmed)
+            handleDimensionDialogBack(keyboardOpen = keyboard.visible, hideKeyboard = hide, confirm = confirm)
+            assertEquals(1, confirmed)
+        }
     }
 
     @Test

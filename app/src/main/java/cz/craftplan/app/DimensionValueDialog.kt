@@ -381,21 +381,15 @@ internal fun DimensionValueDialog(
                     )
                 }
                 val actions: @Composable () -> Unit = {
-                    if (!portrait || keys.visible || imeVisible) {
-                        IconButton(onClick = hideKeyboard, enabled = keys.visible || imeVisible) {
-                            Icon(
-                                painterResource(R.drawable.ic_keyboard_hide),
-                                contentDescription = stringResource(R.string.hide_system_keyboard),
-                            )
-                        }
-                    }
                     TextButton(
                         onClick = onCancel,
-                        contentPadding = if (portrait) ButtonDefaults.TextButtonContentPadding else PaddingValues(horizontal = 8.dp),
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = if (portrait) 20.dp else 16.dp),
                     ) { Text(stringResource(R.string.cancel_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
                     Button(
                         onClick = confirm,
-                        contentPadding = if (portrait) ButtonDefaults.ContentPadding else PaddingValues(horizontal = 10.dp),
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = if (portrait) 28.dp else 18.dp),
                     ) { Text(stringResource(R.string.confirm_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
                 }
                 if (portrait) {
