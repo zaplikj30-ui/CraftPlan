@@ -57,4 +57,39 @@ class DimensionValueDraftTest {
         assertNull(draft.confirm(original.withManualLength("900 mm")))
         assertEquals("850 mm", original.measurement!!.originalInput)
     }
+
+    @Test
+    fun keepingNumberChangesMeasurementOnlyAfterConfirmation() {
+        val original = dimension.withManualLength("850 mm")
+        val draft = DimensionValueDraft(original).selectUnit(LengthUnit.CM, keepNumber = true)
+        assertEquals("850", draft.input)
+        assertEquals(LengthMmEncoding.Decimal("850"), original.measurement!!.length.encoding)
+        assertEquals("850 mm", original.measurement.originalInput)
+
+        val confirmed = draft.confirm(original)!!
+        val corrected = ManualLengthMeasurement.parse("850", LengthUnit.CM)!!
+        assertEquals(LengthMmEncoding.Decimal("8500"), corrected.length.encoding)
+        assertEquals(original.copy(measurement = corrected, displayUnit = LengthUnit.CM), confirmed)
+    }
+
+    @Test
+    fun keepsTypedTextAndConvertsCorrectedDraftExactlyWhenSwitchedBackToConversion() {
+        val draft = DimensionValueDraft(dimension).type("1,25")
+            .selectUnit(LengthUnit.CM, keepNumber = true)
+        assertEquals("1,25", draft.input)
+        val converted = draft.selectUnit(LengthUnit.MM)
+        assertEquals("12.5", converted.input)
+        assertEquals(ManualLengthMeasurement.parse("1,25", LengthUnit.CM), converted.confirm(dimension)?.measurement)
+    }
+
+    @Test
+    fun keepingNumberRejectsConflictingUnitsAndOutOfRangeLengths() {
+        val original = dimension.withManualLength("850 mm")
+        val draft = DimensionValueDraft(original).type("850 mm")
+            .selectUnit(LengthUnit.CM, keepNumber = true)
+        assertEquals("850 mm", draft.input)
+        assertNull(draft.confirm(original))
+        assertNull(draft.type("100000001").confirm(original))
+        assertEquals(LengthMmEncoding.Decimal("8500"), draft.type("850").confirm(original)?.measurement?.length?.encoding)
+    }
 }

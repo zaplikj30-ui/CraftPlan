@@ -8,15 +8,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +43,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -55,6 +59,7 @@ internal fun DimensionValueDialog(
     onCancel: () -> Unit,
 ) {
     var showError by rememberSaveable { mutableStateOf(false) }
+    var keepNumber by rememberSaveable { mutableStateOf(false) }
     val confirm: () -> Unit = { if (!onConfirm()) showError = true }
     Dialog(
         onDismissRequest = confirm,
@@ -116,7 +121,7 @@ internal fun DimensionValueDialog(
                                         DropdownMenuItem(
                                             text = { Text(unit.symbol) },
                                             onClick = {
-                                                onChange(draft.selectUnit(unit))
+                                                onChange(draft.selectUnit(unit, keepNumber))
                                                 showError = false
                                                 unitsOpen = false
                                             },
@@ -124,6 +129,18 @@ internal fun DimensionValueDialog(
                                     }
                                 }
                             }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
+                                value = keepNumber,
+                                role = Role.Checkbox,
+                                onValueChange = { keepNumber = it },
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = keepNumber, onCheckedChange = null)
+                            Text(stringResource(R.string.keep_number_on_unit_change))
                         }
                         if (showError) {
                             Text(

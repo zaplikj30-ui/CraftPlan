@@ -6,6 +6,7 @@ internal class DimensionValueDraft private constructor(
     val input: String,
     val unit: LengthUnit,
     private val unchangedSource: ManualLengthMeasurement?,
+    private val requireSelectedUnit: Boolean = false,
 ) {
     constructor(dimension: PhotoDimension) : this(
         dimension,
@@ -15,18 +16,28 @@ internal class DimensionValueDraft private constructor(
     )
 
     fun type(text: String): DimensionValueDraft =
-        if (text == input) this else DimensionValueDraft(target, text, unit, null)
+        if (text == input) this else DimensionValueDraft(target, text, unit, null, requireSelectedUnit)
 
-    fun selectUnit(newUnit: LengthUnit): DimensionValueDraft {
+    fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
         if (newUnit == unit) return this
+        if (keepNumber) {
+            // The new unit is part of the correction. Conflicting suffixes must be fixed explicitly.
+            return DimensionValueDraft(target, input, newUnit, null, requireSelectedUnit = true)
+        }
         val source = validated()
-        return DimensionValueDraft(target, source?.length?.displayNumber(newUnit) ?: input, newUnit, source)
+        return DimensionValueDraft(
+            target, source?.length?.displayNumber(newUnit) ?: input, newUnit, source,
+            requireSelectedUnit = requireSelectedUnit && source == null,
+        )
     }
 
     fun validated(): ManualLengthMeasurement? = unchangedSource
-        // An explicit unit in the pasted text specifies the source unit.
-        ?: ManualLengthMeasurement.parse(input)
-        ?: ManualLengthMeasurement.parse(input, unit)
+        ?: if (requireSelectedUnit) {
+            ManualLengthMeasurement.parse(input, unit)
+        } else {
+            // In ordinary input an explicit unit in the text specifies the source unit.
+            ManualLengthMeasurement.parse(input) ?: ManualLengthMeasurement.parse(input, unit)
+        }
 
     fun confirm(current: PhotoDimension): PhotoDimension? {
         if (target.id != current.id || target.photoId != current.photoId ||
