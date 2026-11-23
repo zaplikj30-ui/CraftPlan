@@ -29,13 +29,15 @@ internal data class PhotoDimension(
     val labelSuffix: String = "",
     /** Visible label when no numerical measurement has been assigned. */
     val textLabel: String? = null,
-    /** Hidden on the photograph; only a notebook indicator is drawn. */
+    /** Note text and the editor's note visibility are independent. */
     val note: String = "",
     /** "Nic" hides the unit in the label, without deleting the exact measurement. */
     val showUnit: Boolean = true,
 ) {
     val measurementState: MeasurementState
         get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED
+
+    fun visibleNote(showNotes: Boolean): String? = note.takeIf { showNotes && it.isNotBlank() }
 
     fun displayLabel(): String? {
         val measured = measurement

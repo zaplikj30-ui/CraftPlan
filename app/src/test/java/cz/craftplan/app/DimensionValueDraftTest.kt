@@ -50,7 +50,7 @@ class DimensionValueDraftTest {
     fun rejectsInvalidAndStaleConfirmation() {
         val original = dimension.withManualLength("850 mm")
         val draft = DimensionValueDraft(original).type("950")
-        for (input in listOf("", "1/0 in", "1.2,3", "85 + zz", "1000000001", "1".repeat(97))) {
+        for (input in listOf("1/0 in", "1.2,3", "85 + zz", "1000000001", "1".repeat(97))) {
             assertNull(input, draft.type(input).confirm(original))
         }
         assertNull(draft.confirm(original.copy(id = UUID.randomUUID())))
@@ -149,12 +149,30 @@ class DimensionValueDraftTest {
     fun invalidUnitOrExpressionCannotBeReclassifiedAsVisibleSuffix() {
         val original = dimension.withManualLength("850 mm").copy(note = "Ponechat")
         val draft = DimensionValueDraft(original).selectUnit(LengthUnit.CM, keepNumber = true)
-        for (bad in listOf("850 mm popis", "3 ft 1/0 in", "12 x 2", "12 MM", " ".repeat(96) + "9", "")) {
+        for (bad in listOf("850 mm popis", "3 ft 1/0 in", "12 x 2", "12 MM", " ".repeat(96) + "9")) {
             assertNull(bad, draft.type(bad).confirm(original))
         }
         val edited = DimensionValueDraft(original).withNote("Nová poznámka").confirm(original)!!
         assertSame(original.measurement, edited.measurement)
         assertEquals("850 mm", edited.displayLabel())
         assertNull(DimensionValueDraft(original).withNote("a".repeat(MAX_DIMENSION_NOTE_LENGTH + 1)).confirm(original))
+    }
+
+    @Test
+    fun blankAndZeroReopenDifferentlyAndKeepNotesAndAnchors() {
+        val blank = DimensionValueDraft(dimension).confirm(dimension)!!
+        assertEquals(MeasurementState.UNMEASURED, blank.measurementState)
+        val originallyMeasured = dimension.withManualLength("45 mm").copy(note = "parapet")
+        val zero = DimensionValueDraft(originallyMeasured).type("0").confirm(originallyMeasured)!!
+        assertEquals("0", DimensionValueDraft(zero).input)
+        assertEquals("0 mm", zero.displayLabel())
+        val cleared = DimensionValueDraft(zero).type("").confirm(zero)!!
+        assertEquals("", DimensionValueDraft(cleared).input)
+        assertNull(cleared.displayLabel())
+        assertEquals(zero.copy(measurement = null), cleared)
+        assertEquals("parapet", cleared.visibleNote(true))
+        assertNull(cleared.visibleNote(false))
+        assertNull(blank.visibleNote(true))
+        assertEquals("parapet", DimensionValueDraft(cleared).note)
     }
 }

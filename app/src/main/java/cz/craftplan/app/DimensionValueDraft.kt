@@ -125,9 +125,7 @@ internal class DimensionValueDraft private constructor(
                 measurement = null, displayUnit = unit, labelSuffix = "",
                 textLabel = entry.text, note = note, showUnit = showUnit,
             )
-            null -> if (input.isBlank() && target.measurement == null && (note.isNotBlank() || target.note.isNotBlank() ||
-                target.textLabel != null)
-            ) current.copy(
+            null -> if (input.isBlank()) current.copy(
                 measurement = null, displayUnit = unit, labelSuffix = "",
                 textLabel = null, note = note, showUnit = showUnit,
             ) else null

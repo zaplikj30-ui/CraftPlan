@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
 internal class PhotoEditorState : ViewModel() {
     var placement by mutableStateOf<DimensionPlacement>(DimensionPlacement.Idle)
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
+    var showNotes by mutableStateOf(true)
 
     fun openValue(dimension: PhotoDimension) {
         val current = (placement as? DimensionPlacement.Complete)?.dimension ?: return
@@ -105,11 +106,13 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 },
                 onClose = closePhoto,
                 onEditValue = editorState::openValue,
+                showNotes = editorState.showNotes,
+                onToggleNotes = { editorState.showNotes = !editorState.showNotes },
             )
             editorState.valueDraft?.let { draft ->
                 DimensionValueDialog(
                     draft = draft,
-                    onChange = { editorState.valueDraft = it },
+                    onChange = { update -> editorState.valueDraft = editorState.valueDraft?.let(update) },
                     onConfirm = editorState::confirmValue,
                     onCancel = { editorState.valueDraft = null },
                 )
@@ -149,6 +152,8 @@ private fun SamplePhoto(
     onDimension: (DimensionPlacement.Complete) -> Unit,
     onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
+    showNotes: Boolean,
+    onToggleNotes: () -> Unit,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val hint = when (placement) {
@@ -157,6 +162,11 @@ private fun SamplePhoto(
         is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
             MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
             MeasurementState.MEASURED -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
+        }
+    }
+    val noteToggle: @Composable () -> Unit = {
+        TextButton(onClick = onToggleNotes) {
+            Text(stringResource(if (showNotes) R.string.hide_dimension_notes else R.string.show_dimension_notes))
         }
     }
     Column(modifier = modifier) {
@@ -188,6 +198,7 @@ private fun SamplePhoto(
                     ) {
                         Text(stringResource(R.string.add_dimension), maxLines = 1)
                     }
+                    noteToggle()
                     Text(
                         text = stringResource(hint),
                         style = MaterialTheme.typography.bodySmall,
@@ -204,12 +215,11 @@ private fun SamplePhoto(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                    Button(
-                        onClick = onStartDimension,
-                        enabled = placement == DimensionPlacement.Idle,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    ) {
-                        Text(stringResource(R.string.add_dimension))
+                    Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = onStartDimension, enabled = placement == DimensionPlacement.Idle) {
+                            Text(stringResource(R.string.add_dimension))
+                        }
+                        noteToggle()
                     }
                     Text(
                         text = stringResource(hint),
@@ -226,6 +236,7 @@ private fun SamplePhoto(
             update = { view ->
                 view.onDimension = onDimension
                 view.onEditValue = onEditValue
+                view.showNotes = showNotes
                 view.placement = placement
             },
         )

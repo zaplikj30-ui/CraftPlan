@@ -15,14 +15,16 @@ class DimensionInputTest {
     }
 
     @Test
-    fun clearResetsInputWithoutChangingConfirmedMeasurement() {
+    fun clearAndBackspaceCanConfirmAnUnmeasuredDimension() {
         val dimension = PhotoDimension(
             UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH, PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f),
         ).withManualLength("1/3 in")
         val draft = DimensionValueDraft(dimension)
         val cleared = editDimensionInput(TextFieldValue(draft.input, TextRange(3)), 'C')
         assertEquals(TextFieldValue(), cleared)
-        assertNull(draft.type(cleared.text).confirm(dimension))
+        assertNull(draft.type(cleared.text).confirm(dimension)!!.measurement)
+        val deleted = editDimensionInput(TextFieldValue("0", TextRange(1)), '\b')
+        assertNull(draft.type(deleted.text).confirm(dimension)!!.measurement)
         assertEquals("127/15", dimension.measurement?.length?.displayNumber(LengthUnit.MM))
     }
 
@@ -41,10 +43,10 @@ class DimensionInputTest {
         var confirmed = 0
         val hide = { hidden += 1 }
         val confirm = { confirmed += 1 }
-        handleDimensionDialogBack(imeOpen = true, hideIme = hide, confirm = confirm)
+        handleDimensionDialogBack(keyboardOpen = true, hideKeyboard = hide, confirm = confirm)
         assertEquals(1, hidden)
         assertEquals(0, confirmed)
-        handleDimensionDialogBack(imeOpen = false, hideIme = hide, confirm = confirm)
+        handleDimensionDialogBack(keyboardOpen = false, hideKeyboard = hide, confirm = confirm)
         assertEquals(1, hidden)
         assertEquals(1, confirmed)
     }

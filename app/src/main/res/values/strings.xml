@@ -24,8 +24,9 @@
     <string name="dimension_key_space">Mezera</string>
     <string name="dimension_key_reserved">Volné tlačítko</string>
     <string name="dimension_no_unit">Nic</string>
-    <string name="dimension_note">Poznámka ke kótě (na fotografii jen notýsek)</string>
-    <string name="dimension_value_required">Zadej hodnotu kóty.</string>
+    <string name="dimension_note">Poznámka ke kótě</string>
+    <string name="hide_dimension_notes">Skrýt poznámky</string>
+    <string name="show_dimension_notes">Zobrazit poznámky</string>
     <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
     <string name="cancel_value">Zrušit</string>
     <string name="confirm_value">Uložit</string>

@@ -5,10 +5,13 @@ import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.os.SystemClock
+import android.text.TextPaint
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
@@ -25,7 +28,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
         color = Color.WHITE
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 15f, resources.displayMetrics)
@@ -52,7 +55,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     private val lensBounds = RectF()
     private val lensOutline = Path()
-    private val crosshairPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val crosshairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        pathEffect = DashPathEffect(floatArrayOf(4f * density, 3f * density), 0f)
+    }
     private var dimensionDrag: DimensionDrag? = null
     private var dimensionEdit: DimensionEdit? = null
     private var dimensionSelected = false
@@ -66,7 +71,15 @@ internal class PhotoEditorView(context: Context) : View(context) {
     var onDimension: (DimensionPlacement.Complete) -> Unit = {}
     var onEditValue: (PhotoDimension) -> Unit = {}
     private var valueLabel: String? = null
+    private var labelBesideRuler = false
     private var hasNote = false
+    var showNotes = true
+        set(value) {
+            if (field == value) return
+            field = value
+            updateDimensionLabel()
+            invalidate()
+        }
     var placement: DimensionPlacement = DimensionPlacement.Idle
         set(value) {
             if (field != value) {
@@ -74,9 +87,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     dimensionSelected = true
                 }
                 field = value
-                val dimension = (value as? DimensionPlacement.Complete)?.dimension
-                valueLabel = dimension?.displayLabel()
-                hasNote = !dimension?.note.isNullOrBlank()
+                updateDimensionLabel()
                 clearDimensionGesture()
                 invalidate()
             }
@@ -119,6 +130,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        updateDimensionLabel()
         clearDimensionGesture()
         viewport.resize(width, height)
     }
@@ -210,15 +222,15 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(origin.x + axis.x / 2f, origin.y + axis.y / 2f)
         canvas.rotate(readableAngle(axis))
-        if (label == null) {
-            drawUnmeasuredMarker(canvas)
-        } else {
+        if (label == null || labelBesideRuler) drawUnmeasuredMarker(canvas)
+        if (label != null) {
             val halfWidth = labelPaint.measureText(label) / 2f + 5f * density
+            val center = labelCenter(halfWidth)
             val bottom = -5f * density
             val top = bottom - (labelPaint.descent() - labelPaint.ascent()) - 4f * density
             overlayPaint.color = WORKSPACE_COLOR
-            canvas.drawRoundRect(-halfWidth, top, halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
-            canvas.drawText(label, 0f, bottom - labelPaint.descent() - 2f * density, labelPaint)
+            canvas.drawRoundRect(center - halfWidth, top, center + halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
+            canvas.drawText(label, center, bottom - labelPaint.descent() - 2f * density, labelPaint)
         }
         if (noteIndicator) {
             // A tiny notebook marker; the note text itself stays off the photograph.
@@ -244,10 +256,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val angle = Math.toRadians(readableAngle(axis).toDouble())
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
-        val halfText = valueLabel?.let { labelPaint.measureText(it) / 2f } ?: 0f
-        val halfWidth = maxOf(24f * density, halfText + 8f * density)
         val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
-        if (along in -halfWidth..halfWidth && across in -height..12f * density) return true
+        if (across in -height..12f * density) {
+            if (along in (-24f * density)..(24f * density)) return true
+            valueLabel?.let { label ->
+                val textHalfWidth = labelPaint.measureText(label) / 2f + 5f * density
+                if (kotlin.math.abs(along - labelCenter(textHalfWidth)) <= textHalfWidth + 3f * density) return true
+            }
+        }
         if (!hasNote) return false
         val left = notebookLeft(valueLabel)
         return along in (left - 8f * density)..(left + 23f * density) &&
@@ -256,6 +272,24 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     private fun notebookLeft(label: String?): Float =
         (label?.let { labelPaint.measureText(it) / 2f } ?: 14f * density) + 10f * density
+
+    private fun labelCenter(halfWidth: Float): Float =
+        if (labelBesideRuler) 18f * density + halfWidth else 0f
+
+    private fun updateDimensionLabel() {
+        val dimension = (placement as? DimensionPlacement.Complete)?.dimension
+        val base = dimension?.displayLabel()
+        val note = dimension?.visibleNote(showNotes)?.trim()?.replace(Regex("\\s+"), " ")
+        val limit = minOf(280f * density, width * 0.65f)
+        val baseWidth = base?.let(labelPaint::measureText) ?: 0f
+        val noteLimit = limit - baseWidth - if (base == null) 18f * density else labelPaint.measureText(" ")
+        val displayNote = if (note != null && noteLimit > 0f) {
+            TextUtils.ellipsize(note, labelPaint, noteLimit, TextUtils.TruncateAt.END).toString().ifEmpty { null }
+        } else null
+        valueLabel = listOfNotNull(base, displayNote).joinToString(" ").ifEmpty { null }
+        labelBesideRuler = base == null && displayNote != null
+        hasNote = !dimension?.note.isNullOrBlank() && displayNote == null
+    }
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
         val x1 = viewport.screenX(start)
@@ -348,8 +382,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (end != null && start != end) drawDimensionLine(canvas, start, end, selected = false)
         canvas.restore()
 
-        drawCrosshair(canvas, centerX, centerY, 0x99000000.toInt(), 1.5f * density)
-        drawCrosshair(canvas, centerX, centerY, 0xCCFFFFFF.toInt(), 0.75f * density)
+        drawCrosshair(canvas, centerX, centerY, Color.BLACK, 2.4f * density)
+        drawCrosshair(canvas, centerX, centerY, Color.WHITE, 1f * density)
         canvas.restore()
 
         overlayPaint.color = Color.WHITE
@@ -363,8 +397,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         crosshairPaint.color = color
         crosshairPaint.strokeWidth = stroke
         val arm = lensBounds.width() / 2f
-        canvas.drawLine(x - arm, y, x + arm, y, crosshairPaint)
-        canvas.drawLine(x, y - arm, x, y + arm, crosshairPaint)
+        // Start each dashed arm at the exact target so the intersection stays visible.
+        canvas.drawLine(x, y, x - arm, y, crosshairPaint)
+        canvas.drawLine(x, y, x + arm, y, crosshairPaint)
+        canvas.drawLine(x, y, x, y - arm, crosshairPaint)
+        canvas.drawLine(x, y, x, y + arm, crosshairPaint)
     }
 
     private fun positionLens(
