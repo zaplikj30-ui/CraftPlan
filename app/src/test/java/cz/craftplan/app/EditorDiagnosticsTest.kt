@@ -34,6 +34,29 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun toolbarDiagnosticsSeparateWindowMissFromGripReleaseAndRespectRecording() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        val bounds = DiagnosticGripBounds(10f, 20f, 50f, 40f)
+        recorder.toolbarWindowTouch(DiagnosticTouch.DOWN, EditorPointerKind.FINGER, 25f, 25f, 1, false, bounds, 0)
+        recorder.start()
+        recorder.toolbarWindowTouch(DiagnosticTouch.DOWN, EditorPointerKind.FINGER, 60f, 25f, 1, false, bounds, 1)
+        recorder.toolbarWindowTouch(DiagnosticTouch.DOWN, EditorPointerKind.STYLUS, 25f, 25f, 1, false, bounds, 1)
+        recorder.toolbarGripStart(EditorPointerKind.STYLUS, false, 15f, 5f, 40, 20, 8f, false)
+        recorder.toolbarGripEnd(ToolbarGripOutcome.UP, 1f, -20f, 20f, false, true)
+        recorder.toolbarGripEnd(ToolbarGripOutcome.CONSUMED, 0f, 0f, 0f, true, true)
+        recorder.stop()
+        recorder.toolbarGripEnd(ToolbarGripOutcome.DOWN, 0f, 10f, 10f, true, false)
+        val report = recorder.export("local", null, "test", 36)
+        assertTrue(report.contains("toolbar_window DOWN FINGER x_px=60.0 y_px=25.0 pointers=1 canceled_flag=false state=1 in_grip=false"))
+        assertTrue(report.contains("toolbar_window DOWN STYLUS x_px=25.0 y_px=25.0 pointers=1 canceled_flag=false state=1 in_grip=true"))
+        assertTrue(report.contains("toolbar_grip START STYLUS"))
+        assertTrue(report.contains("toolbar_grip END UP dx_px=1.0 dy_px=-20.0 max_travel_px=20.0 before=false after=true changed=true"))
+        assertTrue(report.contains("toolbar_grip END CONSUMED"))
+        assertFalse(report.contains("toolbar_grip END DOWN"))
+        assertFalse(report.contains("state=0 in_grip=true"))
+    }
+
+    @Test
     fun limitsDurationCapacityAndMovementSamplingAndResets() {
         var now = 0L
         val recorder = EditorDiagnostics(now = { now }, capacity = 3, durationLimitNs = 100_000_000)

@@ -40,7 +40,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -93,7 +96,12 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
         modifier.size(
             width = if (side) 9.dp + gripSideOuterHitPadding else 160.dp,
             height = if (side) 74.dp else 9.dp + gripTopOuterHitPadding,
-        ).semantics {
+        ).onGloballyPositioned { coordinates ->
+            if (BuildConfig.ENABLE_STRESS_TOOLS) {
+                val bounds = coordinates.boundsInWindow()
+                state.diagnosticGripBounds = DiagnosticGripBounds(bounds.left, bounds.top, bounds.right, bounds.bottom)
+            }
+        }.semantics {
             contentDescription = handleLabel
             role = Role.Button
             onClick {
@@ -107,20 +115,47 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
                 down.consume()
                 val expanded = state.toolbarExtraExpanded
                 val threshold = viewConfiguration.touchSlop
+                val input = when (down.type) {
+                    PointerType.Touch -> EditorPointerKind.FINGER
+                    PointerType.Stylus -> EditorPointerKind.STYLUS
+                    PointerType.Eraser -> EditorPointerKind.ERASER
+                    PointerType.Mouse -> EditorPointerKind.MOUSE
+                    else -> EditorPointerKind.OTHER
+                }
+                state.diagnostics.toolbarGripStart(input, side, down.position.x, down.position.y,
+                    size.width, size.height, threshold, expanded)
+                var dx = 0f
+                var dy = 0f
                 var maxTravel = 0f
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    // A cancelled/consumed gesture or a second pointer must not toggle the toolbar.
-                    if (change.isConsumed || event.changes.any { it.id != down.id && it.pressed }) break
-                    val dx = change.position.x - down.position.x
-                    val dy = change.position.y - down.position.y
-                    maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
-                    change.consume()
-                    if (!change.pressed) {
-                        state.setToolbarExtraExpansion(toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold))
-                        break
+                var reason = ToolbarGripOutcome.STREAM_CANCELED
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null) {
+                            reason = ToolbarGripOutcome.POINTER_MISSING
+                            break
+                        }
+                        if (change.isConsumed) {
+                            reason = ToolbarGripOutcome.CONSUMED
+                            break
+                        }
+                        if (event.changes.any { it.id != down.id && it.pressed }) {
+                            reason = ToolbarGripOutcome.MULTI_POINTER
+                            break
+                        }
+                        dx = change.position.x - down.position.x
+                        dy = change.position.y - down.position.y
+                        maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
+                        change.consume()
+                        if (!change.pressed) {
+                            reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold)
+                            state.setToolbarExtraExpansion(toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold))
+                            break
+                        }
                     }
+                } finally {
+                    state.diagnostics.toolbarGripEnd(reason, dx, dy, maxTravel, expanded, state.toolbarExtraExpanded)
                 }
             }
         },

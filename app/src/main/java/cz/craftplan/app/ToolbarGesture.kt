@@ -28,14 +28,28 @@ internal fun toolbarHorizontalExpansionAfterDrag(
 }
 
 
-/** A tap toggles; a vertical drag sets the state once on release. Travel beyond slop is never a tap. */
-internal fun toolbarGripAfterRelease(expanded: Boolean, dx: Float, dy: Float, maxTravel: Float, threshold: Float): Boolean {
-    if (!dx.isFinite() || !dy.isFinite() || !maxTravel.isFinite() || maxTravel < 0f ||
-        !threshold.isFinite() || threshold <= 0f) return expanded
-    if (maxOf(abs(dx), abs(dy), maxTravel) < threshold) return !expanded
-    if (abs(dy) < threshold || abs(dy) <= abs(dx)) return expanded
-    return toolbarExpansionAfterDrag(expanded, -dy, threshold)
+internal enum class ToolbarGripOutcome {
+    TAP, UP, DOWN, BELOW_VERTICAL_THRESHOLD, NON_VERTICAL, INVALID,
+    POINTER_MISSING, CONSUMED, MULTI_POINTER, STREAM_CANCELED,
 }
+
+internal fun toolbarGripReleaseReason(dx: Float, dy: Float, maxTravel: Float, threshold: Float): ToolbarGripOutcome {
+    if (!dx.isFinite() || !dy.isFinite() || !maxTravel.isFinite() || maxTravel < 0f ||
+        !threshold.isFinite() || threshold <= 0f) return ToolbarGripOutcome.INVALID
+    if (maxOf(abs(dx), abs(dy), maxTravel) < threshold) return ToolbarGripOutcome.TAP
+    if (abs(dy) < threshold) return ToolbarGripOutcome.BELOW_VERTICAL_THRESHOLD
+    if (abs(dy) <= abs(dx)) return ToolbarGripOutcome.NON_VERTICAL
+    return if (dy < 0f) ToolbarGripOutcome.UP else ToolbarGripOutcome.DOWN
+}
+
+/** Same release policy; the diagnostic reason is also the source of the decision. */
+internal fun toolbarGripAfterRelease(expanded: Boolean, dx: Float, dy: Float, maxTravel: Float, threshold: Float): Boolean =
+    when (toolbarGripReleaseReason(dx, dy, maxTravel, threshold)) {
+        ToolbarGripOutcome.TAP -> !expanded
+        ToolbarGripOutcome.UP -> true
+        ToolbarGripOutcome.DOWN -> false
+        else -> expanded
+    }
 
 /** Restore the window center inside a layout already padded by the safe drawing insets. */
 internal fun toolbarHintCenterOffset(leftInset: Dp, rightInset: Dp): Dp = (rightInset - leftInset) / 2

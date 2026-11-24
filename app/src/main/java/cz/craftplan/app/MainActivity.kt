@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.view.Window
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         editorState.restorePreferences(getSharedPreferences("editor_preferences", MODE_PRIVATE))
+        editorState.diagnosticGripBounds = null
         enableEdgeToEdge()
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
@@ -67,6 +69,36 @@ class MainActivity : ComponentActivity() {
                 CraftPlan(editorState, window)
             }
         }
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // Observe only; the normal Android/Compose dispatch and return value stay untouched.
+        if (BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnostics.recording) {
+            val kind = when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> DiagnosticTouch.DOWN
+                MotionEvent.ACTION_UP -> DiagnosticTouch.UP
+                MotionEvent.ACTION_POINTER_DOWN -> DiagnosticTouch.POINTER_DOWN
+                MotionEvent.ACTION_POINTER_UP -> DiagnosticTouch.POINTER_UP
+                MotionEvent.ACTION_CANCEL -> DiagnosticTouch.CANCEL
+                else -> null
+            }
+            val index = event.actionIndex
+            if (kind != null && index in 0 until event.pointerCount) {
+                val input = when (event.getToolType(index)) {
+                    MotionEvent.TOOL_TYPE_FINGER -> EditorPointerKind.FINGER
+                    MotionEvent.TOOL_TYPE_STYLUS -> EditorPointerKind.STYLUS
+                    MotionEvent.TOOL_TYPE_ERASER -> EditorPointerKind.ERASER
+                    MotionEvent.TOOL_TYPE_MOUSE -> EditorPointerKind.MOUSE
+                    else -> EditorPointerKind.OTHER
+                }
+                editorState.diagnostics.toolbarWindowTouch(
+                    kind, input, event.getX(index), event.getY(index), event.pointerCount,
+                    event.flags and MotionEvent.FLAG_CANCELED != 0, editorState.diagnosticGripBounds,
+                    (if (editorState.toolbarExpanded) 1 else 0) + (if (editorState.toolbarExtraExpanded) 2 else 0),
+                )
+            }
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     override fun onStop() {
@@ -92,6 +124,7 @@ internal class PhotoEditorState : ViewModel() {
     var history by mutableStateOf(DimensionHistory())
         private set
     val diagnostics = EditorDiagnostics()
+    var diagnosticGripBounds: DiagnosticGripBounds? = null
     var diagnosticsEnabled by mutableStateOf(false)
         private set
     var diagnosticsRecording by mutableStateOf(false)
@@ -302,6 +335,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     val closePhoto = {
         editorState.cancelStressGeneration()
         editorState.stopDiagnostics()
+        editorState.diagnosticGripBounds = null
         editorState.scene = editorState.scene.closePhoto()
         photoOpen = false
     }

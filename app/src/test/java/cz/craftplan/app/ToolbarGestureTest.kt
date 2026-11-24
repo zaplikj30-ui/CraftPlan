@@ -25,6 +25,15 @@ class ToolbarGestureTest {
         }
     }
 
+    @Test fun gripReleaseReasonExplainsTheExistingDecision() {
+        assertEquals(ToolbarGripOutcome.TAP, toolbarGripReleaseReason(0f, 0f, 0f, 8f))
+        assertEquals(ToolbarGripOutcome.UP, toolbarGripReleaseReason(2f, -8f, 8f, 8f))
+        assertEquals(ToolbarGripOutcome.DOWN, toolbarGripReleaseReason(2f, 8f, 8f, 8f))
+        assertEquals(ToolbarGripOutcome.BELOW_VERTICAL_THRESHOLD, toolbarGripReleaseReason(0f, 0f, 20f, 8f))
+        assertEquals(ToolbarGripOutcome.NON_VERTICAL, toolbarGripReleaseReason(9f, -9f, 9f, 8f))
+        assertEquals(ToolbarGripOutcome.INVALID, toolbarGripReleaseReason(0f, Float.NaN, 20f, 8f))
+    }
+
     @Test fun horizontalDragCollapsesBothRowsAndPreservesExtraOnExpansion() {
         for (expanded in listOf(false, true)) {
             for (extra in listOf(false, true)) {

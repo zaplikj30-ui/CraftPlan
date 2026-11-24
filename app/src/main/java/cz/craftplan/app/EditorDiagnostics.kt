@@ -10,6 +10,10 @@ internal enum class DiagnosticAction {
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
 
+internal data class DiagnosticGripBounds(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y >= top && y < bottom
+}
+
 /** Main-thread recorder for the synthetic editor. Its schema cannot carry measurement text or photos. */
 internal class EditorDiagnostics(
     private val now: () -> Long = System::nanoTime,
@@ -124,6 +128,33 @@ internal class EditorDiagnostics(
             " width_px=$width height_px=$height landscape=$landscape canceled_flag=$canceled dispatch_delay_ms=$dispatchDelayMs")
     }
 
+    // Window coordinates are separate from the AndroidView/editor-local touch stream.
+    fun toolbarWindowTouch(
+        kind: DiagnosticTouch, input: EditorPointerKind, x: Float, y: Float,
+        pointers: Int, canceled: Boolean, bounds: DiagnosticGripBounds?, toolbarState: Int,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "toolbar_window ${kind.name} ${input.name} x_px=$x y_px=$y pointers=$pointers" +
+            " canceled_flag=$canceled state=$toolbarState in_grip=${bounds?.contains(x, y) ?: "NA"}" +
+            " grip_bounds_px=${bounds?.let { "${it.left},${it.top},${it.right},${it.bottom}" } ?: "NA"}")
+    }
+
+    fun toolbarGripStart(input: EditorPointerKind, side: Boolean, x: Float, y: Float,
+        width: Int, height: Int, threshold: Float, expanded: Boolean,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "toolbar_grip START ${input.name} side=$side x_local_px=$x y_local_px=$y" +
+            " width_px=$width height_px=$height threshold_px=$threshold expanded=$expanded")
+    }
+
+    fun toolbarGripEnd(reason: ToolbarGripOutcome, dx: Float, dy: Float, maxTravel: Float,
+        expandedBefore: Boolean, expandedAfter: Boolean,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "toolbar_grip END ${reason.name} dx_px=$dx dy_px=$dy max_travel_px=$maxTravel" +
+            " before=$expandedBefore after=$expandedAfter changed=${expandedBefore != expandedAfter}")
+    }
+
     fun frameListener(available: Boolean) {
         if (recording) frameListenerAvailable = available
     }
@@ -185,6 +216,7 @@ internal class EditorDiagnostics(
         append(summary(version, build, device, sdk))
         appendLine("time=monotonic ms since Start; touch coordinates=editor px; edit start detail=drag threshold px; edit span and release detail=px")
         appendLine("hit-test detail=elapsed ns; generate detail=start count or applied elapsed ns; scene/pinch detail=count; tool detail=0 select/1 single/2 repeat; notes, lock, landscape detail=0/1; toolbar detail=0-3 (bit 0 horizontal, bit 1 vertical)")
+        appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip=measured bounds only; toolbar_grip: local px, release or cancellation reason; OS-intercepted touches may be absent")
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
