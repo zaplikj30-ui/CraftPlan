@@ -177,7 +177,7 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 | Posouvání symbolu metru před zadáním hodnoty | PASS. |
 | Undo/Redo po změnách | PASS v rozsahu praktického testování vlastníka. |
 | Otočení telefonu na výšku a šířku | PASS v rozsahu praktického testování vlastníka. |
-| Zátěž syntetických kót | DÍLČÍ FYZICKÝ TEST: 104, 1 004 a 5 004 celkem; při 5 004 pozorováno mírné trhání. Podrobné metriky a omezení v §3.8; 500 a 10 000 samostatně neprokázány. |
+| Zátěž syntetických kót | DÍLČÍ FYZICKÝ TEST: 104, 1 004 a 5 004 celkem; při 5 004 pozorováno mírné trhání. Doplněn fyzický test 10 005 celkem se zřetelným zpomalením; viz §3.8. Dávka 500 samostatně neprokázána. |
 
 **Schválené doladění pro další implementační krok (bez GO k implementaci tímto zápisem):**
 
@@ -211,7 +211,11 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 | Maximum CPU kreslení | 4,29 ms | 94,35 ms |
 | Maximum hit-testu | 3,27 ms | 7,14 ms |
 
-Jde o jednotlivé odečty maxima, nikoli stabilní FPS, percentily, přesný benchmark či důkaz konkrétní příčiny všech prodlev. Výsledky naznačují, že kreslení stojí za cílené měření; 500/10 000 jako samostatné dávky, slabší zařízení a více velkých fotografií zatím NOT RUN. Tisíce kót na jedné fotografii jsou zátěžová rezerva, nikoli běžný pracovní požadavek. Velký počet uložených kót v celé databázi se nesmí zaměňovat s počtem aktivně zpracovávaných objektů otevřené fotografie.
+Jde o jednotlivé odečty maxima, nikoli stabilní FPS, percentily, přesný benchmark či důkaz konkrétní příčiny všech prodlev. Výsledky naznačují, že kreslení stojí za cílené měření; Samostatná dávka 500, slabší zařízení a více velkých fotografií zatím NOT RUN. Test 10 000 generovaných kót doplněn níže. Tisíce kót na jedné fotografii jsou zátěžová rezerva, nikoli běžný pracovní požadavek. Velký počet uložených kót v celé databázi se nesmí zaměňovat s počtem aktivně zpracovávaných objektů otevřené fotografie.
+
+**Doplněný fyzický test 10 000 generovaných kót, sestavení 45 (24. 11. 2026):** video vlastníka 1000095784.mp4 (75 s, odečet přibližně v 44. a 64. sekundě; video samotné se do veřejného repozitáře neukládá). Celkem 10 005 objektů (10 000 generovaných + 5 ručních). Při posunu a zoomu zřetelné zpomalení. Generování 40,44 ms, maximum přípravy scény na UI vlákně 107,36 ms, maximum CPU kreslení 8 080,55 ms (první odečet 50 měření), maximum detekce dotyku 56,91 ms (10 měření), maximum intervalu kreslení při dotyku včetně pauz 647,52 ms (33 nad 50 ms). Java heap ve dvou odečtech 20,2 a 12,9 MiB. Maximum CPU kreslení je mimořádná hodnota: ověřit instrumentaci, okolnosti a reprodukovatelnost, nezaměňovat za obvyklý čas snímku, GPU čas či FPS. Intervaly obsahují pauzy a nejsou počtem prokazatelně ztracených snímků. Hodnoty Java heap nejsou celková paměť ani důkaz úspory paměti.
+
+Vlastník vyzkoušel přepínání oka (zobrazení/skrytí poznámek) při stejném počtu kót. Ve videu se mění vizuální podoba, ale zaznamenaná maxima zahrnují předchozí měření; nezávislý reset a srovnatelná série gest pro každý režim chybí. Vliv poznámek na výkon proto kvantitativně NEPROKÁZÁN. V nové diagnostice ověřit zvlášť oba režimy se stejnou scénou, zoomem a pohybem, resetem před každou sérií, počtem skutečně vykreslených prvků a časy snímků. Skrytí nesmí měnit data, přesnost ani poznámky. Dosavadní test 10 000 je provedený zátěžový scénář s nálezem, nikoli PASS plynulosti; stačí jako výchozí podklad dalšího kroku. Opakování až po cílené změně měření/optimalizaci. Žádný důkaz výkonu na slabších zařízeních, bezpečné persistence ani obnovy.
 
 **Schválený směr dalšího kroku:**
 - Na slabších telefonech/tabletech zachovat použitelnost. Jednoduché optimalizace zavádět podle měření: konzervativně vynechávat kreslení neviditelných objektů (včetně zvlášť posuzovaných popisků a úchopů), omezit opakované výpočty a alokace během gest; hit-test zrychlovat jen podle důkazů, bez změny schválených pravidel výběru. Zátěžová data, geometrie, přesné hodnoty a historie nesmějí optimalizací mizet.
