@@ -100,8 +100,9 @@ internal class DimensionValueDraft private constructor(
         )
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
-        if (newUnit == unit && showUnit) return this
-        if (newUnit == unit) return withUnitVisibility(true)
+        if (newUnit == unit && showUnit && (keepNumber || unchangedEntry != null)) return this
+        if (newUnit == unit && !showUnit) return withUnitVisibility(true)
+        // Selecting the already visible unit still converts a newly typed explicit unit.
         if (keepNumber) {
             // Conflicting explicit suffixes must be fixed by the user.
             return DimensionValueDraft(target, input, newUnit, null, true, note, true)

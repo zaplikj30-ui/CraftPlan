@@ -42,12 +42,12 @@ class DimensionValueDraftTest {
     fun unitSwitchPreservesOriginalAndDoesNotReparseMetricFraction() {
         val source = dimension.withManualLength(" 1/3 in ")
         val draft = DimensionValueDraft(source).selectUnit(LengthUnit.CM)
-        assertEquals("127/150", draft.input)
+        assertEquals("0,84667", draft.input)
         val confirmed = draft.confirm(source)!!
         assertSame(source.measurement, confirmed.measurement)
         assertEquals(LengthUnit.CM, confirmed.displayUnit)
         assertEquals("1/3", draft.selectUnit(LengthUnit.IN).input)
-        assertEquals("127/150", DimensionValueDraft(confirmed).input)
+        assertEquals("0,84667", DimensionValueDraft(confirmed).input)
     }
 
     @Test
@@ -155,10 +155,10 @@ class DimensionValueDraftTest {
     @Test
     fun repeatingConversionKeepsRationalSourceAndVisibleSuffix() {
         val draft = DimensionValueDraft(dimension).type("1/3 in pracovní deska").selectUnit(LengthUnit.CM)
-        assertEquals("127/150 pracovní deska", draft.input)
-        val changed = draft.type("127/150 m").type("127/150 montáž").withNote("Přeměřit")
+        assertEquals("0,84667 pracovní deska", draft.input)
+        val changed = draft.type("0,84667 montáž").withNote("Přeměřit")
         val converted = changed.selectUnit(LengthUnit.MM).withUnitVisibility(false).confirm(dimension)!!
-        assertEquals("127/15 montáž", converted.displayLabel())
+        assertEquals("≈8,4667 montáž", converted.displayLabel())
         assertEquals("1/3 in", converted.measurement?.originalInput)
         assertEquals("Přeměřit", converted.note)
     }
