@@ -33,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -139,7 +138,6 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val sideGrip = !expanded && !verticalExpanded
-    val currentExpanded by rememberUpdatedState(expanded)
     val scrollState = rememberScrollState()
     val tool = state.scene.tool
     val repeat = tool == DimensionTool.REPEAT
@@ -196,7 +194,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                             detectHorizontalDragGestures(
                                 onDragStart = { motion = 0f },
                                 onDragEnd = {
-                                    state.setToolbarExpansion(toolbarExpansionAfterDrag(currentExpanded, motion, 4.dp.toPx()))
+                                    state.applyToolbarHorizontalDrag(motion, 4.dp.toPx())
                                 },
                             ) { change, delta ->
                                 motion += delta

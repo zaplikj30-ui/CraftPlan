@@ -3,14 +3,29 @@ package cz.craftplan.app
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
 
-/** Delta is positive in the expansion direction. The platform already applies touch slop. */
-internal fun toolbarExpansionAfterDrag(expanded: Boolean, delta: Float, threshold: Float): Boolean =
+private fun toolbarDragIntent(delta: Float, threshold: Float): Boolean? =
     when {
-        !delta.isFinite() || !threshold.isFinite() || threshold <= 0f -> expanded
+        !delta.isFinite() || !threshold.isFinite() || threshold <= 0f -> null
         delta >= threshold -> true
         delta <= -threshold -> false
-        else -> expanded
+        else -> null
     }
+
+/** Delta is positive in the expansion direction. The platform already applies touch slop. */
+internal fun toolbarExpansionAfterDrag(expanded: Boolean, delta: Float, threshold: Float): Boolean =
+    toolbarDragIntent(delta, threshold) ?: expanded
+
+/** A left drag collapses both rows; a right drag opens only the horizontal row. */
+internal fun toolbarHorizontalExpansionAfterDrag(
+    expanded: Boolean,
+    extraExpanded: Boolean,
+    delta: Float,
+    threshold: Float,
+): Pair<Boolean, Boolean> = when (toolbarDragIntent(delta, threshold)) {
+    true -> true to extraExpanded
+    false -> false to false
+    null -> expanded to extraExpanded
+}
 
 
 /** A tap toggles; a vertical drag sets the state once on release. Travel beyond slop is never a tap. */

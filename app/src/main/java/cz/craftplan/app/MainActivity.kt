@@ -189,11 +189,18 @@ internal class PhotoEditorState : ViewModel() {
         )
     }
 
-    fun setToolbarExpansion(expanded: Boolean) {
-        if (toolbarExpanded == expanded) return
+    fun applyToolbarHorizontalDrag(delta: Float, threshold: Float) {
+        val (expanded, extraExpanded) = toolbarHorizontalExpansionAfterDrag(
+            toolbarExpanded, toolbarExtraExpanded, delta, threshold,
+        )
+        if (toolbarExpanded == expanded && toolbarExtraExpanded == extraExpanded) return
         toolbarExpanded = expanded
+        toolbarExtraExpanded = extraExpanded
         recordToolbarState()
-        preferences?.edit()?.putBoolean("toolbar_expanded", expanded)?.apply()
+        preferences?.edit()
+            ?.putBoolean("toolbar_expanded", expanded)
+            ?.putBoolean("toolbar_extra_expanded", extraExpanded)
+            ?.apply()
     }
 
     fun setToolbarExtraExpansion(expanded: Boolean) {

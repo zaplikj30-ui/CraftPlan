@@ -25,6 +25,21 @@ class ToolbarGestureTest {
         }
     }
 
+    @Test fun horizontalDragCollapsesBothRowsAndPreservesExtraOnExpansion() {
+        for (expanded in listOf(false, true)) {
+            for (extra in listOf(false, true)) {
+                assertEquals(false to false, toolbarHorizontalExpansionAfterDrag(expanded, extra, -4f, 4f))
+                assertEquals(true to extra, toolbarHorizontalExpansionAfterDrag(expanded, extra, 4f, 4f))
+                for (delta in listOf(-3f, 0f, 3f, Float.NaN, Float.POSITIVE_INFINITY)) {
+                    assertEquals(expanded to extra, toolbarHorizontalExpansionAfterDrag(expanded, extra, delta, 4f))
+                }
+                for (threshold in listOf(0f, -4f, Float.NaN, Float.POSITIVE_INFINITY)) {
+                    assertEquals(expanded to extra, toolbarHorizontalExpansionAfterDrag(expanded, extra, -5f, threshold))
+                }
+            }
+        }
+    }
+
     @Test fun expansionAndCollapseAreDirectionalAndIdempotent() {
         for (current in listOf(false, true)) {
             assertEquals(true, toolbarExpansionAfterDrag(current, 5f, 4f))
