@@ -55,8 +55,8 @@ import kotlin.math.abs
 
 private val toolbarShape = RoundedCornerShape(8.dp)
 private val toolbarIconSize = 28.dp
-private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 52.dp)
-private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 52.dp)
+private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
+private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 56.dp)
 private val gripTopOuterHitPadding = 18.dp
 private val gripSideOuterHitPadding = 23.dp
 
@@ -92,7 +92,7 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
     Box(
         modifier.size(
             width = if (side) 9.dp + gripSideOuterHitPadding else 160.dp,
-            height = if (side) 66.dp else 9.dp + gripTopOuterHitPadding,
+            height = if (side) 74.dp else 9.dp + gripTopOuterHitPadding,
         ).semantics {
             contentDescription = handleLabel
             role = Role.Button
@@ -127,11 +127,11 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
         contentAlignment = if (side) Alignment.CenterStart else Alignment.BottomCenter,
     ) {
         Box(
-            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 62.dp else 9.dp)
+            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 70.dp else 9.dp)
                 .background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 56.dp else 4.dp)
+            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 64.dp else 4.dp)
                 .background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
         }
     }
@@ -157,7 +157,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
             tonalElevation = 4.dp,
         ) {
             Column(
-                modifier = Modifier.padding(top = 9.dp, bottom = 5.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
+                modifier = Modifier.padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
@@ -346,7 +346,7 @@ private fun ReservedToolbarActions() {
         TextButton(
             onClick = {},
             enabled = false,
-            modifier = Modifier.size(width = 96.dp, height = 52.dp)
+            modifier = Modifier.size(width = 96.dp, height = 56.dp)
                 .semantics { contentDescription = description },
             contentPadding = PaddingValues(horizontal = 4.dp),
         ) {
