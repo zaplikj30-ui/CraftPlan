@@ -130,6 +130,26 @@ Referenční produkty pro další ověření: [ImageMeter](https://imagemeter.co
 
 **Stav:** návrhový katalog uložen, nové funkce NEIMPLEMENTOVÁNY, nové testy NOT RUN. Nejprve pokračovat podle aktuálního plánu M1 a bezpečného uložení/obnovy; rozšíření vybírat po malých schválených krocích.
 
+### 3.6 Doplnění po porovnání My Measures PRO, REEKON BOLDR a STABILA Measures II (24. 11. 2026)
+
+**Vlastník schválil evidenci nových možností, nikoli jejich automatickou implementaci.** Porovnání veřejně popsaných funkcí s PR #1 (katalog, registr nedořešených nápadů, inventura, F01–F05 a laserový návrh) a PR #4. Samotné instalační balíčky konkurence nebyly dostupné k analýze; funkce nejsou fyzicky ověřeny v konkurenčních aplikacích. Zachovat již schválené požadavky a jejich ID, nezakládat duplicitní F požadavky.
+
+| Rozšíření k budoucímu rozhodnutí | Návaznost a hranice |
+|---|---|
+| Geometrické výpočty přímo z vybraných kót: rozdíl, násobení, plocha, objem, pravoúhlý trojúhelník (přepona či chybějící strana), úhly | Rozšíření F11, který už schvaluje přesný součet a vytvoření nové kóty. Výsledky a jednotky podle veličiny; samostatný odvozený údaj se zdroji, bez přepsání ručního/laserového měření. Nezaměňovat symboly numerické klávesnice za schválený výpočet. |
+| Vlastní strukturované měřicí formuláře a opakovaně použitelné šablony zaměření (např. kuchyně, skříň, okna, dveře) | Návaznost F08, F35 a F12; šablony zakázek a rozsáhlý průvodce zaměřením byly odloženy. Nová možnost: pojmenovaná pole pro konkrétní míry, poznámky, fotky a stav vyplnění. Formulář nesmí být povinný pro Rychlá zaměření. Podoba, vlastní tvorba a verze šablon otevřené. |
+| Vlastní řemeslnické kalkulačky a vzorce | Návaznost F11/F24. Zatím pouze možnost; měřicí výpočty oddělit od cenové a výrobní kalkulace Konfigurátoru–Nářezáku. Kontrola rozměrových jednotek, neplatných vstupů, zaokrouhlení a zdrojových údajů; žádné tiché přepisování dat ani spouštění libovolného kódu. |
+| Automatická tvorba půdorysu z postupných laserových měření stěn | Návaznost F03/F04/F05; nezaměňovat délky za úplnou geometrii: potřebné směry/úhly, pořadí a další podklady musí být známé nebo potvrzené. Nevnucovat 90° a automaticky nepřestavovat existující půdorys; kontrola uzavření a rozporů, ruční oprava, zachování skutečných hodnot. |
+| Rozpoznávání ručně kreslených tvarů (kruh, obdélník a další schválené typy) | Rozšíření F04/F10 a J3/UX-93; jde o nabídku geometrického tvaru, nikoli automatický výpočet skutečných fyzických rozměrů. Zachovat ruční kreslení, možnost odmítnutí a Undo/Redo. |
+| Export výřezu fotografie (aktuální zobrazení nebo vědomě vybraná oblast) | Doplněk F29/F37 a exportního UX; samostatná volitelná akce, běžný export celých snímků zůstává beze změny. Náhled skutečného výřezu, čitelnost kót, ochrana skrytých poznámek, neměnit originál ani uloženou geometrii. |
+| Připínání důležitých fotografií, půdorysů, poznámek či dokumentů uvnitř zakázky | Návaznost F08/F15, odlišné od již schválených zástupců na ploše F08/F12. Pouze odkaz na stabilní ID, ne kopie dat; při přesunu/koši bezpečné chování, volba pořadí a odebrání připnutí otevřené. |
+
+**Bez duplicity:** F11 součet kót; F03 vzdálené spuštění laseru podle podpory přístroje a historie měření; F04 narovnání stěn/magnet; F05/F07 fotografie a půdorys; F08 zakázky; J7 offline práce, J11/B2 budoucí synchronizace, J12 offline nápověda; UX-82 editovatelný export, UX-89 volitelné zahrnutí skrytých poznámek do PDF; §3.3–3.5 úchopy, magnety, geometrické nástroje. Optimalizace nářezů zůstává v samostatném Konfigurátoru–Nářezáku dle D10/F22–F25, nikoli nová povinnost M1.
+
+**Orientační návrh priority po dokončení bezpečného základu:** výpočty z kót, strukturované formuláře a laserový půdorys vysoký potenciální přínos; vlastní vzorce, export výřezu a připnutí dokumentů střední; rozpoznávání tvarů později. Nejde o závaznou změnu etap ani schválenou prioritu vlastníka.
+
+Reference: [My Measures](https://mymeasuresapp.com/), [REEKON BOLDR](https://www.reekon.tools/), [STABILA](https://www.stabila.com/). Při konkrétním zadání znovu ověřit dokumentované chování, dostupnost a podmínky. Nezavádět cizí kód či závislosti. **Stav nových možností: EVIDOVÁNO / OTEVŘENO, NEIMPLEMENTOVÁNO, NOT RUN.** Nadále chránit přesnost, identity, revize, média, soukromí a bezpečné uložení podle PR #3/#6.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.

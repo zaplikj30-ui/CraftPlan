@@ -464,6 +464,10 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **Potvrzený požadavek vlastníka na evidenci:** uložit výsledky rozšířené rešerše kótování, výběru, magnetů, vedení kreslení, kótovacích typů, vazeb, kalibrace a přiřazování naměřených hodnot pro případné budoucí doplnění. Úplný katalog a bezpečnostní hranice jsou v [UX kontraktu kóty, oddíl 3.5](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#35-katalog-osvědčených-možností-kótování-přesného-kreslení-a-úprav-24-11-2026). Nové možnosti jsou otevřené, nejde o automatický souhlas s jejich implementací; dříve schválené požadavky zůstávají v platnosti. Žádné nové testovací výsledky ani změna etap.
 
+## Doplnění po porovnání dalších zaměřovacích aplikací – 24. 11. 2026
+
+**Potvrzeno k evidenci vlastníkem:** [UX kontrakt kóty, oddíl 3.6](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md) uchovává nové možnosti z rešerše My Measures PRO, REEKON BOLDR a STABILA Measures II: geometrické výpočty, vlastní formuláře/šablony a vzorce, laserový půdorys, rozpoznávání tvarů, export výřezu a připínání dokumentů. Odkazuje na existující F/J/UX požadavky, nezavádí duplicitní funkce ani nemění etapy; nářezák zůstává samostatný. Nové možnosti jsou otevřené, bez GO k implementaci a bez testů.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
