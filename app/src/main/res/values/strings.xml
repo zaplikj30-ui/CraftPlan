@@ -12,6 +12,9 @@
     <string name="toolbar_tools">Nabídka nástrojů</string>
     <string name="toolbar_expand">Rozbalit lištu</string>
     <string name="toolbar_collapse">Sbalit lištu</string>
+    <string name="toolbar_horizontal_gesture">Nástroje – tahem doprava rozbalit, doleva sbalit</string>
+    <string name="toolbar_fit">Přizpůsobit zobrazení</string>
+    <string name="toolbar_deselect">Ukončit kreslení a odznačit kótu</string>
     <string name="toolbar_repeat_on">Zapnout opakování</string>
     <string name="toolbar_repeat_off">Vypnout opakování</string>
     <string name="toolbar_repeat_active">Opakování zapnuto</string>

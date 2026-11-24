@@ -4,12 +4,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -17,6 +21,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -40,29 +46,28 @@ import androidx.compose.ui.unit.dp
 internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifier) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
+    val verticalExpanded = state.toolbarExtraExpanded
     val currentExpanded by rememberUpdatedState(expanded)
+    val currentVertical by rememberUpdatedState(verticalExpanded)
+    val scrollState = rememberScrollState()
     val tool = state.scene.tool
     val repeat = tool == DimensionTool.REPEAT
     val activeColors = MaterialTheme.colorScheme
-    val handleLabel = stringResource(if (expanded) R.string.toolbar_collapse else R.string.toolbar_expand)
+    val handleLabel = stringResource(if (verticalExpanded) R.string.toolbar_collapse else R.string.toolbar_expand)
+    val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
-    Surface(modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
+    Surface(if (expanded || verticalExpanded) modifier.fillMaxWidth() else modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier.size(width = 64.dp, height = 24.dp)
                     .semantics { contentDescription = handleLabel }
-                    .clickable(role = Role.Button) { state.setToolbarExpansion(!state.toolbarExpanded) }
+                    .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
                     .pointerInput(state) {
                         var motion = 0f
                         detectVerticalDragGestures(
                             onDragStart = { motion = 0f },
                             onDragEnd = {
-                                val threshold = 10.dp.toPx()
-                                state.setToolbarExpansion(when {
-                                    motion < -threshold -> true
-                                    motion > threshold -> false
-                                    else -> currentExpanded
-                                })
+                                state.setToolbarExtraExpansion(toolbarExpansionAfterDrag(currentVertical, -motion, 4.dp.toPx()))
                             },
                         ) { change, delta ->
                             motion += delta
@@ -73,6 +78,26 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
             ) {
                 Box(Modifier.size(32.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
             }
+            if (verticalExpanded) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = state::requestFit) {
+                        Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit))
+                    }
+                    IconButton(onClick = { state.showNotes = !state.showNotes }) {
+                        Icon(
+                            painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
+                            stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
+                        )
+                    }
+                    IconButton(
+                        enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
+                        onClick = { state.scene = state.scene.closePhoto() },
+                    ) {
+                        Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect))
+                    }
+                }
+            }
             if (repeat || tool == DimensionTool.SINGLE) {
                 Text(
                     stringResource(if (repeat) R.string.toolbar_repeat_active else R.string.drag_dimension_short),
@@ -81,8 +106,25 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.Start,
             ) {
+                Row(
+                    Modifier.pointerInput(state) {
+                        var motion = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { motion = 0f },
+                            onDragEnd = {
+                                state.setToolbarExpansion(toolbarExpansionAfterDrag(currentExpanded, motion, 4.dp.toPx()))
+                            },
+                        ) { change, delta ->
+                            motion += delta
+                            change.consume()
+                        }
+                    }.semantics {
+                        contentDescription = fixedToolsLabel
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools))
@@ -102,7 +144,7 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                 val toolBackground = when (tool) {
                     DimensionTool.REPEAT -> activeColors.primary
                     DimensionTool.SINGLE -> activeColors.primaryContainer
-                    DimensionTool.SELECT -> activeColors.surface
+                    DimensionTool.SELECT -> Color.Transparent
                 }
                 Box(
                     Modifier.size(48.dp)
@@ -121,8 +163,10 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
                     )
                 }
+                }
                 if (expanded) {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
+                    Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
                         ToolbarAction("↶", R.string.toolbar_undo, state.history.canUndo, state::undo)
                         ToolbarAction("↷", R.string.toolbar_redo, state.history.canRedo, state::redo)
                         IconButton(
@@ -136,9 +180,13 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         IconToggleButton(
                             checked = locked,
                             onCheckedChange = { state.toggleLabelLock() },
-                            modifier = Modifier
-                                .background(if (locked) activeColors.primaryContainer else activeColors.surface, RoundedCornerShape(8.dp))
-                                .semantics { contentDescription = lockLabel },
+                            colors = IconButtonDefaults.iconToggleButtonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = activeColors.onSurface,
+                                checkedContainerColor = activeColors.primaryContainer,
+                                checkedContentColor = activeColors.onPrimaryContainer,
+                            ),
+                            modifier = Modifier.semantics { contentDescription = lockLabel },
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

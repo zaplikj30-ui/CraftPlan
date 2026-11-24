@@ -83,6 +83,15 @@ internal class PhotoEditorView(context: Context) : View(context) {
             field = value
             if (dimensionEdit?.movesLabel == true) clearDimensionGesture()
         }
+    var fitRequest = 0
+        set(value) {
+            if (field == value) return
+            field = value
+            tapCycle = null
+            clearDimensionGesture()
+            if (width > 0 && height > 0) viewport.fit(width, height)
+            invalidate()
+        }
     var showNotes = true
         set(value) {
             if (field == value) return

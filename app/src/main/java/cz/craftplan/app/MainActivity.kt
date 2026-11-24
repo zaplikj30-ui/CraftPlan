@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -67,6 +68,10 @@ internal class PhotoEditorState : ViewModel() {
     var showNotes by mutableStateOf(true)
     var toolbarExpanded by mutableStateOf(false)
         private set
+    var toolbarExtraExpanded by mutableStateOf(false)
+        private set
+    var fitRequest by mutableStateOf(0)
+        private set
     var labelsLocked by mutableStateOf(false)
         private set
     private var preferences: SharedPreferences? = null
@@ -75,6 +80,7 @@ internal class PhotoEditorState : ViewModel() {
         if (preferences != null) return
         preferences = source
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
+        toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         labelsLocked = source.getBoolean("labels_locked", false)
     }
 
@@ -83,6 +89,14 @@ internal class PhotoEditorState : ViewModel() {
         toolbarExpanded = expanded
         preferences?.edit()?.putBoolean("toolbar_expanded", expanded)?.apply()
     }
+
+    fun setToolbarExtraExpansion(expanded: Boolean) {
+        if (toolbarExtraExpanded == expanded) return
+        toolbarExtraExpanded = expanded
+        preferences?.edit()?.putBoolean("toolbar_extra_expanded", expanded)?.apply()
+    }
+
+    fun requestFit() { fitRequest++ }
 
     fun toggleLabelLock() {
         labelsLocked = !labelsLocked
@@ -143,7 +157,10 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 onEditValue = editorState::openValue,
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
-                toolbar = { modifier -> EditorToolbar(editorState, modifier) },
+                fitRequest = editorState.fitRequest,
+                toolbar = { modifier ->
+                    EditorToolbar(editorState, modifier.alpha(if (editorState.valueDraft == null) 1f else 0f))
+                },
             )
             editorState.valueDraft?.let { draft ->
                 DimensionValueDialog(
@@ -193,6 +210,7 @@ private fun SamplePhoto(
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
+    fitRequest: Int,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
     Column(modifier = modifier) {
@@ -226,9 +244,10 @@ private fun SamplePhoto(
                     view.showNotes = showNotes
                     view.labelsLocked = labelsLocked
                     view.scene = scene
+                    view.fitRequest = fitRequest
                 },
             )
-            toolbar(Modifier.align(Alignment.BottomCenter))
+            toolbar(Modifier.align(Alignment.BottomStart))
         }
     }
 }
