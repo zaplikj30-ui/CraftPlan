@@ -43,6 +43,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val start: PhotoAnchor,
         val end: PhotoAnchor? = null,
         val tap: EditorPoint? = null,
+        val tapTarget: DimensionTarget? = null,
     )
 
     private data class DimensionEdit(
@@ -51,6 +52,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val pointerId: Int,
         val down: EditorPoint,
         val downAnchor: PhotoAnchor,
+        val tapTarget: DimensionTarget,
         val movesLabel: Boolean = false,
         val tapAllowed: Boolean = true,
         val preview: PhotoDimension? = null,
@@ -63,7 +65,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
     private var dimensionDrag: DimensionDrag? = null
     private var dimensionEdit: DimensionEdit? = null
-    private var tapCycle: DimensionTapCycle? = null
     private var lensOnRight: Boolean? = null
     private var lensContact: EditorPoint? = null
     private var ownsDimensionStream = false
@@ -87,7 +88,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
         set(value) {
             if (field == value) return
             field = value
-            tapCycle = null
             clearDimensionGesture()
             if (width > 0 && height > 0) viewport.fit(width, height)
             invalidate()
@@ -106,7 +106,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
             val changedTool = field.tool != value.tool
             field = value
             if (changedContent || changedTool) {
-                tapCycle = null
                 clearDimensionGesture()
             }
             if (changedContent) {
@@ -136,7 +135,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                tapCycle = null
                 viewport.transform(focusX, focusY, detector.focusX, detector.focusY, detector.scaleFactor)
                 focusX = detector.focusX
                 focusY = detector.focusY
@@ -507,7 +505,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_UP -> {
                 if (clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop) {
-                    tapCycle = null
                     onSelectDimension(null)
                     invalidate()
                     performClick()
@@ -527,7 +524,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val down = EditorPoint(event.x, event.y)
         val downAnchor = viewport.toPhotoAnchor(down.x, down.y) ?: return false
         val pointerId = event.getPointerId(0)
-        val target = if (scene.tool == DimensionTool.SINGLE) null else targetsAt(down).firstOrNull()
+        val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down)
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
             // A locked label still owns its gesture; never fall through to moving the whole dimension.
@@ -536,10 +533,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end),
                     labels.getValue(dimension.id), dimension.labelT, includeNotebook = false,
                 ) != null
-            dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, movesLabel = movesLabel)
+            dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target, movesLabel = movesLabel)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
-            dimensionDrag = DimensionDrag(pointerId, downAnchor, tap = down.takeIf { scene.tool == DimensionTool.REPEAT })
+            dimensionDrag = DimensionDrag(
+                pointerId, downAnchor, tap = down.takeIf { scene.tool == DimensionTool.REPEAT },
+                tapTarget = target,
+            )
             invalidate()
         } else {
             return false
@@ -549,7 +549,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return true
     }
 
-    private fun targetsAt(point: EditorPoint): List<DimensionTarget> {
+    private fun targetAt(point: EditorPoint): DimensionTarget? {
         val targets = scene.dimensions.asReversed().mapNotNull { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
@@ -571,12 +571,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 }
             }
         }
-        return orderedDimensionTargets(targets, scene.selectedId, 7f * density)
+        return preferredDimensionTarget(targets, scene.selectedId, density)
     }
 
-    private fun selectAt(point: EditorPoint) {
-        val decision = decideDimensionTap(targetsAt(point), scene.selectedId, tapCycle, point, density)
-        tapCycle = decision?.cycle
+    private fun selectTarget(targetAtDown: DimensionTarget?) {
+        // Use the target captured at DOWN, not a different neighbor at UP.
+        val currentTarget = targetAtDown?.takeIf { scene.find(it.dimension.id) == it.dimension }
+        val decision = decideDimensionTap(currentTarget, scene.selectedId)
         if (decision == null) {
             onSelectDimension(null)
             return
@@ -616,7 +617,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
                             passesDragThreshold(it, contact, touchSlop.toFloat())
                         } == true
                     ) {
-                        tapCycle = null
                         dimensionDrag = dimensionDrag?.copy(tap = null)
                     }
                     updateDraft(contact)
@@ -663,13 +663,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
             val result = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
                 .finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
             if (result != null) onCreateDimension(result.dimension)
-            else if (draft.tap != null && !passesDragThreshold(draft.tap, contact, touchSlop.toFloat())) selectAt(contact)
+            else if (draft.tap != null && !passesDragThreshold(draft.tap, contact, touchSlop.toFloat())) selectTarget(draft.tapTarget)
         } else if (edit != null) {
             if (edit.preview != null || passesDragThreshold(edit.down, contact, 7f * density)) {
                 onSelectDimension(edit.original.id)
                 onChangeDimension(edit.original, editedDimension(edit, contact))
             } else if (edit.tapAllowed) {
-                selectAt(contact)
+                selectTarget(edit.tapTarget)
             }
         }
     }
@@ -791,7 +791,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (!dragging && hypot(x - lastX, y - lastY) < touchSlop) return
 
         dragging = true
-        tapCycle = null
         clickCandidate = false
         viewport.transform(lastX, lastY, x, y)
         lastX = x

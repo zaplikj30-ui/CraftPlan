@@ -68,64 +68,62 @@ class DimensionSceneTest {
         val nearest = DimensionTarget(dimension(1), DimensionHit.END, false, 9f)
         val selected = DimensionTarget(dimension(2), DimensionHit.START, false, 15f)
         val targets = listOf(label, nearest, selected)
-        assertEquals(listOf(selected, nearest, label), orderedDimensionTargets(targets, selected.dimension.id, 7f))
-        assertEquals(listOf(nearest, selected, label), orderedDimensionTargets(targets, selected.dimension.id, 5f))
-    }
-
-    @Test
-    fun repeatedTapCyclesDespiteSelectionReorderingAndRestartsElsewhere() {
-        val ids = (0..2).map { dimension(it).id }
-        val point = EditorPoint(50f, 60f)
-        val first = DimensionTapCycle(point, ids, 0)
-        val second = first.next(point, ids.reversed(), 7f)
-        assertEquals(ids[1], second.candidates[second.index])
-        assertEquals(2, second.next(point, ids, 7f).index)
-        assertEquals(0, second.next(EditorPoint(70f, 60f), ids, 7f).index)
+        assertEquals(selected, preferredDimensionTarget(targets, selected.dimension.id, 1f))
+        assertEquals(nearest, preferredDimensionTarget(targets, selected.dimension.id, 0.5f))
     }
 
     @Test
     fun nearbyParallelLinesAndLabelsPreferActualNearestElement() {
         val upper = dimension(1)
         val lower = dimension(2)
-        val upperStart = EditorPoint(0f, 30f)
-        val upperEnd = EditorPoint(100f, 30f)
-        val lowerStart = EditorPoint(0f, 44f)
-        val lowerEnd = EditorPoint(100f, 44f)
         for ((point, expected) in listOf(EditorPoint(50f, 34f) to upper, EditorPoint(50f, 42f) to lower)) {
             val hits = listOf(
-                DimensionTarget(upper, DimensionHit.BODY, false, distanceToDimensionLine(point, upperStart, upperEnd)),
-                DimensionTarget(lower, DimensionHit.BODY, false, distanceToDimensionLine(point, lowerStart, lowerEnd)),
+                DimensionTarget(upper, DimensionHit.BODY, false,
+                    distanceToDimensionLine(point, EditorPoint(0f, 30f), EditorPoint(100f, 30f))),
+                DimensionTarget(lower, DimensionHit.BODY, false,
+                    distanceToDimensionLine(point, EditorPoint(0f, 44f), EditorPoint(100f, 44f))),
             )
-            val ordered = orderedDimensionTargets(hits, upper.id, 7f)
-            assertEquals(expected, decideDimensionTap(ordered, upper.id, null, point, 1f)?.target?.dimension)
-            assertEquals(1, ambiguousDimensionTargets(ordered, 1f).size)
+            assertEquals(expected, preferredDimensionTarget(hits, upper.id, 1f)?.dimension)
         }
         val direct = DimensionTarget(lower, DimensionHit.BODY, true, 0f, 2f)
         val fringe = DimensionTarget(upper, DimensionHit.BODY, false, 5f)
-        assertEquals(direct, orderedDimensionTargets(listOf(fringe, direct), upper.id, 7f).first())
+        assertEquals(direct, preferredDimensionTarget(listOf(fringe, direct), upper.id, 1f))
+        val selectedFringe = DimensionTarget(upper, DimensionHit.BODY, true, 0.5f, 2f)
+        assertEquals(direct, preferredDimensionTarget(listOf(selectedFringe, direct), upper.id, 1f))
     }
 
     @Test
-    fun overlappingVisibleLabelsPreferNearestCenterAndCoincidentLinesCanCycle() {
+    fun overlappingLabelsPreferNearestCenterAndExactOverlapDoesNotCycle() {
         val a = dimension(1)
         val b = dimension(2)
-        val point = EditorPoint(50f, 60f)
         val upper = labelRectangleDistance(0f, -10f, -30f, -24f, 30f, -5f)
         val lower = labelRectangleDistance(0f, -15f, -30f, -24f, 30f, -5f)
         val labels = listOf(
             DimensionTarget(a, DimensionHit.BODY, true, upper.distance, upper.centerDistance),
             DimensionTarget(b, DimensionHit.BODY, true, lower.distance, lower.centerDistance),
         )
-        val closer = orderedDimensionTargets(labels, b.id, 7f)
-        assertEquals(b, decideDimensionTap(closer, a.id, null, point, 1f)?.target?.dimension)
+        assertEquals(b, preferredDimensionTarget(labels, a.id, 1f)?.dimension)
         val lines = listOf(DimensionTarget(a, DimensionHit.BODY, false, 0f), DimensionTarget(b, DimensionHit.BODY, false, 0f))
-        val first = decideDimensionTap(lines, null, null, point, 1f)!!
-        val next = decideDimensionTap(orderedDimensionTargets(lines, a.id, 7f), a.id, first.cycle, point, 1f)!!
-        assertEquals(b, next.target.dimension)
-        val coincidentLabels = lines.map { it.copy(label = true) }
-        val opened = decideDimensionTap(coincidentLabels, b.id, next.cycle, point, 1f)!!
-        assertEquals(b, opened.target.dimension)
-        assertEquals(true, opened.openValue)
+        repeat(10) {
+            val hit = preferredDimensionTarget(lines, b.id, 1f)
+            assertEquals(b, hit?.dimension)
+            assertEquals(false, decideDimensionTap(hit, b.id)?.openValue)
+        }
+    }
+
+    @Test
+    fun onlyLabelOfAlreadySelectedDimensionOpensValue() {
+        val a = dimension(1)
+        val b = dimension(2)
+        val label = DimensionTarget(a, DimensionHit.BODY, true, 0f)
+        val body = label.copy(label = false)
+        val end = label.copy(hit = DimensionHit.END, label = false)
+        assertEquals(false, decideDimensionTap(label, null)?.openValue)
+        assertEquals(false, decideDimensionTap(label, b.id)?.openValue)
+        assertEquals(true, decideDimensionTap(label, a.id)?.openValue)
+        assertEquals(false, decideDimensionTap(body, a.id)?.openValue)
+        assertEquals(false, decideDimensionTap(end, a.id)?.openValue)
+        assertNull(decideDimensionTap(null, a.id))
     }
 
     @Test
