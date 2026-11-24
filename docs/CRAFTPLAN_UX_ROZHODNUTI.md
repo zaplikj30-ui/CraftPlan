@@ -456,6 +456,10 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **POTVRZENÝ SMĚR vlastníka:** vyladit společná pravidla výběru a úchopů nyní, zachovat možnosti pro další tvary bez nutnosti pozdějšího zásadního předělávání. Podrobný jediný pracovní seznam pravidel, rizik, budoucích možností a ověřovacích scénářů je v [referenčním UX kontraktu kóty, oddíl 3.3](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#33-výběr-a-úchopy--rozšiřitelná-pravidla-editoru-24-11-2026). Před dalšími typy objektů jej zohlednit. Oddělit nynější doladění od otevřených rozšíření; prostorový index podle měření, nikoli jako povinnou součást předčasné architektury. Nejde o GO k programování, sestavení nebo nový schválený seznam UI funkcí. Novější pravidlo výběru a dialogu v §3.2–3.3 má přednost před starším obecným popisem v tomto registru.
 
+## Pokročilé ovládání dotykovým perem – 24. 11. 2026
+
+**Požadavek vlastníka:** při návrhu editoru zachovat možnosti pokročilého S Penu a dalších per (hover/oddálení, fyzická tlačítka, další vstupy a podle zařízení vzdálené akce). Úplný aktuální katalog, hranice bezpečnosti, možné funkce a ověřovací scénáře jsou v [UX kontraktu kóty, oddíl 3.4](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#34-dotyková-pera-a-další-vstupní-zařízení--otevřené-možnosti-24-11-2026). Konkrétní mapování a výchozí nastavení zůstává OTEVŘENO; žádné automatické schválení implementace pokročilých gest. Běžná podpora pera v M1, podrobnosti o provedeném hit-test doladění a omezeném JVM ověření jsou v §3.3. Nedublovat podrobný seznam.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
