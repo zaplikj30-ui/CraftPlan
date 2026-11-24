@@ -105,6 +105,7 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                 )
             }
             Row(
+                modifier = Modifier.align(Alignment.Start),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
             ) {
@@ -125,44 +126,44 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools))
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools))
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.toolbar_dimension)) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_dimension_tool), null) },
+                                onClick = {
+                                    state.scene = state.scene.prepareSingle()
+                                    menuOpen = false
+                                },
+                            )
+                        }
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.toolbar_dimension)) },
-                            leadingIcon = { Icon(painterResource(R.drawable.ic_dimension_tool), null) },
-                            onClick = {
-                                state.scene = state.scene.prepareSingle()
-                                menuOpen = false
-                            },
+                    val dimensionLabel = stringResource(R.string.add_dimension)
+                    val toolBackground = when (tool) {
+                        DimensionTool.REPEAT -> activeColors.primary
+                        DimensionTool.SINGLE -> activeColors.primaryContainer
+                        DimensionTool.SELECT -> Color.Transparent
+                    }
+                    Box(
+                        Modifier.size(48.dp)
+                            .background(toolBackground, RoundedCornerShape(8.dp))
+                            .semantics { contentDescription = dimensionLabel }
+                            .combinedClickable(
+                                role = Role.Button,
+                                onClick = { state.scene = state.scene.prepareSingle() },
+                                onLongClickLabel = repeatAction,
+                                onLongClick = { state.scene = state.scene.toggleRepeat() },
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_dimension_tool), null,
+                            tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
                         )
                     }
-                }
-                val dimensionLabel = stringResource(R.string.add_dimension)
-                val toolBackground = when (tool) {
-                    DimensionTool.REPEAT -> activeColors.primary
-                    DimensionTool.SINGLE -> activeColors.primaryContainer
-                    DimensionTool.SELECT -> Color.Transparent
-                }
-                Box(
-                    Modifier.size(48.dp)
-                        .background(toolBackground, RoundedCornerShape(8.dp))
-                        .semantics { contentDescription = dimensionLabel }
-                        .combinedClickable(
-                            role = Role.Button,
-                            onClick = { state.scene = state.scene.prepareSingle() },
-                            onLongClickLabel = repeatAction,
-                            onLongClick = { state.scene = state.scene.toggleRepeat() },
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_dimension_tool), null,
-                        tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
-                    )
-                }
                 }
                 if (expanded) {
                     Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
