@@ -14,13 +14,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -30,9 +28,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -46,7 +42,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
@@ -335,7 +330,6 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 onCreateDimension = { editorState.applyDimensionChange(editorState.scene.create(it)) },
                 onChangeDimension = { old, new -> editorState.applyDimensionChange(editorState.scene.edit(old, new)) },
                 onSelectDimension = { editorState.scene = editorState.scene.select(it) },
-                onClose = closePhoto,
                 onEditValue = editorState::openValue,
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
@@ -394,7 +388,6 @@ private fun SamplePhoto(
     onCreateDimension: (PhotoDimension) -> Boolean,
     onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean,
     onSelectDimension: (UUID?) -> Unit,
-    onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
@@ -404,48 +397,28 @@ private fun SamplePhoto(
     overlays: @Composable () -> Unit,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
-    Column(modifier = modifier) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ) {
-            Row(
-                modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.back_to_start)) }
-                Text(
-                    text = stringResource(R.string.sample_title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            AndroidView(
-                factory = { context ->
-                    PhotoEditorView(context).apply {
-                        this.diagnostics = diagnostics
-                        this.scene = scene
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-                update = { view ->
-                    view.onCreateDimension = onCreateDimension
-                    view.onChangeDimension = onChangeDimension
-                    view.onSelectDimension = onSelectDimension
-                    view.onEditValue = onEditValue
-                    view.onDrawCounts = onDrawCounts
-                    view.showNotes = showNotes
-                    view.labelsLocked = labelsLocked
-                    view.scene = scene
-                    view.fitRequest = fitRequest
-                },
-            )
-            toolbar(Modifier.align(Alignment.BottomStart))
-            Box(Modifier.align(Alignment.TopEnd)) { overlays() }
-        }
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                PhotoEditorView(context).apply {
+                    this.diagnostics = diagnostics
+                    this.scene = scene
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                view.onCreateDimension = onCreateDimension
+                view.onChangeDimension = onChangeDimension
+                view.onSelectDimension = onSelectDimension
+                view.onEditValue = onEditValue
+                view.onDrawCounts = onDrawCounts
+                view.showNotes = showNotes
+                view.labelsLocked = labelsLocked
+                view.scene = scene
+                view.fitRequest = fitRequest
+            },
+        )
+        toolbar(Modifier.align(Alignment.BottomStart))
+        Box(Modifier.align(Alignment.TopEnd)) { overlays() }
     }
 }

@@ -11,6 +11,8 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 
 ### Doladění lišty po sestavení 51
 
+Horní testovací pruh Zpět / Testovací fotografie je odstraněn v obou orientacích. Editor využívá jeho místo; systémový stavový pruh a navigace Androidu zůstávají. Návrat z fotografie používá stávající systémové Zpět se stejným ukončením režimu kreslení a diagnostiky; pravidla dialogu se nemění.
+
 V testovací variantě je spodní rolovatelná oblast prodloužená osmi dočasnými, neaktivními textovými tlačítky budoucích funkcí (barva a tloušťka kóty, více kót, zámek polohy lišty, přesun lišty, uspořádání ikon, obnova pořadí, export) podle PR #4. Slouží k fyzické zkoušce rolování, neznamenají implementaci těchto funkcí ani konečné pořadí. Dvě rychlá tlačítka zůstávají pevná. Běžná tlačítka mají výšku 52 dp místo 56 dp a menší spodní výplň. Úchyt má širší dotykovou oblast (horní 160 × 27 dp, boční 32 × 66 dp), gesto se zachytává od počátku v jeho vlastní oblasti. Nezasahovat do systémového Zpět/Domů. Fyzická spolehlivost úchytu, rolování i přístupnost při gestové navigaci vyžadují další test APK; příčina předchozích selhání nebyla na zařízení potvrzena.
 
 ## Debug sestavení (pouze po samostatném GO)
