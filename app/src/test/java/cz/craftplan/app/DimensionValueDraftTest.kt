@@ -4,6 +4,7 @@ import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DimensionValueDraftTest {
@@ -160,6 +161,60 @@ class DimensionValueDraftTest {
         assertEquals("127/15 montáž", converted.displayLabel())
         assertEquals("1/3 in", converted.measurement?.originalInput)
         assertEquals("Přeměřit", converted.note)
+    }
+
+    @Test
+    fun numericSuffixConvertsOnlyTheFirstLengthAndPreservesOtherNumbers() {
+        val first = DimensionValueDraft(dimension).type("1000 500 × 600, 12 otvorů")
+        val converted = first.selectUnit(LengthUnit.M)
+        assertEquals("1 500 × 600, 12 otvorů", converted.input)
+        val measured = converted.confirm(dimension)!!
+        assertEquals("1000", measured.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals("500 × 600, 12 otvorů", measured.labelSuffix)
+        assertEquals("1 m 500 × 600, 12 otvorů", measured.displayLabel())
+        assertEquals("1000 500 × 600, 12 otvorů", converted.selectUnit(LengthUnit.MM).input)
+
+        val twoNumbers = DimensionValueDraft(dimension).type("1000 500")
+        assertEquals("1 500", twoNumbers.selectUnit(LengthUnit.M).input)
+        assertEquals("500", twoNumbers.confirm(dimension)!!.labelSuffix)
+
+        val mixed = DimensionValueDraft(dimension).type("1 1/2 in").selectUnit(LengthUnit.MM)
+        assertEquals("38.1", mixed.input)
+        assertEquals("38.1", mixed.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        for (bad in listOf("1 3/2 in", "1 1/0 in", "1 234 mm", "12 x 2")) {
+            assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))
+        }
+    }
+
+    @Test
+    fun invalidLengthBlocksConversionAndPreservesDraftUntilCorrected() {
+        val draft = DimensionValueDraft(dimension).type("1000000001 500 × 600")
+        val rejected = draft.selectUnit(LengthUnit.M)
+        assertSame(draft, rejected)
+        assertEquals(LengthUnit.MM, rejected.unit)
+        assertNull(rejected.confirm(dimension))
+
+        val corrected = rejected.type("1000000000 500 × 600").selectUnit(LengthUnit.M)
+        assertEquals("1000000 500 × 600", corrected.input)
+        assertEquals("1000000000", corrected.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+    }
+
+    @Test
+    fun roundedMetricDisplayNeverReplacesExactRationalOrSuffix() {
+        val draft = DimensionValueDraft(dimension).type("1/3 in deska 500 × 600")
+            .selectUnit(LengthUnit.MM)
+        assertEquals("8,4667 deska 500 × 600", draft.input)
+        assertTrue(draft.hasApproximateDisplay())
+        val labeled = draft.confirm(dimension)!!
+        assertEquals("≈8,4667 mm deska 500 × 600", labeled.displayLabel())
+        assertEquals(LengthMmEncoding.Rational("127", "15"), labeled.measurement!!.length.encoding)
+        assertEquals("1/3 in", labeled.measurement.originalInput)
+
+        val reopened = DimensionValueDraft(labeled)
+        assertTrue(reopened.hasApproximateDisplay())
+        assertEquals("1/3 deska 500 × 600", reopened.selectUnit(LengthUnit.IN).input)
+        assertEquals("8,4668", reopened.type("8,4668").confirm(labeled)!!
+            .measurement!!.length.displayNumber(LengthUnit.MM).replace('.', ','))
     }
 
     @Test

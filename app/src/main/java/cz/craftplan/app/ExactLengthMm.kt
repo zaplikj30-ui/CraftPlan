@@ -2,6 +2,7 @@ package cz.craftplan.app
 
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.RoundingMode
 
 internal enum class LengthUnit(val symbol: String, val mmNumerator: Long, val mmDenominator: Long = 1) {
     MM("mm", 1),
@@ -23,6 +24,9 @@ internal sealed interface LengthMmEncoding {
     }
 }
 
+/** Presentation only. The stored millimeter value remains exact. */
+internal data class DisplayLengthNumber(val text: String, val approximate: Boolean)
+
 @ConsistentCopyVisibility
 internal data class ExactLengthMm private constructor(val encoding: LengthMmEncoding) {
     /** Converts for display without rewriting the authoritative millimeter value. */
@@ -39,6 +43,30 @@ internal data class ExactLengthMm private constructor(val encoding: LengthMmEnco
         } else {
             converted.toDecimal().toPlainString()
         }
+    }
+
+    /** Rounded metric preview only; never rewrite the exact rational [encoding]. */
+    fun displayNumberForUi(unit: LengthUnit): DisplayLengthNumber {
+        val exact = displayNumber(unit)
+        if (unit == LengthUnit.IN || unit == LengthUnit.FT || '/' !in exact) {
+            return DisplayLengthNumber(exact, false)
+        }
+        val (numerator, denominator) = exact.split('/')
+        // Four fractional millimeter places, adapted to the selected metric unit.
+        val decimals = when (unit) {
+            LengthUnit.MM -> 4
+            LengthUnit.CM -> 5
+            LengthUnit.M -> 7
+            else -> error("Not a metric unit")
+        }
+        val rounded = BigDecimal(numerator).divide(
+            BigDecimal(denominator), decimals, RoundingMode.HALF_UP,
+        )
+        // A nonzero exact value must never be shown as 0.
+        if (rounded.signum() == 0) return DisplayLengthNumber(exact, false)
+        return DisplayLengthNumber(
+            rounded.stripTrailingZeros().toPlainString().replace('.', ','), true,
+        )
     }
 
     companion object {

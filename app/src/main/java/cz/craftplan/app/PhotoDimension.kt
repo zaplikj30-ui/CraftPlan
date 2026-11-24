@@ -42,8 +42,9 @@ internal data class PhotoDimension(
     fun displayLabel(): String? {
         val measured = measurement
         if (measured == null) return textLabel?.takeIf { it.isNotBlank() }
+        val shown = measured.length.displayNumberForUi(displayUnit)
         return listOfNotNull(
-            measured.length.displayNumber(displayUnit),
+            if (shown.approximate) "≈" + shown.text else shown.text,
             displayUnit.symbol.takeIf { showUnit },
             labelSuffix.takeIf { it.isNotBlank() },
         ).joinToString(" ")

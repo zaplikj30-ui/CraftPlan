@@ -29,7 +29,8 @@
     <string name="dimension_note">Poznámka ke kótě</string>
     <string name="dimension_notes_visible">Poznámky jsou viditelné</string>
     <string name="dimension_notes_hidden">Poznámky jsou skryté</string>
-    <string name="dimension_value_invalid">Neplatná nebo příliš velká hodnota. Zkontroluj číslo a jednotku.</string>
+    <string name="dimension_value_invalid">Neplatný rozměr nebo překročen limit 1 000 000 000 mm. Zkontroluj číslo a jednotku.</string>
+    <string name="dimension_approximate_display">Zobrazení je zaokrouhlené, uložený rozměr zůstává přesný.</string>
     <string name="cancel_value">Zrušit</string>
     <string name="confirm_value">Uložit</string>
     <string name="installed_version">Verze %1$s · sestavení %2$d</string>

@@ -5,6 +5,7 @@ import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -106,6 +107,18 @@ class ExactLengthTest {
             LengthMmEncoding.Decimal("123456.123456789012"),
             ManualLengthMeasurement.parse("123456.123456789012 mm")?.length?.encoding,
         )
+    }
+
+    @Test
+    fun roundedMetricFractionIsPresentationOnlyAndExactZeroIsNotInvented() {
+        val third = ManualLengthMeasurement.parse("1/3 in")!!.length
+        assertEquals(DisplayLengthNumber("8,4667", true), third.displayNumberForUi(LengthUnit.MM))
+        assertEquals(DisplayLengthNumber("0,84667", true), third.displayNumberForUi(LengthUnit.CM))
+        assertEquals(DisplayLengthNumber("0,0084667", true), third.displayNumberForUi(LengthUnit.M))
+        assertEquals(DisplayLengthNumber("1/3", false), third.displayNumberForUi(LengthUnit.IN))
+        assertEquals("127/15", third.displayNumber(LengthUnit.MM))
+        assertEquals(LengthMmEncoding.Rational("127", "15"), third.encoding)
+        assertTrue(third.displayNumberForUi(LengthUnit.MM).approximate)
     }
 
     @Test

@@ -261,10 +261,14 @@ internal fun DimensionValueDialog(
                                     onClick = {
                                         onChange {
                                             val next = it.selectUnit(unit, keepNumber)
-                                            if (valueField.text != next.input) valueField = editableText(next.input)
+                                            if (next === it && unit != it.unit && !keepNumber) {
+                                                showError = true
+                                            } else {
+                                                if (valueField.text != next.input) valueField = editableText(next.input)
+                                                showError = false
+                                            }
                                             next
                                         }
-                                        showError = false
                                         unitsOpen = false
                                     },
                                 )
@@ -356,12 +360,20 @@ internal fun DimensionValueDialog(
                     }
                 }
                 val errorMessage: @Composable () -> Unit = {
-                    if (showError) {
-                        Text(
-                            stringResource(R.string.dimension_value_invalid),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    if (showError || draft.hasApproximateDisplay()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val color = if (showError) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            Text(if (showError) "⚠ " else "≈ ", color = color)
+                            Text(
+                                stringResource(
+                                    if (showError) R.string.dimension_value_invalid
+                                    else R.string.dimension_approximate_display,
+                                ),
+                                color = color,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
                 val keypad: @Composable (Dp) -> Unit = { keyHeight ->

@@ -7,6 +7,17 @@ internal sealed interface DimensionEntry {
 }
 
 private fun isLabelSuffix(text: String): Boolean {
+    if (text.firstOrNull()?.isDigit() == true) {
+        // Another number may start the description, but not an invalid mixed fraction.
+        val firstToken = text.takeWhile { !it.isWhitespace() }
+        if ('/' in firstToken) return false
+        val parts = text.trim().split(Regex("\\s+"))
+        // Preserve rejection of ambiguous digit grouping / an extra explicit measurement.
+        if (parts.size == 2 && parts[0].all(Char::isDigit) &&
+            LengthUnit.entries.any { it.symbol.equals(parts[1], ignoreCase = true) }
+        ) return false
+        return true
+    }
     if (text.firstOrNull()?.isLetter() != true) return false
     val firstWord = text.takeWhile(Char::isLetter)
     // Recognized unit tokens and arithmetic must not rescue a failed numerical parse.
@@ -35,7 +46,7 @@ internal fun parseDimensionEntry(
         if (!input[i].isWhitespace()) continue
         val prefix = input.substring(0, i).trimEnd()
         val suffix = input.substring(i).trim()
-        if (suffix.firstOrNull()?.isLetter() != true) continue
+        if (suffix.isEmpty()) continue
         parseNumber(prefix)?.let { return if (isLabelSuffix(suffix)) DimensionEntry.Measured(it, suffix) else null }
     }
     val trimmed = input.trim()
@@ -54,7 +65,7 @@ internal class DimensionValueDraft private constructor(
 ) {
     constructor(dimension: PhotoDimension) : this(
         dimension,
-        dimension.textLabel ?: dimension.measurement?.length?.displayNumber(dimension.displayUnit)
+        dimension.textLabel ?: dimension.measurement?.length?.displayNumberForUi(dimension.displayUnit)?.text
             ?.let { number -> listOf(number, dimension.labelSuffix).filter { it.isNotBlank() }.joinToString(" ") }
             .orEmpty(),
         dimension.displayUnit,
@@ -66,7 +77,7 @@ internal class DimensionValueDraft private constructor(
     fun type(text: String): DimensionValueDraft {
         if (text == input) return this
         val preserved = unchangedEntry?.let { entry ->
-            val number = entry.value.length.displayNumber(unit)
+            val number = entry.value.length.displayNumberForUi(unit).text
             val trimmed = text.trim()
             if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) null
             else if (trimmed == number) entry.copy(suffix = "")
@@ -95,8 +106,10 @@ internal class DimensionValueDraft private constructor(
             // Conflicting explicit suffixes must be fixed by the user.
             return DimensionValueDraft(target, input, newUnit, null, true, note, true)
         }
-        val entry = entry() as? DimensionEntry.Measured
-        val converted = entry?.value?.length?.displayNumber(newUnit)?.let {
+        val parsed = entry()
+        if (input.isNotBlank() && parsed == null) return this // Reject silently broken conversion.
+        val entry = parsed as? DimensionEntry.Measured
+        val converted = entry?.value?.length?.displayNumberForUi(newUnit)?.text?.let {
             listOf(it, entry.suffix).filter(String::isNotBlank).joinToString(" ")
         } ?: input
         return DimensionValueDraft(
@@ -104,6 +117,9 @@ internal class DimensionValueDraft private constructor(
             requireSelectedUnit && entry == null, note, true,
         )
     }
+
+    fun hasApproximateDisplay(): Boolean =
+        unchangedEntry?.value?.length?.displayNumberForUi(unit)?.approximate == true
 
     private fun entry(): DimensionEntry? = unchangedEntry?.let {
         if (it.suffix.isEmpty() || isLabelSuffix(it.suffix)) it else return null
