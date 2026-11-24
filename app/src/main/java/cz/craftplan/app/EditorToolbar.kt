@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.dp
 private val toolbarShape = RoundedCornerShape(8.dp)
 private val toolbarIconSize = 28.dp
 private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
-private val toolbarQuickSize = Modifier.size(width = 56.dp, height = 56.dp)
+private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 56.dp)
 
 @Composable
 internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier) {
