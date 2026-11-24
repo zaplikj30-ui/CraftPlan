@@ -18,7 +18,8 @@
     <string name="toolbar_undo">Vrátit změnu</string>
     <string name="toolbar_redo">Zopakovat změnu</string>
     <string name="toolbar_delete">Smazat vybranou kótu</string>
-    <string name="toolbar_label_lock">Posouvání čísel</string>
+    <string name="toolbar_label_locked">Posouvání čísel uzamčeno</string>
+    <string name="toolbar_label_unlocked">Posouvání čísel povoleno</string>
     <string name="drag_dimension">Táhni po fotografii od prvního bodu k druhému.</string>
     <string name="drag_dimension_short">Táhni kótu</string>
     <string name="dimension_unmeasured">NEZMĚŘENO</string>

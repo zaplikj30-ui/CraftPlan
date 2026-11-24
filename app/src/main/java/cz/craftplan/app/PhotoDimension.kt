@@ -33,6 +33,8 @@ internal data class PhotoDimension(
     val note: String = "",
     /** "Nic" hides the unit in the label, without deleting the exact measurement. */
     val showUnit: Boolean = true,
+    /** Relative displacement from the midpoint along the rendered dimension. */
+    val labelT: Float = 0f,
 ) {
     val measurementState: MeasurementState
         get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED
@@ -57,6 +59,7 @@ internal data class PhotoDimension(
 
     init {
         require(start != end)
+        require(labelT in -0.92f..0.92f)
     }
 }
 

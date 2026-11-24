@@ -16,6 +16,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,18 +51,18 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
             Box(
                 Modifier.size(width = 64.dp, height = 24.dp)
                     .semantics { contentDescription = handleLabel }
-                    .clickable(role = Role.Button) { state.toolbarExpanded = !state.toolbarExpanded }
+                    .clickable(role = Role.Button) { state.setToolbarExpansion(!state.toolbarExpanded) }
                     .pointerInput(state) {
                         var motion = 0f
                         detectVerticalDragGestures(
                             onDragStart = { motion = 0f },
                             onDragEnd = {
                                 val threshold = 10.dp.toPx()
-                                state.toolbarExpanded = when {
+                                state.setToolbarExpansion(when {
                                     motion < -threshold -> true
                                     motion > threshold -> false
                                     else -> currentExpanded
-                                }
+                                })
                             },
                         ) { change, delta ->
                             motion += delta
@@ -120,7 +121,26 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         ToolbarAction("↶", R.string.toolbar_undo, false) {}
                         ToolbarAction("↷", R.string.toolbar_redo, false) {}
                         ToolbarAction("×", R.string.toolbar_delete, false) {}
-                        ToolbarAction("↔", R.string.toolbar_label_lock, false) {}
+                        val locked = state.labelsLocked
+                        val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
+                        IconToggleButton(
+                            checked = locked,
+                            onCheckedChange = { state.toggleLabelLock() },
+                            modifier = Modifier
+                                .background(if (locked) activeColors.primaryContainer else activeColors.surface, RoundedCornerShape(8.dp))
+                                .semantics { contentDescription = lockLabel },
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("123", style = MaterialTheme.typography.labelSmall)
+                                    Text("↔", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Icon(
+                                    painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
+                                    null, Modifier.size(20.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }

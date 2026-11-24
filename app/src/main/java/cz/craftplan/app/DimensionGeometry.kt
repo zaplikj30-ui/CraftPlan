@@ -42,6 +42,15 @@ internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): Photo
     return if (movedStart == movedEnd) this else copy(start = movedStart, end = movedEnd)
 }
 
+internal fun PhotoDimension.shiftLabel(axis: EditorPoint, delta: EditorPoint, locked: Boolean): PhotoDimension {
+    if (locked || measurement == null) return this
+    val lengthSquared = axis.x.toDouble() * axis.x + axis.y.toDouble() * axis.y
+    val projected = (delta.x.toDouble() * axis.x + delta.y.toDouble() * axis.y) / lengthSquared
+    if (!projected.isFinite()) return this
+    val updated = (labelT + 2.0 * projected).coerceIn(-0.92, 0.92).toFloat()
+    return if (updated == labelT) this else copy(labelT = updated)
+}
+
 private fun PhotoAnchor.shift(du: Float, dv: Float): PhotoAnchor? {
     val x = u + du
     val y = v + dv

@@ -51,6 +51,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val pointerId: Int,
         val down: EditorPoint,
         val downAnchor: PhotoAnchor,
+        val movesLabel: Boolean = false,
         val tapAllowed: Boolean = true,
         val preview: PhotoDimension? = null,
     )
@@ -76,6 +77,12 @@ internal class PhotoEditorView(context: Context) : View(context) {
     var onEditValue: (PhotoDimension) -> Unit = {}
     private data class DimensionLabel(val text: String? = null, val besideRuler: Boolean = false, val notebook: Boolean = false)
     private var labels = emptyMap<UUID, DimensionLabel>()
+    var labelsLocked = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (dimensionEdit?.movesLabel == true) clearDimensionGesture()
+        }
     var showNotes = true
         set(value) {
             if (field == value) return
@@ -222,10 +229,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     private fun drawCommittedDimension(canvas: Canvas, dimension: PhotoDimension, selected: Boolean) =
-        drawDimension(canvas, dimension.start, dimension.end, selected, labels.getValue(dimension.id))
+        drawDimension(canvas, dimension.start, dimension.end, selected, labels.getValue(dimension.id), dimension.labelT)
 
     private fun drawDimension(
         canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, decoration: DimensionLabel,
+        labelT: Float = 0f,
     ) {
         drawDimensionLine(canvas, start, end, selected)
         if (selected) {
@@ -235,7 +243,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val origin = viewport.screenPoint(start)
         val axis = viewport.screenPoint(end) - origin
         canvas.save()
-        canvas.translate(origin.x + axis.x / 2f, origin.y + axis.y / 2f)
+        val fraction = (1f + labelT) / 2f
+        canvas.translate(origin.x + axis.x * fraction, origin.y + axis.y * fraction)
         canvas.rotate(readableAngle(axis))
         val label = decoration.text
         if (label == null || decoration.besideRuler) drawUnmeasuredMarker(canvas)
@@ -265,10 +274,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.restore()
     }
 
-    private fun hitsValue(point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel): Boolean {
+    private fun hitsValue(
+        point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel, labelT: Float,
+        includeNotebook: Boolean = true,
+    ): Boolean {
         val axis = end - start
-        val x = point.x - (start.x + axis.x / 2f)
-        val y = point.y - (start.y + axis.y / 2f)
+        val fraction = (1f + labelT) / 2f
+        val x = point.x - (start.x + axis.x * fraction)
+        val y = point.y - (start.y + axis.y * fraction)
         val angle = Math.toRadians(readableAngle(axis).toDouble())
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
@@ -280,7 +293,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 if (kotlin.math.abs(along - labelCenter(textHalfWidth, decoration)) <= textHalfWidth + 3f * density) return true
             }
         }
-        if (!decoration.notebook) return false
+        if (!includeNotebook || !decoration.notebook) return false
         val left = notebookLeft(decoration.text)
         return along in (left - 8f * density)..(left + 23f * density) &&
             across in (-32f * density)..(1f * density)
@@ -488,7 +501,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val pointerId = event.getPointerId(0)
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetsAt(down).firstOrNull()
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
-            dimensionEdit = DimensionEdit(target.dimension, target.hit, pointerId, down, downAnchor)
+            val dimension = target.dimension
+            val movesLabel = !labelsLocked && dimension.measurement != null && target.hit == DimensionHit.BODY &&
+                hitsValue(
+                    down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end),
+                    labels.getValue(dimension.id), dimension.labelT, includeNotebook = false,
+                )
+            dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, movesLabel = movesLabel)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
             dimensionDrag = DimensionDrag(pointerId, downAnchor, tap = down.takeIf { scene.tool == DimensionTool.REPEAT })
@@ -505,7 +524,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val targets = scene.dimensions.asReversed().mapNotNull { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val label = hitsValue(point, start, end, labels.getValue(dimension.id))
+            val label = hitsValue(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             val hit = hitDimension(point, start, end, density) ?: DimensionHit.BODY.takeIf { label }
                 ?: return@mapNotNull null
             val distance = when (hit) {
@@ -636,8 +655,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
     }
 
-    private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension =
-        viewport.moveDimension(draft.original, draft.hit, contact - viewport.screenPoint(draft.downAnchor))
+    private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension {
+        val delta = contact - viewport.screenPoint(draft.downAnchor)
+        val original = draft.original
+        if (!draft.movesLabel) return viewport.moveDimension(original, draft.hit, delta)
+        val axis = viewport.screenPoint(original.end) - viewport.screenPoint(original.start)
+        return original.shiftLabel(axis, delta, labelsLocked)
+    }
 
     private fun updateDraft(contact: EditorPoint) {
         lensContact = contact

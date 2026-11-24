@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.content.pm.PackageManager
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        editorState.restorePreferences(getSharedPreferences("editor_preferences", MODE_PRIVATE))
         enableEdgeToEdge()
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
@@ -62,6 +64,28 @@ internal class PhotoEditorState : ViewModel() {
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
     var showNotes by mutableStateOf(true)
     var toolbarExpanded by mutableStateOf(false)
+        private set
+    var labelsLocked by mutableStateOf(false)
+        private set
+    private var preferences: SharedPreferences? = null
+
+    fun restorePreferences(source: SharedPreferences) {
+        if (preferences != null) return
+        preferences = source
+        toolbarExpanded = source.getBoolean("toolbar_expanded", false)
+        labelsLocked = source.getBoolean("labels_locked", false)
+    }
+
+    fun setToolbarExpansion(expanded: Boolean) {
+        if (toolbarExpanded == expanded) return
+        toolbarExpanded = expanded
+        preferences?.edit()?.putBoolean("toolbar_expanded", expanded)?.apply()
+    }
+
+    fun toggleLabelLock() {
+        labelsLocked = !labelsLocked
+        preferences?.edit()?.putBoolean("labels_locked", labelsLocked)?.apply()
+    }
 
     fun openValue(dimension: PhotoDimension) {
         val current = scene.find(dimension.id) ?: return
@@ -99,6 +123,7 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 onClose = closePhoto,
                 onEditValue = editorState::openValue,
                 showNotes = editorState.showNotes,
+                labelsLocked = editorState.labelsLocked,
                 toolbar = { modifier -> EditorToolbar(editorState, modifier) },
             )
             editorState.valueDraft?.let { draft ->
@@ -148,6 +173,7 @@ private fun SamplePhoto(
     onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
+    labelsLocked: Boolean,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
     Column(modifier = modifier) {
@@ -179,6 +205,7 @@ private fun SamplePhoto(
                     view.onSelectDimension = onSelectDimension
                     view.onEditValue = onEditValue
                     view.showNotes = showNotes
+                    view.labelsLocked = labelsLocked
                     view.scene = scene
                 },
             )

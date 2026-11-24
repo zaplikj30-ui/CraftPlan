@@ -8,6 +8,23 @@ import org.junit.Test
 
 class DimensionSceneTest {
     @Test
+    fun labelMovesOnlyAlongItsOwnAxisAndLockLeavesGeometryEditable() {
+        val original = dimension(1).withManualLength("1/16 in")
+        val other = dimension(2).withManualLength("0 mm")
+        val axis = EditorPoint(100f, 100f)
+        assertSame(original, original.shiftLabel(axis, EditorPoint(10f, -10f), locked = false))
+        assertSame(original, original.shiftLabel(axis, EditorPoint(20f, 20f), locked = true))
+        val shifted = original.shiftLabel(axis, EditorPoint(20f, 20f), locked = false)
+        assertEquals(0.4f, shifted.labelT, 0.00001f)
+        assertEquals(original, shifted.copy(labelT = 0f))
+        assertEquals(0.92f, shifted.shiftLabel(axis, axis, locked = false).labelT, 0f)
+        val moved = shifted.move(DimensionHit.START, 0.1f, 0f)
+        assertEquals(shifted.labelT, moved.labelT, 0f)
+        val scene = DimensionScene(listOf(original, other)).edit(original, shifted)
+        assertSame(other, scene.find(other.id))
+    }
+
+    @Test
     fun repeatAppendsWithoutSelectionAndClosesOrTogglesSafely() {
         val repeat = DimensionScene().toggleRepeat()
         val two = repeat.create(dimension(1)).create(dimension(2))
