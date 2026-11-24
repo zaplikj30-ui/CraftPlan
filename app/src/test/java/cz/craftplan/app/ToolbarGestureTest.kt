@@ -34,6 +34,29 @@ class ToolbarGestureTest {
         assertEquals(ToolbarGripOutcome.INVALID, toolbarGripReleaseReason(0f, Float.NaN, 20f, 8f))
     }
 
+    @Test fun sharedGripClaimsOnlyDecisiveVerticalMotionBeforeLongPress() {
+        val threshold = 8f
+        assertEquals(ToolbarSharedDecision.WAIT, toolbarSharedDecision(0f, 0f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.WAIT, toolbarSharedDecision(3f, -7f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.VERTICAL, toolbarSharedDecision(2f, -8f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.VERTICAL, toolbarSharedDecision(2f, 8f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.HORIZONTAL, toolbarSharedDecision(8f, 2f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.HORIZONTAL, toolbarSharedDecision(8f, -8f, threshold, 40L, 500L))
+        assertEquals(ToolbarSharedDecision.LONG_PRESS, toolbarSharedDecision(0f, -20f, threshold, 500L, 500L))
+        assertEquals(ToolbarSharedDecision.INVALID, toolbarSharedDecision(Float.NaN, 0f, threshold, 40L, 500L))
+    }
+
+    @Test fun sharedGripIsCenteredAndExtendsOnlyBelowDedicatedGrip() {
+        for (width in listOf(1440f, 3248f)) {
+            val center = width / 2f
+            assertEquals(true, toolbarSharedContains(center, 31.5f, width, 560f, 31.5f, 70f))
+            assertEquals(true, toolbarSharedContains(center, 89.4f, width, 560f, 31.5f, 70f))
+            assertEquals(false, toolbarSharedContains(center, 31.4f, width, 560f, 31.5f, 70f))
+            assertEquals(false, toolbarSharedContains(center, 101.5f, width, 560f, 31.5f, 70f))
+            assertEquals(false, toolbarSharedContains(center + 280f, 60f, width, 560f, 31.5f, 70f))
+        }
+    }
+
     @Test fun horizontalDragCollapsesBothRowsAndPreservesExtraOnExpansion() {
         for (expanded in listOf(false, true)) {
             for (extra in listOf(false, true)) {

@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -61,6 +62,9 @@ private val toolbarIconSize = 28.dp
 private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
 private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 56.dp)
 private val gripTopOuterHitPadding = 18.dp
+private val gripTopWidth = 160.dp
+private val gripTopOverlap = 9.dp
+private val gripSharedDepth = 20.dp
 private val gripSideOuterHitPadding = 23.dp
 
 @Composable
@@ -94,12 +98,13 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
     // Extend only outwards: the visible 9dp strip and the neighbouring buttons keep their layout.
     Box(
         modifier.size(
-            width = if (side) 9.dp + gripSideOuterHitPadding else 160.dp,
+            width = if (side) 9.dp + gripSideOuterHitPadding else gripTopWidth,
             height = if (side) 74.dp else 9.dp + gripTopOuterHitPadding,
         ).onGloballyPositioned { coordinates ->
             if (BuildConfig.ENABLE_STRESS_TOOLS) {
                 val bounds = coordinates.boundsInWindow()
                 state.diagnosticGripBounds = DiagnosticGripBounds(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                if (side) state.diagnosticSharedGripBounds = null
             }
         }.semantics {
             contentDescription = handleLabel
@@ -172,12 +177,109 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
     }
 }
 
+// The shared strip is an ancestor of the real buttons, not a covering sibling.
+// Observe Initial without consuming until a vertical drag wins. Descendants keep taps,
+// long presses and horizontal drags. Once won, consume the rest of this gesture.
+private fun Modifier.sharedToolbarGrip(state: PhotoEditorState): Modifier =
+    pointerInput(state) {
+        awaitEachGesture {
+            val down = awaitFirstDown(pass = PointerEventPass.Initial)
+            if (!toolbarSharedContains(down.position.x, down.position.y, size.width.toFloat(),
+                    gripTopWidth.toPx(), gripTopOverlap.toPx(), gripSharedDepth.toPx())) return@awaitEachGesture
+
+            val expanded = state.toolbarExtraExpanded
+            val threshold = viewConfiguration.touchSlop
+            val input = when (down.type) {
+                PointerType.Touch -> EditorPointerKind.FINGER
+                PointerType.Stylus -> EditorPointerKind.STYLUS
+                PointerType.Eraser -> EditorPointerKind.ERASER
+                PointerType.Mouse -> EditorPointerKind.MOUSE
+                else -> EditorPointerKind.OTHER
+            }
+            state.diagnostics.toolbarGripStart(input, false, down.position.x, down.position.y,
+                size.width, size.height, threshold, expanded, shared = true)
+            var dx = 0f
+            var dy = 0f
+            var maxTravel = 0f
+            var claimed = false
+            var reason = ToolbarGripOutcome.STREAM_CANCELED
+            try {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    if (change == null) {
+                        reason = ToolbarGripOutcome.POINTER_MISSING
+                        break
+                    }
+                    if (change.isConsumed) {
+                        reason = ToolbarGripOutcome.CONSUMED
+                        break
+                    }
+                    if (event.changes.any { it.id != down.id && it.pressed }) {
+                        reason = ToolbarGripOutcome.MULTI_POINTER
+                        break
+                    }
+                    dx = change.position.x - down.position.x
+                    dy = change.position.y - down.position.y
+                    maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
+                    if (!claimed) {
+                        when (toolbarSharedDecision(dx, dy, threshold,
+                            change.uptimeMillis - down.uptimeMillis, viewConfiguration.longPressTimeoutMillis)) {
+                            ToolbarSharedDecision.VERTICAL -> claimed = true
+                            ToolbarSharedDecision.HORIZONTAL -> {
+                                reason = ToolbarGripOutcome.SHARED_HORIZONTAL
+                                break
+                            }
+                            ToolbarSharedDecision.LONG_PRESS -> {
+                                reason = ToolbarGripOutcome.SHARED_LONG_PRESS
+                                break
+                            }
+                            ToolbarSharedDecision.INVALID -> {
+                                reason = ToolbarGripOutcome.INVALID
+                                break
+                            }
+                            ToolbarSharedDecision.WAIT -> {
+                                if (!change.pressed) {
+                                    reason = ToolbarGripOutcome.SHARED_TAP
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    if (claimed) {
+                        change.consume()
+                        if (!change.pressed) {
+                            reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold)
+                            // A shared-area drag can never become a tap/toggle.
+                            if (reason == ToolbarGripOutcome.UP || reason == ToolbarGripOutcome.DOWN) {
+                                state.setToolbarExtraExpansion(reason == ToolbarGripOutcome.UP)
+                            }
+                            break
+                        }
+                    } else {
+                        // Respect a descendant that consumed this undecided move in Main.
+                        val finalChange = awaitPointerEvent(PointerEventPass.Final).changes
+                            .firstOrNull { it.id == down.id }
+                        if (finalChange == null || finalChange.isConsumed) {
+                            reason = if (finalChange == null) ToolbarGripOutcome.POINTER_MISSING else ToolbarGripOutcome.CONSUMED
+                            break
+                        }
+                    }
+                }
+            } finally {
+                state.diagnostics.toolbarGripEnd(reason, dx, dy, maxTravel, expanded,
+                    state.toolbarExtraExpanded, shared = true)
+            }
+        }
+    }
+
 @Composable
 private fun EditorToolbarSurface(state: PhotoEditorState) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val sideGrip = !expanded && !verticalExpanded
+    val density = LocalDensity.current
     val scrollState = rememberScrollState()
     val tool = state.scene.tool
     val repeat = tool == DimensionTool.REPEAT
@@ -192,7 +294,19 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
             tonalElevation = 4.dp,
         ) {
             Column(
-                modifier = Modifier.padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
+                modifier = (if (sideGrip) Modifier else Modifier.onGloballyPositioned { coordinates ->
+                    if (BuildConfig.ENABLE_STRESS_TOOLS) {
+                        val bounds = coordinates.boundsInWindow()
+                        val half = minOf(bounds.width, with(density) { gripTopWidth.toPx() }) / 2f
+                        val top = bounds.top + with(density) { gripTopOverlap.toPx() }
+                        state.diagnosticSharedGripBounds = DiagnosticGripBounds(
+                            bounds.left + bounds.width / 2f - half, top,
+                            bounds.left + bounds.width / 2f + half,
+                            minOf(bounds.bottom, top + with(density) { gripSharedDepth.toPx() }),
+                        )
+                    }
+                }.sharedToolbarGrip(state))
+                    .padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {

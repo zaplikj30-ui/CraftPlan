@@ -132,27 +132,30 @@ internal class EditorDiagnostics(
     fun toolbarWindowTouch(
         kind: DiagnosticTouch, input: EditorPointerKind, x: Float, y: Float,
         pointers: Int, canceled: Boolean, bounds: DiagnosticGripBounds?, toolbarState: Int,
+        sharedBounds: DiagnosticGripBounds? = null,
     ) {
         val time = recordingTime() ?: return
         append(time, "toolbar_window ${kind.name} ${input.name} x_px=$x y_px=$y pointers=$pointers" +
             " canceled_flag=$canceled state=$toolbarState in_grip=${bounds?.contains(x, y) ?: "NA"}" +
-            " grip_bounds_px=${bounds?.let { "${it.left},${it.top},${it.right},${it.bottom}" } ?: "NA"}")
+            " grip_bounds_px=${bounds?.let { "${it.left},${it.top},${it.right},${it.bottom}" } ?: "NA"}" +
+            " in_shared=${sharedBounds?.contains(x, y) ?: "NA"}" +
+            " shared_bounds_px=${sharedBounds?.let { "${it.left},${it.top},${it.right},${it.bottom}" } ?: "NA"}")
     }
 
     fun toolbarGripStart(input: EditorPointerKind, side: Boolean, x: Float, y: Float,
-        width: Int, height: Int, threshold: Float, expanded: Boolean,
+        width: Int, height: Int, threshold: Float, expanded: Boolean, shared: Boolean = false,
     ) {
         val time = recordingTime() ?: return
         append(time, "toolbar_grip START ${input.name} side=$side x_local_px=$x y_local_px=$y" +
-            " width_px=$width height_px=$height threshold_px=$threshold expanded=$expanded")
+            " width_px=$width height_px=$height threshold_px=$threshold expanded=$expanded zone=${if (shared) "shared" else "dedicated"}")
     }
 
     fun toolbarGripEnd(reason: ToolbarGripOutcome, dx: Float, dy: Float, maxTravel: Float,
-        expandedBefore: Boolean, expandedAfter: Boolean,
+        expandedBefore: Boolean, expandedAfter: Boolean, shared: Boolean = false,
     ) {
         val time = recordingTime() ?: return
         append(time, "toolbar_grip END ${reason.name} dx_px=$dx dy_px=$dy max_travel_px=$maxTravel" +
-            " before=$expandedBefore after=$expandedAfter changed=${expandedBefore != expandedAfter}")
+            " before=$expandedBefore after=$expandedAfter changed=${expandedBefore != expandedAfter} zone=${if (shared) "shared" else "dedicated"}")
     }
 
     fun frameListener(available: Boolean) {
@@ -216,7 +219,7 @@ internal class EditorDiagnostics(
         append(summary(version, build, device, sdk))
         appendLine("time=monotonic ms since Start; touch coordinates=editor px; edit start detail=drag threshold px; edit span and release detail=px")
         appendLine("hit-test detail=elapsed ns; generate detail=start count or applied elapsed ns; scene/pinch detail=count; tool detail=0 select/1 single/2 repeat; notes, lock, landscape detail=0/1; toolbar detail=0-3 (bit 0 horizontal, bit 1 vertical)")
-        appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip=measured bounds only; toolbar_grip: local px, release or cancellation reason; OS-intercepted touches may be absent")
+        appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip/in_shared=measured bounds only; toolbar_grip: local px, dedicated/shared zone, release, yield or cancellation reason; OS-intercepted touches may be absent")
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")

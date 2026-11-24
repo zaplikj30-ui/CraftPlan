@@ -31,6 +31,7 @@ internal fun toolbarHorizontalExpansionAfterDrag(
 internal enum class ToolbarGripOutcome {
     TAP, UP, DOWN, BELOW_VERTICAL_THRESHOLD, NON_VERTICAL, INVALID,
     POINTER_MISSING, CONSUMED, MULTI_POINTER, STREAM_CANCELED,
+    SHARED_TAP, SHARED_HORIZONTAL, SHARED_LONG_PRESS,
 }
 
 internal fun toolbarGripReleaseReason(dx: Float, dy: Float, maxTravel: Float, threshold: Float): ToolbarGripOutcome {
@@ -50,6 +51,28 @@ internal fun toolbarGripAfterRelease(expanded: Boolean, dx: Float, dy: Float, ma
         ToolbarGripOutcome.DOWN -> false
         else -> expanded
     }
+
+internal enum class ToolbarSharedDecision { WAIT, VERTICAL, HORIZONTAL, LONG_PRESS, INVALID }
+
+/** Only the first decisive direction may claim the shared area. No tap or hold is claimed. */
+internal fun toolbarSharedDecision(
+    dx: Float, dy: Float, threshold: Float, elapsedMs: Long, longPressMs: Long,
+): ToolbarSharedDecision {
+    if (!dx.isFinite() || !dy.isFinite() || !threshold.isFinite() || threshold <= 0f ||
+        elapsedMs < 0 || longPressMs <= 0) return ToolbarSharedDecision.INVALID
+    if (elapsedMs >= longPressMs) return ToolbarSharedDecision.LONG_PRESS
+    if (maxOf(abs(dx), abs(dy)) < threshold) return ToolbarSharedDecision.WAIT
+    return if (abs(dy) > abs(dx)) ToolbarSharedDecision.VERTICAL else ToolbarSharedDecision.HORIZONTAL
+}
+
+/** The strip is inside the surface, immediately below the dedicated top grip. */
+internal fun toolbarSharedContains(x: Float, y: Float, width: Float, gripWidth: Float,
+    gripOverlap: Float, extension: Float,
+): Boolean {
+    val half = minOf(width, gripWidth) / 2f
+    return x >= width / 2f - half && x < width / 2f + half &&
+        y >= gripOverlap && y < gripOverlap + extension
+}
 
 /** Restore the window center inside a layout already padded by the safe drawing insets. */
 internal fun toolbarHintCenterOffset(leftInset: Dp, rightInset: Dp): Dp = (rightInset - leftInset) / 2

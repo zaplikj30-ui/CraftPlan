@@ -57,6 +57,22 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun sharedGripRecordsYieldSeparatelyFromDedicatedGrip() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        recorder.start()
+        val grip = DiagnosticGripBounds(10f, 20f, 50f, 40f)
+        val shared = DiagnosticGripBounds(10f, 40f, 50f, 60f)
+        recorder.toolbarWindowTouch(DiagnosticTouch.DOWN, EditorPointerKind.FINGER,
+            30f, 45f, 1, false, grip, 1, shared)
+        recorder.toolbarGripStart(EditorPointerKind.FINGER, false, 20f, 25f, 100, 80, 8f, false, shared = true)
+        recorder.toolbarGripEnd(ToolbarGripOutcome.SHARED_TAP, 0f, 0f, 0f, false, false, shared = true)
+        recorder.stop()
+        val report = recorder.export("local", null, "test", 36)
+        assertTrue(report.contains("in_grip=false grip_bounds_px=10.0,20.0,50.0,40.0 in_shared=true"))
+        assertTrue(report.contains("toolbar_grip END SHARED_TAP dx_px=0.0 dy_px=0.0 max_travel_px=0.0 before=false after=false changed=false zone=shared"))
+    }
+
+    @Test
     fun limitsDurationCapacityAndMovementSamplingAndResets() {
         var now = 0L
         val recorder = EditorDiagnostics(now = { now }, capacity = 3, durationLimitNs = 100_000_000)

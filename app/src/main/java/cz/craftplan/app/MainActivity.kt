@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         editorState.restorePreferences(getSharedPreferences("editor_preferences", MODE_PRIVATE))
         editorState.diagnosticGripBounds = null
+        editorState.diagnosticSharedGripBounds = null
         enableEdgeToEdge()
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
                     kind, input, event.getX(index), event.getY(index), event.pointerCount,
                     event.flags and MotionEvent.FLAG_CANCELED != 0, editorState.diagnosticGripBounds,
                     (if (editorState.toolbarExpanded) 1 else 0) + (if (editorState.toolbarExtraExpanded) 2 else 0),
+                    editorState.diagnosticSharedGripBounds,
                 )
             }
         }
@@ -125,6 +127,7 @@ internal class PhotoEditorState : ViewModel() {
         private set
     val diagnostics = EditorDiagnostics()
     var diagnosticGripBounds: DiagnosticGripBounds? = null
+    var diagnosticSharedGripBounds: DiagnosticGripBounds? = null
     var diagnosticsEnabled by mutableStateOf(false)
         private set
     var diagnosticsRecording by mutableStateOf(false)
@@ -336,6 +339,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
         editorState.cancelStressGeneration()
         editorState.stopDiagnostics()
         editorState.diagnosticGripBounds = null
+        editorState.diagnosticSharedGripBounds = null
         editorState.scene = editorState.scene.closePhoto()
         photoOpen = false
     }
