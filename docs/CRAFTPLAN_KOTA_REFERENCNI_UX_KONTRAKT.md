@@ -44,6 +44,16 @@
 8. **Bezpečný a plynulý editor.** Náhled tažení musí zůstat plynulý, nesmí čekat na synchronní diskový zápis; jeden validovaný dokončený tah = odpovídající vratná úprava. Save/reopen musí zachovat poslední skutečně potvrzenou práci i dostupné médium, včetně **nezměněného originálu tam, kde byl plný zdroj skutečně uchován**; při úsporné pracovní kopii podle PR #6 nesmí předstírat obnovu plného originálu, bez falešného „uloženo“.
 9. **Pozdější laser F03:** ruční i laserová hodnota má vždy jednoznačný cílový objekt a typované měřicí pole; při opožděné nebo chybně identifikované hodnotě nesmí dojít k zápisu do jiné kóty. Neimplementovat laser automaticky do M1.
 
+### 3.1 SCHVÁLENO 24. 11. 2026 – doladění dialogu hodnoty a klávesnice M1
+
+- Převody a znovuotevření zobrazují desetinnou čárku; kanonická přesná hodnota a původní vstup se nezmění. Nová jednotka µm s přesným převodem (1 µm = 0,001 mm). Jednotky a řádek zámku v nabídce mají společný levý okraj; mezi numerickou klávesnicí a akcemi Uložit/Zrušit mezera 4 dp, jako mezi klávesami.
+- Numerická klávesnice zachovává mřížku 4 × 4, hranatý vzhled a hlavní číslice přesně uprostřed. Alternativy vpravo dole: 7→+, 8→−, 9→×, 4→÷, 5→=, 6→%, 1→/, 2→±, 3→°, 0→Ø, čárka→tečka. Krátký dotyk vloží pouze hlavní znak; dlouhé podržení ukáže vyskakovací symbol a po platném uvolnění vloží pouze alternativu jednou. Zrušené gesto nic nevloží.
+- Symbolová mřížka po řádcích: `+ − × ÷`; `± / = %`; `° Ø m² m³`; tečka, mezera, návrat na čísla, `R` (poloměr). Znaky se vkládají jako text, m²/m³ jako celé zápisy. Nejde o kalkulačku ani měření jiných veličin.
+- Poslední numerické tlačítko je proměnné. Krátký dotyk vloží nastavený symbol, dlouhý dotyk otevře výběr všech 15 vkládaných symbolů druhé klávesnice včetně možnosti vyprázdnit tlačítko. Prázdné tlačítko může otevřít výběr i krátkým dotykem. Alternativně dlouze podržet symbol ve druhé mřížce a přetáhnout jej na vyznačené pravé spodní políčko; po platném puštění přiřadit a vrátit se na čísla. Výběr ani přetažení nevkládají znak do rozepsané hodnoty. Neplatné puštění nemění volbu. Preference je společná pro kóty a přežívá běžné ukončení/restart.
+- Zachovat stávající kurzor, poznámku, viditelnost poznámek, zámek čísla při změně jednotky, systémovou klávesnici a rozvržení v obou orientacích. Vyhrazená historie laseru není součástí této změny.
+
+Implementace: [M1 commit dc56c2a](https://github.com/zaplikj30-ui/CraftPlan/commit/dc56c2a494975265cabbaf95e8f3609868610a04). Fyzický dotyk, dlouhé podržení, zrušení gesta, přetažení (včetně puštění mimo), změna/mazání rychlého symbolu, restart, oba režimy orientace a přepnutí klávesnic: **NOT RUN**, ověřit po samostatném GO pro APK. Žádný zásah do save/recovery.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
