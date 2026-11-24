@@ -150,6 +150,17 @@ Referenční produkty pro další ověření: [ImageMeter](https://imagemeter.co
 
 Reference: [My Measures](https://mymeasuresapp.com/), [REEKON BOLDR](https://www.reekon.tools/), [STABILA](https://www.stabila.com/). Při konkrétním zadání znovu ověřit dokumentované chování, dostupnost a podmínky. Nezavádět cizí kód či závislosti. **Stav nových možností: EVIDOVÁNO / OTEVŘENO, NEIMPLEMENTOVÁNO, NOT RUN.** Nadále chránit přesnost, identity, revize, média, soukromí a bezpečné uložení podle PR #3/#6.
 
+### M1 — fyzická zpětná vazba ze sestavení 43 a schválené opravy
+
+Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážně funguje, ručně přidané kóty nezpůsobily pozorovatelné sekání a Undo/Redo podle dosavadního pozorování funguje. Přesný počet ručních kót ani objektivní výkonnostní metriky nejsou známy. Těsné konce se někdy špatně rozlišují, velmi krátké kóty občas nereagují na posun i při maximálním zoomu a přidání druhého prstu přes kótu může kótou nechtěně pohnout.
+
+- Spodní lišta: zvětšit a opticky sjednotit ikony po vzoru referenční ergonomie ImageMeteru, mírně rozšířit první dvě tlačítka, aktivní ovladače zvýraznit obdélníkem se zaoblenými rohy. Zachovat symboly, vysouvání i obě orientace. Symbol posunu popisku tvoří nahoře **123 vedle menšího zámku**, dole výrazná oboustranná šipka přes téměř celou šířku. Zamčeno/odemčeno zůstává rozlišitelné.
+- Klepnutí na neaktivní nástroj připraví jednu kótu a po dokončení se nástroj vypne. Dlouhé podržení zapne nebo vypne opakování; aktivní opakování má kruhovou šipku kolem nástroje. Klepnutí na kterýkoli aktivní režim jej vypne.
+- U překryvů hodnotit skutečnou blízkost konce, hrotu a rysky; vyčnívající geometrii musí jít zvolit bez cyklování. Rozšířená tolerance ani současný výběr nesmí přebít přesnější zásah. U krátkých kót zachovat přístup k jednotlivým koncům, středu i popisku bez pouhého zvětšování dotykových zón.
+- Druhý prst přebírá gesto pro zoom včetně zahájení na konci, čáře a popisku. Rozpracovaná editace se bezpečně zahodí bez Undo/Redo. Zbývající prst po zoomu nesmí pokračovat v editaci.
+- Symbol metru je podélně posouvatelný stejně jako číslo, respektuje společný zámek a Undo/Redo. První zadání hodnoty zachová jeho pozici, geometrii i rozdíl mezi NEZMĚŘENO a skutečnou nulou.
+- Testovací syntetická fotografie má reprodukovatelný generátor 100/500/1 000/5 000/10 000 různorodých kót včetně překryvů, přesných hodnot, nezměřených kót a poznámek. Generování běží mimo UI vlákno, stav ukazuje přesný počet a čištění se týká pouze generovaných objektů. Sleduje se čas generování, kresby, hit-testu, paměť a plynulost. Fyzická a objektivní výkonová měření změn jsou zatím **NOT RUN**.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
