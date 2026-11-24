@@ -452,6 +452,10 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **Realizace / důkaz ke dni zápisu:** vývojová větev `m1/first-dimension`, zdrojová revize [`beef0ed`](https://github.com/zaplikj30-ui/CraftPlan/commit/beef0ed65528ec60de831f4decd08b5ec9147847). Codex hlásí 59/59 lokálních jednotkových testů a debug build PASS; fyzické testování orientace, IME, dotyku notýsku a trvalá obnova **NOT RUN**. Etapizace PR #2 se nemění: v M1 nejvyšší priorita funkční editor, Undo/Redo, bezpečný save/reopen; další rozvoj poznámek a laseru podle návazností.
 
+## Rozšiřitelný výběr objektů a úchopy – 24. 11. 2026
+
+**POTVRZENÝ SMĚR vlastníka:** vyladit společná pravidla výběru a úchopů nyní, zachovat možnosti pro další tvary bez nutnosti pozdějšího zásadního předělávání. Podrobný jediný pracovní seznam pravidel, rizik, budoucích možností a ověřovacích scénářů je v [referenčním UX kontraktu kóty, oddíl 3.3](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#33-výběr-a-úchopy--rozšiřitelná-pravidla-editoru-24-11-2026). Před dalšími typy objektů jej zohlednit. Oddělit nynější doladění od otevřených rozšíření; prostorový index podle měření, nikoli jako povinnou součást předčasné architektury. Nejde o GO k programování, sestavení nebo nový schválený seznam UI funkcí. Novější pravidlo výběru a dialogu v §3.2–3.3 má přednost před starším obecným popisem v tomto registru.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.
