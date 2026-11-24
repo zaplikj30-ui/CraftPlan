@@ -8,6 +8,23 @@ import org.junit.Test
 
 class DimensionSceneTest {
     @Test
+    fun repeatAppendsWithoutSelectionAndClosesOrTogglesSafely() {
+        val repeat = DimensionScene().toggleRepeat()
+        val two = repeat.create(dimension(1)).create(dimension(2))
+        assertEquals(DimensionTool.REPEAT, two.tool)
+        assertNull(two.selectedId)
+        val selected = two.select(dimension(1).id)
+        assertEquals(DimensionTool.REPEAT, selected.tool)
+        assertEquals(dimension(1).id, selected.selectedId)
+        assertEquals(DimensionTool.SELECT, selected.toggleRepeat().tool)
+        assertEquals(DimensionTool.SELECT, selected.closePhoto().tool)
+        assertEquals(two.dimensions, selected.closePhoto().dimensions)
+        val single = two.prepareSingle().create(dimension(3))
+        assertEquals(DimensionTool.SELECT, single.tool)
+        assertEquals(dimension(3).id, single.selectedId)
+    }
+
+    @Test
     fun independentCreationAndEditsUseStableIdentity() {
         val first = dimension(0).withManualLength("1/3 in").copy(note = "První")
         val items = (1..200).map(::dimension)

@@ -13,6 +13,13 @@ internal data class DimensionScene(
 
     fun select(id: UUID?) = copy(selectedId = find(id)?.id)
 
+    fun prepareSingle() = copy(tool = DimensionTool.SINGLE, selectedId = null)
+
+    fun toggleRepeat() = if (tool == DimensionTool.REPEAT) copy(tool = DimensionTool.SELECT)
+        else copy(tool = DimensionTool.REPEAT, selectedId = null)
+
+    fun closePhoto() = copy(tool = DimensionTool.SELECT, selectedId = null)
+
     fun create(dimension: PhotoDimension): DimensionScene {
         if (tool == DimensionTool.SELECT || !accepts(dimension) || find(dimension.id) != null) return this
         val repeat = tool == DimensionTool.REPEAT

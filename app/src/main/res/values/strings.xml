@@ -8,6 +8,17 @@
     <string name="photo_gestures_short">Posun / zoom</string>
     <string name="sample_description">Syntetický snímek dílenského stolu.</string>
     <string name="add_dimension">Přidat kótu</string>
+    <string name="toolbar_dimension">Kóta</string>
+    <string name="toolbar_tools">Nabídka nástrojů</string>
+    <string name="toolbar_expand">Rozbalit lištu</string>
+    <string name="toolbar_collapse">Sbalit lištu</string>
+    <string name="toolbar_repeat_on">Zapnout opakování</string>
+    <string name="toolbar_repeat_off">Vypnout opakování</string>
+    <string name="toolbar_repeat_active">Opakování zapnuto</string>
+    <string name="toolbar_undo">Vrátit změnu</string>
+    <string name="toolbar_redo">Zopakovat změnu</string>
+    <string name="toolbar_delete">Smazat vybranou kótu</string>
+    <string name="toolbar_label_lock">Posouvání čísel</string>
     <string name="drag_dimension">Táhni po fotografii od prvního bodu k druhému.</string>
     <string name="drag_dimension_short">Táhni kótu</string>
     <string name="dimension_unmeasured">NEZMĚŘENO</string>
