@@ -69,7 +69,42 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                 )
             }
         }
-        EditorToolbarSurface(state)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            ToolbarExpansionGrip(state)
+            EditorToolbarSurface(state)
+        }
+    }
+}
+
+@Composable
+private fun ToolbarExpansionGrip(state: PhotoEditorState) {
+    val expanded by rememberUpdatedState(state.toolbarExtraExpanded)
+    val handleLabel = stringResource(if (expanded) R.string.toolbar_collapse else R.string.toolbar_expand)
+    val activeColors = MaterialTheme.colorScheme
+    Box(
+        Modifier.size(width = 112.dp, height = 12.dp)
+            .semantics { contentDescription = handleLabel }
+            .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
+            .pointerInput(state) {
+                var motion = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { motion = 0f },
+                    onDragEnd = {
+                        state.setToolbarExtraExpansion(toolbarExpansionAfterDrag(expanded, -motion, 4.dp.toPx()))
+                    },
+                ) { change, delta ->
+                    motion += delta
+                    change.consume()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.size(76.dp, 10.dp).background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(64.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
+        }
     }
 }
 
@@ -79,36 +114,14 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val currentExpanded by rememberUpdatedState(expanded)
-    val currentVertical by rememberUpdatedState(verticalExpanded)
     val scrollState = rememberScrollState()
     val tool = state.scene.tool
     val repeat = tool == DimensionTool.REPEAT
     val activeColors = MaterialTheme.colorScheme
-    val handleLabel = stringResource(if (verticalExpanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
     Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier.size(width = 112.dp, height = 12.dp)
-                    .semantics { contentDescription = handleLabel }
-                    .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
-                    .pointerInput(state) {
-                        var motion = 0f
-                        detectVerticalDragGestures(
-                            onDragStart = { motion = 0f },
-                            onDragEnd = {
-                                state.setToolbarExtraExpansion(toolbarExpansionAfterDrag(currentVertical, -motion, 4.dp.toPx()))
-                            },
-                        ) { change, delta ->
-                            motion += delta
-                            change.consume()
-                        }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(64.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
-            }
             if (verticalExpanded) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -138,7 +151,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                 }
             }
             Row(
-                modifier = Modifier.align(Alignment.Start).padding(bottom = 3.dp),
+                modifier = Modifier.align(Alignment.Start).padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
             ) {
