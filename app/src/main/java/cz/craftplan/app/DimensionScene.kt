@@ -50,6 +50,8 @@ internal data class DimensionTarget(
     val distance: Float,
     // Distance to the center of the visible label across its baseline, for overlapping labels.
     val labelCenterDistance: Float = 0f,
+    val direct: Boolean = distance == 0f,
+    val notebook: Boolean = false,
 )
 
 internal fun preferredDimensionTarget(
@@ -59,11 +61,13 @@ internal fun preferredDimensionTarget(
         it.dimension.id,
         when {
             it.hit != DimensionHit.BODY -> EditorHitPart.ENDPOINT
+            it.notebook -> EditorHitPart.NOTE
             it.label -> EditorHitPart.LABEL
             else -> EditorHitPart.BODY
         },
         it.distance,
         it.labelCenterDistance,
+        it.direct,
     )
 }
 

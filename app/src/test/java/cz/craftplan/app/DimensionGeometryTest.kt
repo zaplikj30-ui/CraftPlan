@@ -24,6 +24,19 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun visibleStrokeAndExpandedEndpointAreSeparateCandidates() {
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(100f, 0f)
+        val near = dimensionStrokeTargets(EditorPoint(16f, 0f), start, end, 1f, false)
+        assertTrue(near.any { it.hit == DimensionHit.START && !it.direct })
+        assertTrue(near.any { it.hit == DimensionHit.BODY && it.direct })
+        val tick = dimensionStrokeTargets(EditorPoint(0f, 10f), start, end, 1f, false)
+        assertTrue(tick.any { it.hit == DimensionHit.START && it.direct })
+        val short = dimensionStrokeTargets(EditorPoint(20f, 0f), start, EditorPoint(40f, 0f), 1f, true)
+        assertEquals(listOf(DimensionHit.BODY), short.map { it.hit })
+    }
+
+    @Test
     fun tappingAndSmallMotionStayBelowDragThreshold() {
         val down = EditorPoint(10f, 20f)
         assertFalse(passesDragThreshold(down, EditorPoint(17f, 20f), 7f))

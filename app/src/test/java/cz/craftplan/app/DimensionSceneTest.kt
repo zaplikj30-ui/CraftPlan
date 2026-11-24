@@ -67,9 +67,12 @@ class DimensionSceneTest {
         val label = DimensionTarget(dimension(0), DimensionHit.BODY, true, 0f)
         val nearest = DimensionTarget(dimension(1), DimensionHit.END, false, 9f)
         val selected = DimensionTarget(dimension(2), DimensionHit.START, false, 15f)
-        val targets = listOf(label, nearest, selected)
+        val targets = listOf(nearest, selected)
         assertEquals(selected, preferredDimensionTarget(targets, selected.dimension.id, 1f))
         assertEquals(nearest, preferredDimensionTarget(targets, selected.dimension.id, 0.5f))
+        assertEquals(label, preferredDimensionTarget(targets + label, selected.dimension.id, 1f))
+        val directEnd = nearest.copy(distance = 0f, direct = true)
+        assertEquals(directEnd, preferredDimensionTarget(listOf(label, directEnd), null, 1f))
     }
 
     @Test
@@ -90,6 +93,9 @@ class DimensionSceneTest {
         assertEquals(direct, preferredDimensionTarget(listOf(fringe, direct), upper.id, 1f))
         val selectedFringe = DimensionTarget(upper, DimensionHit.BODY, true, 0.5f, 2f)
         assertEquals(direct, preferredDimensionTarget(listOf(selectedFringe, direct), upper.id, 1f))
+        val directLine = fringe.copy(distance = 0f, direct = true)
+        val wideEnd = DimensionTarget(lower, DimensionHit.END, false, 12f)
+        assertEquals(directLine, preferredDimensionTarget(listOf(wideEnd, directLine), lower.id, 1f))
     }
 
     @Test

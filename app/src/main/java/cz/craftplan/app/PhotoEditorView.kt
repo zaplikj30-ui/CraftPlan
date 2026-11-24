@@ -54,6 +54,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val downAnchor: PhotoAnchor,
         val tapTarget: DimensionTarget,
         val movesLabel: Boolean = false,
+        val dragThreshold: Float,
         val tapAllowed: Boolean = true,
         val preview: PhotoDimension? = null,
     )
@@ -281,10 +282,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.restore()
     }
 
-    private fun labelHitDistance(
+    private data class LabelCandidate(val hit: LabelHitDistance, val notebook: Boolean)
+
+    private fun labelHitDistances(
         point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel, labelT: Float,
-        includeNotebook: Boolean = true,
-    ): LabelHitDistance? {
+    ): List<LabelCandidate> {
         val axis = end - start
         val fraction = (1f + labelT) / 2f
         val x = point.x - (start.x + axis.x * fraction)
@@ -293,13 +295,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
         val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
-        var best: LabelHitDistance? = null
-        fun candidate(left: Float, top: Float, right: Float, bottom: Float) {
-            val next = labelRectangleDistance(along, across, left, top, right, bottom)
-            val old = best
-            if (old == null || next.distance < old.distance ||
-                next.distance == old.distance && next.centerDistance < old.centerDistance
-            ) best = next
+        val candidates = mutableListOf<LabelCandidate>()
+        fun candidate(left: Float, top: Float, right: Float, bottom: Float, notebook: Boolean = false) {
+            candidates += LabelCandidate(labelRectangleDistance(along, across, left, top, right, bottom), notebook)
         }
         // Retain the old generous bounds, but rank by the actual rendered rectangles.
         if (across in -height..(-2f * density)) {
@@ -316,13 +314,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 }
             }
         }
-        if (includeNotebook && decoration.notebook) {
+        if (decoration.notebook) {
             val left = notebookLeft(decoration.text)
             if (along in (left - 8f * density)..(left + 23f * density) &&
                 across in (-32f * density)..(1f * density)
-            ) candidate(left, -24f * density, left + 15f * density, -7f * density)
+            ) candidate(left, -24f * density, left + 15f * density, -7f * density, notebook = true)
         }
-        return best
+        return candidates
     }
 
     private fun notebookLeft(label: String?): Float =
@@ -527,13 +525,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down)
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
-            // A locked label still owns its gesture; never fall through to moving the whole dimension.
-            val movesLabel = dimension.measurement != null && target.hit == DimensionHit.BODY && target.label &&
-                labelHitDistance(
-                    down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end),
-                    labels.getValue(dimension.id), dimension.labelT, includeNotebook = false,
-                ) != null
-            dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target, movesLabel = movesLabel)
+            // Label and notebook gestures never fall through to moving the whole dimension.
+            // Keep the established touch threshold for both inputs until physical pen tests.
+            val threshold = 7f * density
+            dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
+                movesLabel = target.label && !target.notebook, dragThreshold = threshold)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
             dimensionDrag = DimensionDrag(
@@ -550,25 +546,21 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     private fun targetAt(point: EditorPoint): DimensionTarget? {
-        val targets = scene.dimensions.asReversed().mapNotNull { dimension ->
+        // Keep every eligible part. A nearby handle must not erase a direct label or line hit.
+        val frontToBack = buildList {
+            scene.find(scene.selectedId)?.let { add(it) }
+            addAll(scene.dimensions.asReversed().filterNot { it.id == scene.selectedId })
+        }
+        val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val label = labelHitDistance(point, start, end, labels.getValue(dimension.id), dimension.labelT)
-            val hit = hitDimension(point, start, end, density)
-            when (hit) {
-                DimensionHit.START -> DimensionTarget(dimension, hit, false, point.distanceTo(start))
-                DimensionHit.END -> DimensionTarget(dimension, hit, false, point.distanceTo(end))
-                else -> {
-                    val lineDistance = if (hit == DimensionHit.BODY)
-                        distanceToDimensionLine(point, start, end) else Float.POSITIVE_INFINITY
-                    // Keep the isolated label's full touch area. When it competes with its own
-                    // line, the nearest visible element wins (a direct label hit wins a tie).
-                    if (label != null && label.distance <= lineDistance) {
-                        DimensionTarget(dimension, DimensionHit.BODY, true, label.distance, label.centerDistance)
-                    } else if (hit == DimensionHit.BODY) {
-                        DimensionTarget(dimension, hit, false, lineDistance)
-                    } else null
-                }
+            val stroke = dimensionStrokeTargets(point, start, end, density, dimension.id == scene.selectedId)
+            val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
+            stroke.map {
+                DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
+            } + labelsAtPoint.map {
+                DimensionTarget(dimension, DimensionHit.BODY, true, it.hit.distance, it.hit.centerDistance,
+                    direct = it.hit.distance == 0f, notebook = it.notebook)
             }
         }
         return preferredDimensionTarget(targets, scene.selectedId, density)
@@ -611,7 +603,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 val cameraMoved = panWithSecondPointer(event)
                 val edit = dimensionEdit
                 if (edit == null || cameraMoved || edit.preview != null ||
-                    passesDragThreshold(edit.down, contact, 7f * density)
+                    passesDragThreshold(edit.down, contact, edit.dragThreshold)
                 ) {
                     if (edit != null || cameraMoved || dimensionDrag?.tap?.let {
                             passesDragThreshold(it, contact, touchSlop.toFloat())
@@ -665,7 +657,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             if (result != null) onCreateDimension(result.dimension)
             else if (draft.tap != null && !passesDragThreshold(draft.tap, contact, touchSlop.toFloat())) selectTarget(draft.tapTarget)
         } else if (edit != null) {
-            if (edit.preview != null || passesDragThreshold(edit.down, contact, 7f * density)) {
+            if (edit.preview != null || passesDragThreshold(edit.down, contact, edit.dragThreshold)) {
                 onSelectDimension(edit.original.id)
                 onChangeDimension(edit.original, editedDimension(edit, contact))
             } else if (edit.tapAllowed) {
@@ -677,6 +669,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension {
         val delta = contact - viewport.screenPoint(draft.downAnchor)
         val original = draft.original
+        if (draft.tapTarget.notebook) return original
         if (!draft.movesLabel) return viewport.moveDimension(original, draft.hit, delta)
         val axis = viewport.screenPoint(original.end) - viewport.screenPoint(original.start)
         return original.shiftLabel(axis, delta, labelsLocked)

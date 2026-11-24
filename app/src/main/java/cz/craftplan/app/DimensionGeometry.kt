@@ -46,6 +46,52 @@ internal fun distanceToDimensionLine(point: EditorPoint, start: EditorPoint, end
     return point.distanceTo(EditorPoint(start.x + t * axis.x, start.y + t * axis.y))
 }
 
+/** All eligible stroke parts are retained until the shared resolver runs. */
+internal data class DimensionStrokeTarget(
+    val hit: DimensionHit,
+    val distance: Float,
+    val centerDistance: Float,
+    val direct: Boolean,
+)
+
+internal fun dimensionStrokeTargets(
+    point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float, selected: Boolean,
+): List<DimensionStrokeTarget> {
+    val axis = end - start
+    val length = hypot(axis.x, axis.y)
+    if (!length.isFinite() || length <= 0f || !density.isFinite() || density <= 0f) return emptyList()
+    val ux = axis.x / length
+    val uy = axis.y / length
+    val t = ((point.x - start.x) * ux + (point.y - start.y) * uy) / length
+    val strokeRadius = density
+    val tick = 11f * density
+    val arrow = minOf(9f * density, length / 4f)
+    fun from(center: EditorPoint, along: Float, across: Float) =
+        EditorPoint(center.x + ux * along - uy * across, center.y + uy * along + ux * across)
+    val result = mutableListOf<DimensionStrokeTarget>()
+    fun endpoint(hit: DimensionHit, center: EditorPoint, direction: Float) {
+        val centerDistance = point.distanceTo(center)
+        if (centerDistance >= 31f * density) return
+        val distance = minOf(
+            distanceToDimensionLine(point, from(center, 0f, -tick), from(center, 0f, tick)),
+            distanceToDimensionLine(point, center, from(center, direction * arrow, arrow / 2f)),
+            distanceToDimensionLine(point, center, from(center, direction * arrow, -arrow / 2f)),
+        )
+        // The visible selected handle is a direct target only inside the end portion,
+        // not across the middle of a short dimension. The wider 31dp zone is merely a candidate.
+        val direct = distance <= strokeRadius ||
+            selected && centerDistance <= minOf(14f * density, length * 0.27f)
+        result += DimensionStrokeTarget(hit, distance, centerDistance, direct)
+    }
+    if (t <= 0.27f) endpoint(DimensionHit.START, start, 1f)
+    if (t >= 0.73f) endpoint(DimensionHit.END, end, -1f)
+    val lineDistance = distanceToDimensionLine(point, start, end)
+    if (lineDistance <= 20f * density) {
+        result += DimensionStrokeTarget(DimensionHit.BODY, lineDistance, 0f, lineDistance <= strokeRadius)
+    }
+    return result
+}
+
 internal data class LabelHitDistance(val distance: Float, val centerDistance: Float)
 
 /** Distance to a visible rectangle in the label's rotated local coordinates. */
@@ -53,7 +99,7 @@ internal fun labelRectangleDistance(
     along: Float, across: Float, left: Float, top: Float, right: Float, bottom: Float,
 ): LabelHitDistance = LabelHitDistance(
     hypot(maxOf(left - along, along - right, 0f), maxOf(top - across, across - bottom, 0f)),
-    kotlin.math.abs(across - (top + bottom) / 2f),
+    hypot(along - (left + right) / 2f, across - (top + bottom) / 2f),
 )
 
 internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): PhotoDimension {
