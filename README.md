@@ -19,6 +19,8 @@ Diagnostika úchytu: ve stávajícím ručně zapínaném záznamu syntetického
 
 Po fyzické diagnostice sestavení 53: zachycené tahy na úchytu fungují, opakované pokusy těsně pod ním se do něj nedoručují (prst i S Pen, obě orientace). Horní úchyt má navíc sdílenou oblast 160 × 20 dp směrem do lišty; výška a vzhled lišt zůstávají. Nadřazený pozorovatel událostí na tlačítkách nic nespotřebuje před rozpoznáním svislého tahu. První rozhodný vodorovný tah, klepnutí a dlouhé podržení ponechá původním ovladačům. Svislý tah po překročení stávajícího prahu zruší stisk tlačítka a při uvolnění nastaví horní řádek podle směru. Boční úchyt a systémová navigace se nemění. Diagnostika rozlišuje samostatný a sdílený úchyt a důvod předání gesta. Nezveřejňovat surový záznam zařízení. Fyzicky ověřit klepnutí, opakování dlouhým stiskem, oba vodorovné režimy a oba svislé směry na prstu/S Penu, na výšku/šířku a bez nechtěných akcí. Testy a sestavení NOT RUN.
 
+Po kontrole vzhledu sestavení 54 je boční svislý úchyt sbalené lišty zkrácen: vnější viditelná délka 50 dp (dříve 70), vnitřní čárka 44 dp (dříve 64), dotyková výška 54 dp (dříve 74). Zůstává svisle vycentrovaný; cílem je vizuální odstup od systémového indikátoru gest bez změny polohy či výšky lišty, vodorovného úchytu a pravidel gest. Skutečný odstup a ovládání na zařízení zatím NOT RUN.
+
 ## Debug sestavení (pouze po samostatném GO)
 
 **Pozor:** Následující příkazy jsou jen referenční postup, nikoli automatický úkol pro Codex. GO na opravu, implementaci nebo jednotkové testy **nepovoluje** sestavit APK. Bez samostatného výslovného GO vlastníka nesmí Codex spouštět `assembleDebug`, vytvářet či podepisovat APK ani předávat nefunkční odkazy na lokální soubory. Viz `AGENTS.md`.

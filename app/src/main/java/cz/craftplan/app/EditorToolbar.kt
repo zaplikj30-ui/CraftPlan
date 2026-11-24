@@ -99,7 +99,7 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
     Box(
         modifier.size(
             width = if (side) 9.dp + gripSideOuterHitPadding else gripTopWidth,
-            height = if (side) 74.dp else 9.dp + gripTopOuterHitPadding,
+            height = if (side) 54.dp else 9.dp + gripTopOuterHitPadding,
         ).onGloballyPositioned { coordinates ->
             if (BuildConfig.ENABLE_STRESS_TOOLS) {
                 val bounds = coordinates.boundsInWindow()
@@ -167,11 +167,11 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
         contentAlignment = if (side) Alignment.CenterStart else Alignment.BottomCenter,
     ) {
         Box(
-            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 70.dp else 9.dp)
+            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 50.dp else 9.dp)
                 .background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 64.dp else 4.dp)
+            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 44.dp else 4.dp)
                 .background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
         }
     }
