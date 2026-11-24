@@ -470,7 +470,9 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 ## M1 – výsledky sestavení 45 a schválené doladění (24. 11. 2026)
 
-**Potvrzeno vlastníkem:** úplný zápis fyzických výsledků sestavení 45, zbývajících úprav spodní lišty, kruhové šipky, krátkých kót, zobrazení čísla sestavení a nově schváleného přímého rukopisu S Pen do hodnoty a poznámky je v [referenčním UX kontraktu kóty, §3.7](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md). Obě vlastní klávesnice a existující ikony zůstávají, bez nové ikony rukopisu; potvrzení hodnoty výhradně vědomou akcí. Nová ikona zámku a funkční výběr/opakování/zoom zachovat. Dílčí fyzické PASS dle vlastníka, zátěžový test a rukopis NOT RUN. Bez změny etap a bez implementačního GO tímto zápisem. Novější výsledky mají přednost před historickými údaji NOT RUN pouze v uvedeném rozsahu.
+**Potvrzeno vlastníkem:** úplný zápis fyzických výsledků sestavení 45, zbývajících úprav spodní lišty, kruhové šipky, krátkých kót, zobrazení čísla sestavení a nově schváleného přímého rukopisu S Pen do hodnoty a poznámky je v [referenčním UX kontraktu kóty, §3.7](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md). Obě vlastní klávesnice a existující ikony zůstávají, bez nové ikony rukopisu; potvrzení hodnoty výhradně vědomou akcí. Nová ikona zámku a funkční výběr/opakování/zoom zachovat. Dílčí fyzické PASS dle vlastníka; rukopis NOT RUN. Zátěžový test DÍLČÍ, viz §3.8. Bez změny etap a bez implementačního GO tímto zápisem. Novější výsledky mají přednost před historickými údaji NOT RUN pouze v uvedeném rozsahu.
+
+**Dlouhodobé rozhodnutí vlastníka:** [§3.8 referenčního UX kontraktu kóty](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md) – ponechat vypínatelnou diagnostiku a zátěžové generátory po celou dobu vývoje, reset a kopírování výsledků, postupné rozšiřování podle funkcí a měřené optimalizace i pro slabší zařízení. Dílčí měření sestavení 45 a hranice testu jsou tamtéž. Bez změny přesnosti, uložené kvality médií, bezpečnosti dat či etap; bez implementačního GO.
 
 ## Bezpečnost a způsob další práce
 

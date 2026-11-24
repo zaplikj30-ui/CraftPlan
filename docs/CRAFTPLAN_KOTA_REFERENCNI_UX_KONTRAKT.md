@@ -177,7 +177,7 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 | Posouvání symbolu metru před zadáním hodnoty | PASS. |
 | Undo/Redo po změnách | PASS v rozsahu praktického testování vlastníka. |
 | Otočení telefonu na výšku a šířku | PASS v rozsahu praktického testování vlastníka. |
-| Zátěž 100/500/1 000/5 000/10 000 syntetických kót | NOT RUN / výsledky dosud nedodány; objektivní výkon neověřen. |
+| Zátěž syntetických kót | DÍLČÍ FYZICKÝ TEST: 104, 1 004 a 5 004 celkem; při 5 004 pozorováno mírné trhání. Podrobné metriky a omezení v §3.8; 500 a 10 000 samostatně neprokázány. |
 
 **Schválené doladění pro další implementační krok (bez GO k implementaci tímto zápisem):**
 
@@ -197,6 +197,31 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 - Praktická akceptace: na Samsungu s S Pen a podporovanou IME napsat přímo čísla včetně desetinné čárky/zlomku a text poznámky, opravit výsledek, kombinovat rukopis s tlačítky vlastních klávesnic, zkusit stejné gesto prstem (bez rukopisu), změnit orientaci a zrušit dialog, ověřit potvrzení až při Uložit a Undo/Redo. Ověřit také běžné zadávání na zařízení/IME bez podpory rukopisu. Všechny nové scénáře NOT RUN.
 
 **Stav:** uvedené výsledky jsou pozorování vlastníka na sestavení 45, nikoli nové automatické nebo úplné akceptační testy. Schválené úpravy čekají na samostatné implementační GO; tento zápis nemění etapy, přesné datové kontrakty ani povinnost bezpečného save/reopen. Pouze syntetická/nahraditelná data. Žádný nový build, APK ani testy tímto zápisem.
+
+### 3.8 M1 – dlouhodobá vývojová diagnostika a výkon na slabších zařízeních (24. 11. 2026)
+
+**SCHVÁLENO vlastníkem:** ponechat zátěžové generátory a vypínatelnou diagnostiku po celou dobu vývoje CraftPlanu, průběžně ji rozšiřovat a používat pro lokalizaci problémů a porovnání sestavení. Přednost má funkční a bezpečný editor, nikoli rozsáhlé předčasné optimalizace. Diagnostika a generátor jsou vývojové/testovací nástroje, nikoli běžná zákaznická funkce. Tento zápis není implementační GO.
+
+**Dílčí měření na sestavení 45 (syntetická fotografie):** podle vlastníka a odečtu z jeho testovacího videa. Generátor předchozí dávku nahrazuje, nepřičítá; konečný počet 5 004 znamená 5 000 generovaných a čtyři ruční kóty. Při tomto počtu vlastník pozoruje mírné trhání. Přesné metriky dávky 5 004 nebyly dodány.
+
+| Metrika | 104 celkem | 1 004 celkem |
+|---|---:|---:|
+| Generování | 0,89 ms | 2,99 ms |
+| Příprava scény | 4,76 ms | 12,32 ms |
+| Maximum CPU kreslení | 4,29 ms | 94,35 ms |
+| Maximum hit-testu | 3,27 ms | 7,14 ms |
+
+Jde o jednotlivé odečty maxima, nikoli stabilní FPS, percentily, přesný benchmark či důkaz konkrétní příčiny všech prodlev. Výsledky naznačují, že kreslení stojí za cílené měření; 500/10 000 jako samostatné dávky, slabší zařízení a více velkých fotografií zatím NOT RUN. Tisíce kót na jedné fotografii jsou zátěžová rezerva, nikoli běžný pracovní požadavek. Velký počet uložených kót v celé databázi se nesmí zaměňovat s počtem aktivně zpracovávaných objektů otevřené fotografie.
+
+**Schválený směr dalšího kroku:**
+- Na slabších telefonech/tabletech zachovat použitelnost. Jednoduché optimalizace zavádět podle měření: konzervativně vynechávat kreslení neviditelných objektů (včetně zvlášť posuzovaných popisků a úchopů), omezit opakované výpočty a alokace během gest; hit-test zrychlovat jen podle důkazů, bez změny schválených pravidel výběru. Zátěžová data, geometrie, přesné hodnoty a historie nesmějí optimalizací mizet.
+- Načítat podle otevřené fotografie/zakázky, nedržet všechny fotografie a objekty v RAM. U médií později používat odvozené náhledy a dekódování podle potřebného rozlišení/zoomu; podle paměti zařízení regulovat pouze dočasnou cache a přednačítání. Neměnit uloženou kvalitu ani autoritativní bajty, přesnost měření, identity, revize, bezpečnost zápisu či obnovy dle PR #3/#6. Náročné operace mimo UI vlákno tam, kde je to bezpečné.
+- Rozšířit existující nabídku Test: volitelný malý diagnostický panel, vypnutí, reset měření nezávislý na obsahu scény a kopírování výsledků do schránky. Zachovat reprodukovatelné dávky 100/500/1 000/5 000/10 000, přesný počet a bezpečné odstranění pouze generovaných kót.
+- Měřit odděleně generování, přípravu scény, CPU kreslení, hit-test, skutečné časy snímků/FPS a četnost propadů (s ohledem na obnovovací frekvenci zařízení a omezení měřicí metody), viditelné/vykreslené objekty, Java heap a dostupnou celkovou paměť procesu; u fotografií později paměť médií a náhledů. Neměnit intervaly kreslení při dotyku na údaj o skutečném FPS bez odpovídajícího důkazu. Diagnostika nesmí sama výrazně zhoršovat výkon; porovnávat OFF/ON. Pro konkrétní složité problémy využít systémové trasování (např. Perfetto).
+- Výsledky ke kopírování mají obsahovat sestavení, scénář, počet objektů, měřené jednotky a dostupné parametry zařízení/obnovovací frekvence pro reprodukovatelnost; bez zákaznických fotografií, hodnot, poznámek nebo jiných soukromých údajů. Bez automatického odesílání.
+- Postupně rozšiřovat diagnostiku při vzniku dalších částí: fotografie (dekódování/paměť/náhledy), databáze (uložení/otevření/vyhledávání), půdorys (stěny/objekty/více fotografií), laser (odezva/výpadky/přenos), zálohy (doba/integrita/chyby). Test kót nenahrazuje budoucí samostatný test více velkých fotografií a půdorysů. Vývoj pouze na syntetických a nahraditelných datech do splnění bezpečnostních bran.
+
+**Akceptace:** srovnat stejné scénáře a dávky před/po optimalizaci, včetně běžného počtu desítek/stovek kót, zoomu, posunu, výběru, tahu, popisků, Undo/Redo a obou orientací, s diagnostikou OFF/ON. Ověřit také na slabším podporovaném zařízení; výkonnostní limity teprve odvodit z reálných měření. Žádná garance 10 000 plynule vykreslovaných kót na každém telefonu. Nová diagnostika a optimalizace jsou zatím NEIMPLEMENTOVÁNY / NOT RUN.
 
 ## 4. Ověřovací scénáře a otevřené otázky
 
