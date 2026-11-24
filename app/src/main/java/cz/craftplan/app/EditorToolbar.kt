@@ -77,12 +77,12 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
 }
 
 @Composable
-private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = Modifier) {
+private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = Modifier, side: Boolean = false) {
     val expanded by rememberUpdatedState(state.toolbarExtraExpanded)
     val handleLabel = stringResource(if (expanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val activeColors = MaterialTheme.colorScheme
     Box(
-        modifier.size(width = 112.dp, height = 9.dp)
+        modifier.size(width = if (side) 9.dp else 112.dp, height = if (side) 74.dp else 9.dp)
             .semantics { contentDescription = handleLabel }
             .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
             .pointerInput(state) {
@@ -100,10 +100,12 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.size(76.dp, 9.dp).background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
+            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 70.dp else 9.dp)
+                .background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(64.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
+            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 64.dp else 4.dp)
+                .background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
         }
     }
 }
@@ -113,6 +115,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
+    val sideGrip = !expanded && !verticalExpanded
     val currentExpanded by rememberUpdatedState(expanded)
     val scrollState = rememberScrollState()
     val tool = state.scene.tool
@@ -123,7 +126,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Box {
             Column(
-                modifier = Modifier.padding(vertical = 9.dp),
+                modifier = Modifier.padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
@@ -283,7 +286,11 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                     }
                 }
             }
-            ToolbarExpansionGrip(state, Modifier.align(Alignment.TopCenter))
+            ToolbarExpansionGrip(
+                state,
+                Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
+                side = sideGrip,
+            )
         }
     }
 }
