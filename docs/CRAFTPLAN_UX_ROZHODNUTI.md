@@ -460,6 +460,10 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **Požadavek vlastníka:** při návrhu editoru zachovat možnosti pokročilého S Penu a dalších per (hover/oddálení, fyzická tlačítka, další vstupy a podle zařízení vzdálené akce). Úplný aktuální katalog, hranice bezpečnosti, možné funkce a ověřovací scénáře jsou v [UX kontraktu kóty, oddíl 3.4](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#34-dotyková-pera-a-další-vstupní-zařízení--otevřené-možnosti-24-11-2026). Konkrétní mapování a výchozí nastavení zůstává OTEVŘENO; žádné automatické schválení implementace pokročilých gest. Běžná podpora pera v M1, podrobnosti o provedeném hit-test doladění a omezeném JVM ověření jsou v §3.3. Nedublovat podrobný seznam.
 
+## Katalog osvědčených možností kótování – 24. 11. 2026
+
+**Potvrzený požadavek vlastníka na evidenci:** uložit výsledky rozšířené rešerše kótování, výběru, magnetů, vedení kreslení, kótovacích typů, vazeb, kalibrace a přiřazování naměřených hodnot pro případné budoucí doplnění. Úplný katalog a bezpečnostní hranice jsou v [UX kontraktu kóty, oddíl 3.5](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md#35-katalog-osvědčených-možností-kótování-přesného-kreslení-a-úprav-24-11-2026). Nové možnosti jsou otevřené, nejde o automatický souhlas s jejich implementací; dříve schválené požadavky zůstávají v platnosti. Žádné nové testovací výsledky ani změna etap.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.

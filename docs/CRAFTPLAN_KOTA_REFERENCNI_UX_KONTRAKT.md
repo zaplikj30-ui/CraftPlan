@@ -104,6 +104,32 @@ Referenční směry rešerše: ImageMeter (obecné principy hit-testu, přesný 
 
 Technické zdroje: [Android – Advanced stylus features](https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/advanced-stylus-features), [Android – stylus palm rejection](https://developer.android.com/develop/adaptive-apps/cookbook/stylus-palm-rejection), [Samsung – Air Actions](https://developer.samsung.com/galaxy-spen-remote/air-actions.html), [Samsung – podporované modely a omezení Air Actions](https://www.samsung.com/us/support/answer/ANS10003221/). Ověřovat dokumentaci a skutečnou podporu při implementaci.
 
+### 3.5 Katalog osvědčených možností kótování, přesného kreslení a úprav (24. 11. 2026)
+
+**Rozhodnutí vlastníka:** zachovat výsledky rešerše, aby bylo možné jednotlivé funkce později vědomě vybrat a doplnit. Nejde o schválení implementace všech položek, změnu pořadí etap, výchozích nastavení ani povolení buildu. Dříve schválené požadavky PR #1–#4 (včetně řetězců, úhlů, tvarů a magnetického chování v1) zůstávají závazné; tento katalog je doplňuje, nikoli nahrazuje. §3.3 a §3.4 nadále určují výběr/úchopy a možnosti vstupu.
+
+| Oblast | Osvědčené možnosti k zachování v návrhu | Reference / stav |
+|---|---|---|
+| Magnetické přichytávání | Koncové body, středy úseček, průsečíky, kolmice, rovnoběžnost, hrany/nejbližší body obrysů, úhlové kroky (např. 45°), pracovní mřížka; zvážit středy kruhů, tečny a prodloužení podle potřeb dalších tvarů. | ImageMeter, AutoCAD; konkrétní kombinace a výchozí volby otevřené. |
+| Přesné vedení | Dočasné uzamčení směru/osy, vodorovné/svislé a úhlové vedení, vizuální vodítka od existující geometrie, odlišitelné označení kandidáta přichycení. | SketchUp, CAD editory; detaily otevřené. |
+| Kótovací typy | Samostatná přímá kóta, vodorovná/svislá/projekční či šikmá podle účelu; řetězce; kóty od společného výchozího bodu (baseline); odsazená kótovací čára s pomocnými vynášecími čarami; úhlová kóta; poloměr a průměr. | AutoCAD; zachovat schválené řetězce a úhly, nové typy a jejich UX otevřené. |
+| Čitelnost a úpravy | U krátkých kót možnost umístit šipky nebo popisek vně, zachovat nezávislý posun popisku; přidávání/odebírání bodů u vhodných vícebodových tvarů, nikoli měnit dvoubodovou kótu bez vědomé akce. | Bluebeam Revu a technické editory; konkrétní algoritmus a styl otevřené. |
+| Výběr | Nabídka překrytých objektů, zvýraznění před výběrem, hromadný výběr, oblast/lasso, filtry typů a viditelnosti; podrobnosti a stabilita cíle podle §3.3, hover a tlačítka pera podle §3.4. | AutoCAD, Shapr3D, SketchUp; nepřidávat znovu automatické cyklování klepnutím. |
+| Vazby | Rozlišit jednorázové geometrické přichycení od trvalé asociativní vazby kóty na objekt/kotvu. U případné trvalé vazby zvážit společný bod, následování při posunu a bezpečné rozpojení; stabilní identity, Undo/Redo, zrušení vazby a obnova dokumentu. | AutoCAD; trvalé vazby a pravidla propagace jsou otevřená samostatná funkce. |
+| Kalibrace | Referenční měřítko, perspektivní korekce a kalibrované odhady rozměrů v definované rovině; žádná automatická interpretace pixelů jako skutečné ruční/laserové míry. | ImageMeter; samostatný budoucí měřicí režim jen po schválení přesného kontraktu, zdroje hodnoty, nejistoty a omezení. |
+| Naměřené hodnoty | Přehled předchozích naměřených hodnot a jejich vědomé přiřazení správné kótě, případně laserové workflow dle F03/M5. | Bosch MeasureOn, Leica DISTO Plan; potvrzení a kontrola stabilního cílového ID, žádné tiché přepsání. |
+
+**Pravidla rozšiřitelnosti a bezpečnosti:**
+- Oddělit hit-test a výběr od magnetického přichytávání, rozpoznávání gest, konkrétního příkazu, vykreslení a persistence. Typ objektu poskytuje geometrii, případné kandidáty přichycení a povolené úpravy. Není nutné nyní vytvářet univerzální CAD jádro.
+- Magnety mají mít srozumitelnou vizuální odezvu, možnost vypnutí a podle potřeby samostatné zapínání typů a nastavitelnou citlivost. Zvážit hysterézi proti přeskakování mezi blízkými kandidáty; konkrétní prahy a gesta ověřit na telefonu prstem i perem. Běžná práce musí fungovat bez vynuceného přichycení. Rozlišit dekorativní tečkované pozadí od skutečné pracovní mřížky.
+- Kóty, tvary a vazby nesmějí měnit přesnou naměřenou hodnotu v důsledku pouhého posunu, změny zoomu, přichycení nebo stylu. Ruční a laserové údaje chránit; u kalibrovaného odhadu nezaměnit zdroj, přesnost ani stav NEZMĚŘENO/0. Případné geometrické odhady nesmějí nahrazovat skutečnou míru bez vědomého potvrzení. Respektovat PR #3 a #6, stabilní ID, revize, soukromí a bezpečné uložení.
+- U budoucích řetězců a odsazených kót oddělit měřicí kotvy od polohy vykreslené čáry, textu a dalších prvků. Při úpravách společných bodů či trvalých vazeb musí být rozsah změny jednoznačný a vratný. Nevymýšlet datový kontrakt bez konkrétního zadání.
+- Ověřovací scénáře pro případnou realizaci: magnety v kolizi, záměrný pohyb mimo magnet, změny zoomu, krátké a dlouhé objekty, vypnutí a změna citlivosti, prst/pero, pomocná vodítka, společné body řetězce, odsazení, přístupnost popisku a šipek, přidání/odebrání bodu, případné rozpojení asociace, přiřazení správné hodnoty, Undo/Redo a save/reopen. Výkon ověřovat dle §3.3. Všechny nové scénáře **NOT RUN**; pouze syntetická data, dokud nejsou ověřeny příslušné bezpečnostní brány.
+
+Referenční produkty pro další ověření: [ImageMeter](https://imagemeter.com/), [AutoCAD](https://help.autodesk.com/), [Shapr3D](https://support.shapr3d.com/), [SketchUp](https://help.sketchup.com/), [Bluebeam Revu](https://support.bluebeam.com/), [Bosch MeasureOn](https://www.bosch-professional.com/), [Leica DISTO](https://shop.leica-geosystems.com/). Jde o rozcestníky k dokumentaci referenčních produktů, ne důkaz konkrétní implementace CraftPlanu. Při schvalování konkrétní funkce znovu ověřit příslušnou dokumentaci a ergonomii. Nevnášet cizí kód ani závislosti automaticky.
+
+**Stav:** návrhový katalog uložen, nové funkce NEIMPLEMENTOVÁNY, nové testy NOT RUN. Nejprve pokračovat podle aktuálního plánu M1 a bezpečného uložení/obnovy; rozšíření vybírat po malých schválených krocích.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
