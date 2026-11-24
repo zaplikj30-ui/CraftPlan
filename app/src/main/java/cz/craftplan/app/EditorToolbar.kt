@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -46,15 +48,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
 private val toolbarShape = RoundedCornerShape(8.dp)
 private val toolbarIconSize = 28.dp
-private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
-private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 56.dp)
-private val gripOuterHitPadding = 15.dp
+private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 52.dp)
+private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 52.dp)
+private val gripTopOuterHitPadding = 18.dp
+private val gripSideOuterHitPadding = 23.dp
 
 @Composable
 internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier) {
@@ -64,7 +68,7 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
         if (tool != DimensionTool.SELECT) {
             Surface(
                 Modifier.align(Alignment.CenterHorizontally)
-                    .absoluteOffset(x = repeatHintOffset, y = if (sideGrip) 0.dp else gripOuterHitPadding)
+                    .absoluteOffset(x = repeatHintOffset, y = if (sideGrip) 0.dp else gripTopOuterHitPadding)
                     .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                 shape = toolbarShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -87,8 +91,8 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
     // Extend only outwards: the visible 9dp strip and the neighbouring buttons keep their layout.
     Box(
         modifier.size(
-            width = if (side) 9.dp + gripOuterHitPadding else 112.dp,
-            height = if (side) 74.dp else 9.dp + gripOuterHitPadding,
+            width = if (side) 9.dp + gripSideOuterHitPadding else 160.dp,
+            height = if (side) 66.dp else 9.dp + gripTopOuterHitPadding,
         ).semantics {
             contentDescription = handleLabel
             role = Role.Button
@@ -98,13 +102,14 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
             }
         }.pointerInput(state, side) {
             awaitEachGesture {
-                val down = awaitFirstDown()
+                // Reserve the gesture starting on the dedicated grip before other UI handlers.
+                val down = awaitFirstDown(pass = PointerEventPass.Initial)
                 down.consume()
                 val expanded = state.toolbarExtraExpanded
                 val threshold = viewConfiguration.touchSlop
                 var maxTravel = 0f
                 while (true) {
-                    val event = awaitPointerEvent()
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                     // A cancelled/consumed gesture or a second pointer must not toggle the toolbar.
                     if (change.isConsumed || event.changes.any { it.id != down.id && it.pressed }) break
@@ -122,11 +127,11 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = M
         contentAlignment = if (side) Alignment.CenterStart else Alignment.BottomCenter,
     ) {
         Box(
-            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 70.dp else 9.dp)
+            Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 62.dp else 9.dp)
                 .background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 64.dp else 4.dp)
+            Box(Modifier.size(width = if (side) 4.dp else 64.dp, height = if (side) 56.dp else 4.dp)
                 .background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
         }
     }
@@ -147,12 +152,12 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     Box {
         Surface(
             modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
-                .padding(top = if (sideGrip) 0.dp else gripOuterHitPadding, end = if (sideGrip) gripOuterHitPadding else 0.dp),
+                .padding(top = if (sideGrip) 0.dp else gripTopOuterHitPadding, end = if (sideGrip) gripSideOuterHitPadding else 0.dp),
             shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
             tonalElevation = 4.dp,
         ) {
             Column(
-                modifier = Modifier.padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
+                modifier = Modifier.padding(top = 9.dp, bottom = 5.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
@@ -308,6 +313,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                                     )
                                 }
                             }
+                            if (BuildConfig.ENABLE_STRESS_TOOLS) ReservedToolbarActions()
                         }
                     }
                 }
@@ -318,6 +324,34 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
             Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
             side = sideGrip,
         )
+    }
+}
+
+// Temporary, intentionally disabled slots for the already planned editor controls.
+@Composable
+private fun ReservedToolbarActions() {
+    val labels = listOf(
+        R.string.toolbar_reserved_color,
+        R.string.toolbar_reserved_width,
+        R.string.toolbar_reserved_multi_select,
+        R.string.toolbar_reserved_anchor_lock,
+        R.string.toolbar_reserved_move,
+        R.string.toolbar_reserved_reorder,
+        R.string.toolbar_reserved_reset_order,
+        R.string.toolbar_reserved_export,
+    )
+    for (label in labels) {
+        val name = stringResource(label)
+        val description = stringResource(R.string.toolbar_reserved_description, name)
+        TextButton(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.size(width = 96.dp, height = 52.dp)
+                .semantics { contentDescription = description },
+            contentPadding = PaddingValues(horizontal = 4.dp),
+        ) {
+            Text(name, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2)
+        }
     }
 }
 

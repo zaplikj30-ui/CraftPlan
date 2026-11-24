@@ -18,6 +18,15 @@
     <string name="toolbar_repeat_on">Zapnout opakování</string>
     <string name="toolbar_repeat_off">Vypnout opakování</string>
     <string name="toolbar_repeat_active">Opakování zapnuto</string>
+    <string name="toolbar_reserved_color">Barva kóty</string>
+    <string name="toolbar_reserved_width">Tloušťka kóty</string>
+    <string name="toolbar_reserved_multi_select">Více kót</string>
+    <string name="toolbar_reserved_anchor_lock">Zámek lišty</string>
+    <string name="toolbar_reserved_move">Přesun lišty</string>
+    <string name="toolbar_reserved_reorder">Uspořádat ikony</string>
+    <string name="toolbar_reserved_reset_order">Obnovit pořadí</string>
+    <string name="toolbar_reserved_export">Export</string>
+    <string name="toolbar_reserved_description">%1$s – připravuje se</string>
     <string name="toolbar_undo">Vrátit změnu</string>
     <string name="toolbar_redo">Zopakovat změnu</string>
     <string name="toolbar_delete">Smazat vybranou kótu</string>
