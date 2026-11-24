@@ -28,6 +28,7 @@ internal data class DimensionStrokeTarget(
     val distance: Float,
     val centerDistance: Float,
     val direct: Boolean,
+    val gripCore: Boolean = false,
 )
 
 internal fun dimensionStrokeTargets(
@@ -53,8 +54,10 @@ internal fun dimensionStrokeTargets(
             distanceToDimensionLine(point, center, from(center, direction * arrow, arrow / 2f)),
             distanceToDimensionLine(point, center, from(center, direction * arrow, -arrow / 2f)),
         )
-        // The handle halo is feedback, not a painted endpoint stroke.
-        result += DimensionStrokeTarget(hit, distance, centerDistance, distance <= strokeRadius)
+        // Keep the visible handle center separate from the broader touch tolerance.
+        result += DimensionStrokeTarget(
+            hit, distance, centerDistance, distance <= strokeRadius, gripCore = centerDistance <= 4f * density,
+        )
     }
     if (t <= 0.27f) endpoint(DimensionHit.START, start, 1f)
     if (t >= 0.73f) endpoint(DimensionHit.END, end, -1f)

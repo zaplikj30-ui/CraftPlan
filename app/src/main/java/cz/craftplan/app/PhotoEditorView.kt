@@ -729,7 +729,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity)
             val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             stroke.map {
-                DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
+                DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore)
             } + labelsAtPoint.map {
                 DimensionTarget(dimension, DimensionHit.BODY, true, it.hit.distance, it.hit.centerDistance,
                     direct = it.hit.distance == 0f, notebook = it.notebook)

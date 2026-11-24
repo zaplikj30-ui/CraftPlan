@@ -61,6 +61,7 @@ internal data class DimensionTarget(
     val labelCenterDistance: Float = 0f,
     val direct: Boolean = distance == 0f,
     val notebook: Boolean = false,
+    val gripCore: Boolean = false,
 )
 
 internal fun preferredDimensionTarget(
@@ -79,6 +80,15 @@ internal fun preferredDimensionTarget(
         target.direct,
     )
     val best = chooseEditorHit(targets, selectedId, density, ::score) ?: return null
+    // Protect the center of a visible selected handle against a crossing line or label.
+    // A direct hit on a different endpoint still uses the established distance ordering.
+    if (selectedId != null && (best.hit == DimensionHit.BODY || !best.direct)) {
+        val endpoints = targets.filter {
+            it.hit != DimensionHit.BODY && if (it.dimension.id == selectedId) it.gripCore else it.direct
+        }
+        val preferredEndpoint = chooseEditorHit(endpoints, selectedId, density, ::score)
+        if (preferredEndpoint?.dimension?.id == selectedId) return preferredEndpoint
+    }
     // Preserve the familiar end portion of an isolated dimension, but never let an expanded
     // endpoint intercept a direct label or a direct stroke of another object.
     if (best.hit == DimensionHit.BODY && !best.label &&

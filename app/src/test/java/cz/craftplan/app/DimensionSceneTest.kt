@@ -127,6 +127,31 @@ class DimensionSceneTest {
     }
 
     @Test
+    fun selectedHandleCenterResistsACrossingLineButDoesNotCaptureItsExposedPart() {
+        val selected = dimension(1)
+        val crossing = dimension(2)
+        fun targets(
+            point: EditorPoint,
+            crossingStart: EditorPoint = EditorPoint(3f, -50f),
+            crossingEnd: EditorPoint = EditorPoint(3f, 50f),
+        ): List<DimensionTarget> {
+            val selectedStroke = dimensionStrokeTargets(point, EditorPoint(0f, 0f), EditorPoint(100f, 0f), 1f)
+            val crossingStroke = dimensionStrokeTargets(point, crossingStart, crossingEnd, 1f)
+            return listOf(selected to selectedStroke, crossing to crossingStroke).flatMap { (owner, stroke) ->
+                stroke.map { DimensionTarget(owner, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore) }
+            }
+        }
+        val atGrip = targets(EditorPoint(3f, 1.1f))
+        assertEquals(crossing.id, preferredDimensionTarget(atGrip, null, 1f)?.dimension?.id)
+        val held = preferredDimensionTarget(atGrip, selected.id, 1f)
+        assertEquals(selected.id, held?.dimension?.id)
+        assertEquals(DimensionHit.START, held?.hit)
+        assertEquals(crossing.id, preferredDimensionTarget(targets(EditorPoint(3f, 10f)), selected.id, 1f)?.dimension?.id)
+        val nearForeignTip = targets(EditorPoint(3f, 1.1f), EditorPoint(2.8f, 1.1f), EditorPoint(100f, 1.1f))
+        assertEquals(crossing.id, preferredDimensionTarget(nearForeignTip, selected.id, 1f)?.dimension?.id)
+    }
+
+    @Test
     fun nearbyParallelLinesAndLabelsPreferActualNearestElement() {
         val upper = dimension(1)
         val lower = dimension(2)
