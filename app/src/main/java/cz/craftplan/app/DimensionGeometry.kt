@@ -12,30 +12,6 @@ internal enum class DimensionHit {
     START, END, BODY,
 }
 
-internal fun hitDimension(
-    point: EditorPoint,
-    start: EditorPoint,
-    end: EditorPoint,
-    density: Float,
-): DimensionHit? {
-    val axis = end - start
-    val lengthSquared = axis.x * axis.x + axis.y * axis.y
-    if (lengthSquared == 0f) return null
-    val relative = point - start
-    val t = (relative.x * axis.x + relative.y * axis.y) / lengthSquared
-    val startDistance = point.distanceTo(start)
-    val endDistance = point.distanceTo(end)
-    val handleRadius = 31f * density
-    if (minOf(startDistance, endDistance) < handleRadius) {
-        if (t <= 0.27f && startDistance <= endDistance) return DimensionHit.START
-        if (t >= 0.73f && endDistance < startDistance) return DimensionHit.END
-    }
-
-    val alongLine = t.coerceIn(0f, 1f)
-    val onLine = EditorPoint(start.x + alongLine * axis.x, start.y + alongLine * axis.y)
-    return DimensionHit.BODY.takeIf { point.distanceTo(onLine) <= 20f * density }
-}
-
 /** Screen-space distance to the finite line segment, not to its generous hit zone. */
 internal fun distanceToDimensionLine(point: EditorPoint, start: EditorPoint, end: EditorPoint): Float {
     val axis = end - start

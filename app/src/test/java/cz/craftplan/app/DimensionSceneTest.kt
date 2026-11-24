@@ -99,6 +99,19 @@ class DimensionSceneTest {
     }
 
     @Test
+    fun isolatedEndRemainsGrabbableButDirectForeignStrokeWins() {
+        val a = dimension(1)
+        val b = dimension(2)
+        val end = DimensionTarget(a, DimensionHit.START, false, 10f)
+        val ownLine = DimensionTarget(a, DimensionHit.BODY, false, 0f)
+        val otherLine = DimensionTarget(b, DimensionHit.BODY, false, 0f)
+        val ownLabel = DimensionTarget(a, DimensionHit.BODY, true, 0f)
+        assertEquals(end, preferredDimensionTarget(listOf(end, ownLine), null, 1f))
+        assertEquals(otherLine, preferredDimensionTarget(listOf(end, otherLine), a.id, 1f))
+        assertEquals(ownLabel, preferredDimensionTarget(listOf(end, ownLine, ownLabel), a.id, 1f))
+    }
+
+    @Test
     fun overlappingLabelsPreferNearestCenterAndExactOverlapDoesNotCycle() {
         val a = dimension(1)
         val b = dimension(2)

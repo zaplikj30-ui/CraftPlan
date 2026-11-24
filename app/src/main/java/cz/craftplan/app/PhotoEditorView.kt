@@ -476,6 +476,10 @@ internal class PhotoEditorView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             clearDimensionGesture()
+            if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
+                clickCandidate = false
+                return true
+            }
             ownsDimensionStream = beginDimensionGesture(event)
         }
         if (ownsDimensionStream) {
@@ -487,7 +491,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 startTracking(event, 0)
-                clickCandidate = true
+                clickCandidate = event.flags and MotionEvent.FLAG_CANCELED == 0
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -502,7 +506,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 if (event.pointerCount == 1 && !scaleDetector.isInProgress) pan(event)
             }
             MotionEvent.ACTION_UP -> {
-                if (clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop) {
+                if (event.flags and MotionEvent.FLAG_CANCELED == 0 &&
+                    clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop
+                ) {
                     onSelectDimension(null)
                     invalidate()
                     performClick()
@@ -522,14 +528,20 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val down = EditorPoint(event.x, event.y)
         val downAnchor = viewport.toPhotoAnchor(down.x, down.y) ?: return false
         val pointerId = event.getPointerId(0)
-        val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down)
+        val profile = editorInputProfile(when (event.getToolType(0)) {
+            MotionEvent.TOOL_TYPE_FINGER -> EditorPointerKind.FINGER
+            MotionEvent.TOOL_TYPE_STYLUS -> EditorPointerKind.STYLUS
+            MotionEvent.TOOL_TYPE_ERASER -> EditorPointerKind.ERASER
+            MotionEvent.TOOL_TYPE_MOUSE -> EditorPointerKind.MOUSE
+            else -> EditorPointerKind.OTHER
+        }, density)
+        val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down, profile)
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
             // Label and notebook gestures never fall through to moving the whole dimension.
             // Keep the established touch threshold for both inputs until physical pen tests.
-            val threshold = 7f * density
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
-                movesLabel = target.label && !target.notebook, dragThreshold = threshold)
+                movesLabel = target.label && !target.notebook, dragThreshold = profile.editDragThreshold)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
             dimensionDrag = DimensionDrag(
@@ -545,7 +557,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return true
     }
 
-    private fun targetAt(point: EditorPoint): DimensionTarget? {
+    private fun targetAt(point: EditorPoint, profile: EditorInputProfile): DimensionTarget? {
         // Keep every eligible part. A nearby handle must not erase a direct label or line hit.
         val frontToBack = buildList {
             scene.find(scene.selectedId)?.let { add(it) }
@@ -554,7 +566,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val stroke = dimensionStrokeTargets(point, start, end, density, dimension.id == scene.selectedId)
+            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, dimension.id == scene.selectedId)
             val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
@@ -563,7 +575,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     direct = it.hit.distance == 0f, notebook = it.notebook)
             }
         }
-        return preferredDimensionTarget(targets, scene.selectedId, density)
+        return preferredDimensionTarget(targets, scene.selectedId, profile.hitDensity)
     }
 
     private fun selectTarget(targetAtDown: DimensionTarget?) {

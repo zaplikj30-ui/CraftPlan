@@ -56,19 +56,31 @@ internal data class DimensionTarget(
 
 internal fun preferredDimensionTarget(
     targets: List<DimensionTarget>, selectedId: UUID?, density: Float,
-): DimensionTarget? = chooseEditorHit(targets, selectedId, density) {
-    EditorHitScore(
-        it.dimension.id,
+): DimensionTarget? {
+    fun score(target: DimensionTarget) = EditorHitScore(
+        target.dimension.id,
         when {
-            it.hit != DimensionHit.BODY -> EditorHitPart.ENDPOINT
-            it.notebook -> EditorHitPart.NOTE
-            it.label -> EditorHitPart.LABEL
+            target.hit != DimensionHit.BODY -> EditorHitPart.ENDPOINT
+            target.notebook -> EditorHitPart.NOTE
+            target.label -> EditorHitPart.LABEL
             else -> EditorHitPart.BODY
         },
-        it.distance,
-        it.labelCenterDistance,
-        it.direct,
+        target.distance,
+        target.labelCenterDistance,
+        target.direct,
     )
+    val best = chooseEditorHit(targets, selectedId, density, ::score) ?: return null
+    // Preserve the familiar end portion of an isolated dimension, but never let an expanded
+    // endpoint intercept a direct label or a direct stroke of another object.
+    if (best.hit == DimensionHit.BODY && !best.label &&
+        targets.none { it.direct && (it.dimension.id != best.dimension.id || it.label) } &&
+        (best.direct || targets.all { it.dimension.id == best.dimension.id })
+    ) {
+        return chooseEditorHit(targets.filter {
+            it.dimension.id == best.dimension.id && it.hit != DimensionHit.BODY
+        }, selectedId, density, ::score) ?: best
+    }
+    return best
 }
 
 internal data class DimensionTapDecision(val target: DimensionTarget, val openValue: Boolean)

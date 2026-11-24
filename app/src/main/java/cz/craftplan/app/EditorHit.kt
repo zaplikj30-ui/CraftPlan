@@ -4,6 +4,18 @@ import java.util.UUID
 import kotlin.math.abs
 
 /** Shape-independent touch arbitration. Distances and tolerances are in screen pixels. */
+/** Keep input type separate from gesture meaning; identical initial ergonomics until device tests. */
+internal enum class EditorPointerKind { FINGER, STYLUS, ERASER, MOUSE, OTHER }
+
+internal data class EditorInputProfile(
+    val kind: EditorPointerKind,
+    val hitDensity: Float,
+    val editDragThreshold: Float,
+)
+
+internal fun editorInputProfile(kind: EditorPointerKind, density: Float): EditorInputProfile =
+    EditorInputProfile(kind, density, 7f * density)
+
 internal enum class EditorHitPart { ENDPOINT, LABEL, NOTE, BODY }
 
 internal data class EditorHitScore(

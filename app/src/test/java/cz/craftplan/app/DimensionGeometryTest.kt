@@ -13,6 +13,24 @@ class DimensionGeometryTest {
         PhotoAnchor(0.25f, 0.25f), PhotoAnchor(0.75f, 0.5f),
     )
 
+    // Exercise the same geometry and resolver as PhotoEditorView, not a legacy hit-test.
+    private fun hitDimension(point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float): DimensionHit? =
+        preferredDimensionTarget(
+            dimensionStrokeTargets(point, start, end, density, false).map {
+                DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
+            }, null, density,
+        )?.hit
+
+    @Test
+    fun allPointerTypesStartFromTheEstablishedGestureProfile() {
+        for (kind in EditorPointerKind.entries) {
+            val profile = editorInputProfile(kind, 2f)
+            assertEquals(kind, profile.kind)
+            assertEquals(2f, profile.hitDensity, 0f)
+            assertEquals(14f, profile.editDragThreshold, 0f)
+        }
+    }
+
     @Test
     fun shortDimensionReservesTheMiddleForMovingBothEndpoints() {
         val start = EditorPoint(0f, 0f)
