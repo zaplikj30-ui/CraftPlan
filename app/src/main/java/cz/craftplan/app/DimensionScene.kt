@@ -35,6 +35,11 @@ internal data class DimensionScene(
         return copy(dimensions = dimensions.map { if (it.id == original.id) updated else it })
     }
 
+    fun deleteSelected(): DimensionScene {
+        val selected = find(selectedId) ?: return this
+        return copy(dimensions = dimensions.filterNot { it.id == selected.id }, selectedId = null)
+    }
+
     private fun accepts(dimension: PhotoDimension): Boolean = dimension.photoId == PhotoId.SYNTHETIC_WORKBENCH
 }
 

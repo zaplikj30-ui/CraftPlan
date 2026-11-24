@@ -61,6 +61,8 @@ class MainActivity : ComponentActivity() {
 
 internal class PhotoEditorState : ViewModel() {
     var scene by mutableStateOf(DimensionScene())
+    var history by mutableStateOf(DimensionHistory())
+        private set
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
     var showNotes by mutableStateOf(true)
     var toolbarExpanded by mutableStateOf(false)
@@ -87,6 +89,23 @@ internal class PhotoEditorState : ViewModel() {
         preferences?.edit()?.putBoolean("labels_locked", labelsLocked)?.apply()
     }
 
+    fun applyDimensionChange(next: DimensionScene) {
+        history = history.record(scene, next)
+        scene = next
+    }
+
+    fun undo() {
+        val (previous, nextHistory) = history.undo(scene) ?: return
+        scene = previous
+        history = nextHistory
+    }
+
+    fun redo() {
+        val (next, nextHistory) = history.redo(scene) ?: return
+        scene = next
+        history = nextHistory
+    }
+
     fun openValue(dimension: PhotoDimension) {
         val current = scene.find(dimension.id) ?: return
         if (current == dimension) valueDraft = DimensionValueDraft(current)
@@ -96,7 +115,7 @@ internal class PhotoEditorState : ViewModel() {
         val draft = valueDraft ?: return false
         val current = scene.find(draft.targetId) ?: return false
         val confirmed = draft.confirm(current) ?: return false
-        scene = scene.edit(current, confirmed)
+        applyDimensionChange(scene.edit(current, confirmed))
         valueDraft = null
         return true
     }
@@ -117,8 +136,8 @@ private fun CraftPlan(editorState: PhotoEditorState) {
             SamplePhoto(
                 modifier = screen,
                 scene = editorState.scene,
-                onCreateDimension = { editorState.scene = editorState.scene.create(it) },
-                onChangeDimension = { old, new -> editorState.scene = editorState.scene.edit(old, new) },
+                onCreateDimension = { editorState.applyDimensionChange(editorState.scene.create(it)) },
+                onChangeDimension = { old, new -> editorState.applyDimensionChange(editorState.scene.edit(old, new)) },
                 onSelectDimension = { editorState.scene = editorState.scene.select(it) },
                 onClose = closePhoto,
                 onEditValue = editorState::openValue,
