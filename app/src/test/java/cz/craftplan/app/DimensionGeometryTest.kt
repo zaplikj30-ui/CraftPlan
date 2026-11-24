@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import java.util.UUID
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -20,6 +21,23 @@ class DimensionGeometryTest {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
             }, null, density,
         )?.hit
+
+    @Test
+    fun batchedStrokePreservesTicksAndArrowheadsForLongAndShortDimensions() {
+        val reused = FloatArray(28)
+        writeDimensionSegments(reused, 80f, 2f)
+        assertArrayEquals(
+            floatArrayOf(0f, 0f, 80f, 0f, 0f, -22f, 0f, 22f, 80f, -22f, 80f, 22f,
+                0f, 0f, 18f, -9f, 80f, 0f, 62f, -9f, 0f, 0f, 18f, 9f, 80f, 0f, 62f, 9f),
+            reused, 0f,
+        )
+        writeDimensionSegments(reused, 8f, 1f)
+        assertArrayEquals(
+            floatArrayOf(0f, 0f, 8f, 0f, 0f, -11f, 0f, 11f, 8f, -11f, 8f, 11f,
+                0f, 0f, 2f, -1f, 8f, 0f, 6f, -1f, 0f, 0f, 2f, 1f, 8f, 0f, 6f, 1f),
+            reused, 0f,
+        )
+    }
 
     @Test
     fun allPointerTypesStartFromTheEstablishedGestureProfile() {

@@ -164,3 +164,23 @@ internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed:
     val far = ((position - (size - edge)) / edge).coerceIn(0f, 1f)
     return (near - far) * maxSpeed
 }
+
+/** Seven independent segments in the same order as the individually drawn strokes. */
+internal fun writeDimensionSegments(segments: FloatArray, length: Float, density: Float) {
+    val tick = 11f * density
+    val arrow = minOf(9f * density, length / 4f)
+    val wing = arrow / 2f
+    fun line(offset: Int, x1: Float, y1: Float, x2: Float, y2: Float) {
+        segments[offset] = x1
+        segments[offset + 1] = y1
+        segments[offset + 2] = x2
+        segments[offset + 3] = y2
+    }
+    line(0, 0f, 0f, length, 0f)
+    line(4, 0f, -tick, 0f, tick)
+    line(8, length, -tick, length, tick)
+    line(12, 0f, 0f, arrow, -wing)
+    line(16, length, 0f, length - arrow, -wing)
+    line(20, 0f, 0f, arrow, wing)
+    line(24, length, 0f, length - arrow, wing)
+}

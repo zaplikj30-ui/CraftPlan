@@ -28,6 +28,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private val viewport = PhotoViewport(photo.width, photo.height)
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val dimensionSegments = FloatArray(28)
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -442,16 +443,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         overlayPaint.color = Color.rgb(247, 220, 39)
         overlayPaint.strokeWidth = 2f * density
-        val tick = 11f * density
-        val arrow = minOf(9f * density, length / 4f)
-        canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
-        canvas.drawLine(0f, -tick, 0f, tick, overlayPaint)
-        canvas.drawLine(length, -tick, length, tick, overlayPaint)
-        for (side in -1..1 step 2) {
-            val wing = side * arrow / 2f
-            canvas.drawLine(0f, 0f, arrow, wing, overlayPaint)
-            canvas.drawLine(length, 0f, length - arrow, wing, overlayPaint)
-        }
+        writeDimensionSegments(dimensionSegments, length, density)
+        canvas.drawLines(dimensionSegments, overlayPaint)
         canvas.restore()
     }
 
