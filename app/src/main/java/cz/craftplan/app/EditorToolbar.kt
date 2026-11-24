@@ -125,8 +125,11 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                         ToolbarAction("↶", R.string.toolbar_undo, state.history.canUndo, state::undo)
                         ToolbarAction("↷", R.string.toolbar_redo, state.history.canRedo, state::redo)
-                        ToolbarAction("×", R.string.toolbar_delete, state.scene.selectedId != null) {
-                            state.applyDimensionChange(state.scene.deleteSelected())
+                        IconButton(
+                            enabled = state.scene.selectedId != null,
+                            onClick = { state.applyDimensionChange(state.scene.deleteSelected()) },
+                        ) {
+                            Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete))
                         }
                         val locked = state.labelsLocked
                         val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)

@@ -502,7 +502,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetsAt(down).firstOrNull()
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
-            val movesLabel = !labelsLocked && dimension.measurement != null && target.hit == DimensionHit.BODY &&
+            // A locked label still owns its gesture; never fall through to moving the whole dimension.
+            val movesLabel = dimension.measurement != null && target.hit == DimensionHit.BODY &&
                 hitsValue(
                     down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end),
                     labels.getValue(dimension.id), dimension.labelT, includeNotebook = false,
