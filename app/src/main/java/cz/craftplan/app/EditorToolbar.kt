@@ -57,7 +57,8 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
     Column(modifier) {
         if (tool != DimensionTool.SELECT) {
             Surface(
-                Modifier.padding(bottom = 4.dp, start = 4.dp),
+                Modifier.align(if (tool == DimensionTool.REPEAT) Alignment.End else Alignment.Start)
+                    .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                 shape = toolbarShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
