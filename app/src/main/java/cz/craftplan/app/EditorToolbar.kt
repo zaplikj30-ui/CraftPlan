@@ -243,7 +243,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                         }
                     }
                     if (expanded) {
-                        Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
+                        Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outline))
                         Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
                             HistoryAction(false, R.string.toolbar_undo, state.history.canUndo, state::undo)
                             HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
