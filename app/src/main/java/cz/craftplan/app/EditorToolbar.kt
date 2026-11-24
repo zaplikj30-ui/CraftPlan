@@ -89,7 +89,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(width = 64.dp, height = 24.dp)
+                Modifier.size(width = 64.dp, height = 12.dp)
                     .semantics { contentDescription = handleLabel }
                     .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
                     .pointerInput(state) {
@@ -137,7 +137,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                 }
             }
             Row(
-                modifier = Modifier.align(Alignment.Start).padding(vertical = 3.dp),
+                modifier = Modifier.align(Alignment.Start).padding(bottom = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
             ) {
