@@ -16,11 +16,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.tappableElement
+import androidx.compose.foundation.layout.union
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -306,7 +312,17 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     }
     BackHandler(enabled = photoOpen && editorState.valueDraft == null, onBack = closePhoto)
 
-    Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { insets ->
+    // The entire editor toolbar can sit behind the transparent gesture navigation bar.
+    // Keep actual system buttons, display cutouts and the keyboard clear.
+    val contentInsets = if (photoOpen) {
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+            .union(WindowInsets.tappableElement.only(WindowInsetsSides.Bottom))
+            .union(WindowInsets.displayCutout.only(WindowInsetsSides.Bottom))
+            .union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
+    } else {
+        WindowInsets.safeDrawing
+    }
+    Scaffold(contentWindowInsets = contentInsets) { insets ->
         val screen = Modifier.fillMaxSize().padding(insets)
         if (photoOpen) {
             val direction = LocalLayoutDirection.current
