@@ -69,15 +69,29 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var lensContact: EditorPoint? = null
     private var ownsDimensionStream = false
     private val touchStream = EditorTouchStream()
-    var stressMetrics: EditorStressMetrics? = null
+    var diagnostics: EditorDiagnostics? = null
+    var onDrawCounts: (Int, Int) -> Unit = { _, _ -> }
+    private val activeDiagnostics get() = diagnostics?.takeIf { it.recording }
+    private var pinchRecognized = false
+    private var pinchChanged = false
+    private var panChanged = false
     private var touchInProgress = false
     private var autoPanTime: Long? = null
     private val autoPan = Runnable { stepAutoPan() }
-    var onCreateDimension: (PhotoDimension) -> Unit = {}
-    var onChangeDimension: (PhotoDimension, PhotoDimension) -> Unit = { _, _ -> }
+    var onCreateDimension: (PhotoDimension) -> Boolean = { false }
+    var onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean = { _, _ -> false }
     var onSelectDimension: (UUID?) -> Unit = {}
     var onEditValue: (PhotoDimension) -> Unit = {}
-    private data class DimensionLabel(val text: String? = null, val besideRuler: Boolean = false, val notebook: Boolean = false)
+    private data class DimensionLabel(
+        val text: String? = null,
+        val besideRuler: Boolean = false,
+        val notebook: Boolean = false,
+        val textWidth: Float = 0f,
+        val cullingRadius: Float = 0f,
+    )
+    private val emptyLabel = DimensionLabel()
+    private val labelHeight = labelPaint.descent() - labelPaint.ascent()
+    private val noteWhitespace = Regex("\\s+")
     private var labels = emptyMap<UUID, DimensionLabel>()
     var labelsLocked = false
         set(value) {
@@ -110,11 +124,15 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 clearDimensionGesture()
             }
             if (changedContent) {
-                val metrics = stressMetrics
-                val started = if (metrics != null) System.nanoTime() else 0L
+                val recorder = activeDiagnostics
+                val started = if (recorder != null) System.nanoTime() else 0L
                 updateDimensionLabels()
                 viewport.updateContentBounds(value.dimensions, 24f * density)
-                metrics?.prepareScene(System.nanoTime() - started)
+                recorder?.let {
+                    val elapsed = System.nanoTime() - started
+                    it.metrics.prepareScene(elapsed)
+                    it.operation(DiagnosticAction.PREPARATION, elapsed)
+                }
             }
             invalidate()
         }
@@ -135,11 +153,17 @@ internal class PhotoEditorView(context: Context) : View(context) {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 focusX = detector.focusX
                 focusY = detector.focusY
+                if (!pinchRecognized) activeDiagnostics?.action(DiagnosticAction.PINCH, DiagnosticResult.START)
+                pinchRecognized = true
                 return true
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val left = viewport.left
+                val top = viewport.top
+                val scale = viewport.scale
                 viewport.transform(focusX, focusY, detector.focusX, detector.focusY, detector.scaleFactor)
+                pinchChanged = pinchChanged || left != viewport.left || top != viewport.top || scale != viewport.scale
                 focusX = detector.focusX
                 focusY = detector.focusY
                 invalidate()
@@ -157,13 +181,17 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         updateDimensionLabels()
+        if (touchInProgress && ownsDimensionStream) recordGestureCancellation()
         clearDimensionGesture()
         viewport.resize(width, height)
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        activeDiagnostics?.action(DiagnosticAction.ORIENTATION, DiagnosticResult.APPLIED, detail = if (landscape) 1 else 0)
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
         if (!hasWindowFocus) {
+            if (touchInProgress) recordGestureCancellation()
             touchInProgress = false
             clearDimensionGesture()
         }
@@ -172,6 +200,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     override fun onWindowVisibilityChanged(visibility: Int) {
         super.onWindowVisibilityChanged(visibility)
         if (visibility != VISIBLE) {
+            if (touchInProgress) recordGestureCancellation()
             touchInProgress = false
             clearDimensionGesture()
         }
@@ -183,8 +212,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
-        val metrics = stressMetrics
-        val started = if (metrics != null) System.nanoTime() else 0L
+        val recorder = activeDiagnostics
+        val started = if (recorder != null) System.nanoTime() else 0L
         // AndroidView can draw on the Compose canvas without a clip at the View bounds.
         val saveCount = canvas.save()
         canvas.clipRect(0, 0, width, height)
@@ -202,14 +231,19 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val edit = dimensionEdit
         val edited = edit?.preview
         val selectedId = edited?.id ?: scene.selectedId
+        var rendered = 0
         for (dimension in scene.dimensions) {
-            if (dimension.id != selectedId) drawCommittedDimension(canvas, dimension, false)
+            if (dimension.id != selectedId && drawCommittedDimension(canvas, dimension, false)) rendered++
         }
-        (edited ?: scene.find(selectedId))?.let { drawCommittedDimension(canvas, it, true) }
+        (edited ?: scene.find(selectedId))?.let {
+            if (drawCommittedDimension(canvas, it, true)) rendered++
+        }
+        val visibleCommitted = rendered
         if (drag != null) {
             val end = drag.end
-            if (end == null || drag.start == end) drawAnchor(canvas, drag.start)
-            else drawDimension(canvas, drag.start, end, true, DimensionLabel())
+            if (end == null || drag.start == end) {
+                drawAnchor(canvas, drag.start)
+            } else if (drawDimension(canvas, drag.start, end, true, emptyLabel)) rendered++
         }
 
         val target = when {
@@ -226,7 +260,12 @@ internal class PhotoEditorView(context: Context) : View(context) {
             drawMagnifier(canvas, viewport.screenPoint(target), lensStart, drag?.end ?: edited?.end)
         }
         canvas.restoreToCount(saveCount)
-        metrics?.draw(started, System.nanoTime(), touchInProgress)
+        recorder?.let {
+            val finished = System.nanoTime()
+            onDrawCounts(rendered, visibleCommitted)
+            it.metrics.draw(started, finished, touchInProgress)
+            it.operation(DiagnosticAction.DRAW, finished - started)
+        }
     }
 
     private fun drawWorkspaceGrid(canvas: Canvas) {
@@ -254,32 +293,45 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun drawDimension(
         canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, decoration: DimensionLabel,
         labelT: Float = 0f,
-    ) {
-        drawDimensionLine(canvas, start, end, selected)
-        if (selected) {
-            drawAnchor(canvas, start)
-            drawAnchor(canvas, end)
-        }
-        val origin = viewport.screenPoint(start)
-        val axis = viewport.screenPoint(end) - origin
-        canvas.save()
+    ): Boolean {
+        val x1 = viewport.screenX(start)
+        val y1 = viewport.screenY(start)
+        val x2 = viewport.screenX(end)
+        val y2 = viewport.screenY(end)
+        val dx = x2 - x1
+        val dy = y2 - y1
         val fraction = (1f + labelT) / 2f
-        canvas.translate(origin.x + axis.x * fraction, origin.y + axis.y * fraction)
-        canvas.rotate(readableAngle(axis))
+        val labelX = x1 + dx * fraction
+        val labelY = y1 + dy * fraction
+        val showStroke = boundsMayBeVisible(x1, y1, x2, y2, 14f * density, width, height)
+        val showStart = selected && boundsMayBeVisible(x1, y1, x1, y1, 16f * density, width, height)
+        val showEnd = selected && boundsMayBeVisible(x2, y2, x2, y2, 16f * density, width, height)
+        val showLabel = boundsMayBeVisible(
+            labelX, labelY, labelX, labelY, maxOf(24f * density, decoration.cullingRadius), width, height,
+        )
+        if (!showStroke && !showStart && !showEnd && !showLabel) return false
+        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        if (showStroke) drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected)
+        if (showStart) drawAnchor(canvas, start)
+        if (showEnd) drawAnchor(canvas, end)
+        if (!showLabel) return true
+        canvas.save()
+        canvas.translate(labelX, labelY)
+        canvas.rotate(readableDegrees(angle))
         val label = decoration.text
         if (label == null || decoration.besideRuler) drawUnmeasuredMarker(canvas)
         if (label != null) {
-            val halfWidth = labelPaint.measureText(label) / 2f + 5f * density
+            val halfWidth = decoration.textWidth / 2f + 5f * density
             val center = labelCenter(halfWidth, decoration)
             val bottom = -5f * density
-            val top = bottom - (labelPaint.descent() - labelPaint.ascent()) - 4f * density
+            val top = bottom - labelHeight - 4f * density
             overlayPaint.color = WORKSPACE_COLOR
             canvas.drawRoundRect(center - halfWidth, top, center + halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
             canvas.drawText(label, center, bottom - labelPaint.descent() - 2f * density, labelPaint)
         }
         if (decoration.notebook) {
             // A tiny notebook marker; the note text itself stays off the photograph.
-            val x = notebookLeft(label)
+            val x = notebookLeft(decoration)
             val top = -24f * density
             overlayPaint.color = Color.rgb(247, 220, 39)
             canvas.drawRoundRect(x, top, x + 15f * density, top + 17f * density,
@@ -292,6 +344,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
         }
         canvas.restore()
+        return true
     }
 
     private data class LabelCandidate(val hit: LabelHitDistance, val notebook: Boolean)
@@ -306,7 +359,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val angle = Math.toRadians(readableAngle(axis).toDouble())
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
-        val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
+        val height = maxOf(36f * density, labelHeight + 12f * density)
         val candidates = mutableListOf<LabelCandidate>()
         fun candidate(left: Float, top: Float, right: Float, bottom: Float, notebook: Boolean = false) {
             candidates += LabelCandidate(labelRectangleDistance(along, across, left, top, right, bottom), notebook)
@@ -316,18 +369,18 @@ internal class PhotoEditorView(context: Context) : View(context) {
             if ((decoration.text == null || decoration.besideRuler) && along in (-24f * density)..(24f * density)) {
                 candidate(-14f * density, -17f * density, 14f * density, -7f * density)
             }
-            decoration.text?.let { label ->
-                val half = labelPaint.measureText(label) / 2f + 5f * density
+            decoration.text?.let {
+                val half = decoration.textWidth / 2f + 5f * density
                 val center = labelCenter(half, decoration)
                 if (kotlin.math.abs(along - center) <= half + 3f * density) {
                     val bottom = -5f * density
-                    candidate(center - half, bottom - (labelPaint.descent() - labelPaint.ascent()) - 4f * density,
+                    candidate(center - half, bottom - labelHeight - 4f * density,
                         center + half, bottom)
                 }
             }
         }
         if (decoration.notebook) {
-            val left = notebookLeft(decoration.text)
+            val left = notebookLeft(decoration)
             if (along in (left - 8f * density)..(left + 23f * density) &&
                 across in (-32f * density)..(1f * density)
             ) candidate(left, -24f * density, left + 15f * density, -7f * density, notebook = true)
@@ -335,8 +388,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return candidates
     }
 
-    private fun notebookLeft(label: String?): Float =
-        (label?.let { labelPaint.measureText(it) / 2f } ?: 14f * density) + 10f * density
+    private fun notebookLeft(decoration: DimensionLabel): Float =
+        (if (decoration.text == null) 14f * density else decoration.textWidth / 2f) + 10f * density
 
     private fun labelCenter(halfWidth: Float, decoration: DimensionLabel): Float =
         if (decoration.besideRuler) 18f * density + halfWidth else 0f
@@ -347,18 +400,25 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     private fun dimensionLabel(dimension: PhotoDimension): DimensionLabel {
         val base = dimension.displayLabel()
-        val note = dimension.visibleNote(showNotes)?.trim()?.replace(Regex("\\s+"), " ")
+        val note = dimension.visibleNote(showNotes)?.trim()?.replace(noteWhitespace, " ")
         val limit = minOf(280f * density, width * 0.65f)
         val baseWidth = base?.let(labelPaint::measureText) ?: 0f
         val noteLimit = limit - baseWidth - if (base == null) 18f * density else labelPaint.measureText(" ")
         val displayNote = if (note != null && noteLimit > 0f) {
             TextUtils.ellipsize(note, labelPaint, noteLimit, TextUtils.TruncateAt.END).toString().ifEmpty { null }
         } else null
-        return DimensionLabel(
-            listOfNotNull(base, displayNote).joinToString(" ").ifEmpty { null },
-            base == null && displayNote != null,
-            dimension.note.isNotBlank() && displayNote == null,
+        val text = listOfNotNull(base, displayNote).joinToString(" ").ifEmpty { null }
+        val besideRuler = base == null && displayNote != null
+        val notebook = dimension.note.isNotBlank() && displayNote == null
+        val textWidth = text?.let(labelPaint::measureText) ?: 0f
+        // Rotation cannot take the rectangle outside this radius; include glyph overhang.
+        val extentX = maxOf(
+            14f * density,
+            if (besideRuler) textWidth + 28f * density else textWidth / 2f + 5f * density,
+            if (notebook) (if (text == null) 14f * density else textWidth / 2f) + 25f * density else 0f,
         )
+        val radius = extentX + maxOf(24f * density, labelHeight + 9f * density) + labelPaint.textSize
+        return DimensionLabel(text, besideRuler, notebook, textWidth, radius)
     }
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
@@ -366,10 +426,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val y1 = viewport.screenY(start)
         val dx = viewport.screenX(end) - x1
         val dy = viewport.screenY(end) - y1
-        val length = hypot(dx, dy)
+        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected)
+    }
+
+    private fun drawScreenDimensionLine(canvas: Canvas, x1: Float, y1: Float, length: Float, angle: Float, selected: Boolean) {
         canvas.save()
         canvas.translate(x1, y1)
-        canvas.rotate(Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat())
+        canvas.rotate(angle)
 
         if (selected) {
             overlayPaint.color = 0x8CFFFFFF.toInt()
@@ -486,23 +550,34 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        activeDiagnostics?.let { recordTouch(it, event) }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            stressMetrics?.beginGesture()
+            activeDiagnostics?.metrics?.beginGesture()
             touchInProgress = true
+            panChanged = false
             touchStream.begin()
             clearDimensionGesture()
             if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
                 touchInProgress = false
                 clickCandidate = false
+                activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.CANCELED)
                 return true
             }
             ownsDimensionStream = beginDimensionGesture(event)
         }
+        val canceled = event.flags and MotionEvent.FLAG_CANCELED != 0
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL ||
+            (canceled && event.actionMasked != MotionEvent.ACTION_POINTER_UP)
+        ) recordGestureCancellation()
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             touchInProgress = false
         }
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
             touchStream.beginPinch {
+                if (ownsDimensionStream || dragging) recordGestureCancellation()
+                pinchRecognized = false
+                pinchChanged = false
+                activeDiagnostics?.action(DiagnosticAction.PINCH_ATTEMPT, DiagnosticResult.START, detail = event.pointerCount)
                 clearDimensionGesture()
                 clickCandidate = false
                 activePointerId = MotionEvent.INVALID_POINTER_ID
@@ -510,7 +585,19 @@ internal class PhotoEditorView(context: Context) : View(context) {
         }
         // Feed the detector the original DOWN even when a dimension owns the one-finger gesture.
         scaleDetector.onTouchEvent(event)
-        if (touchStream.pinchOnly) return true
+        if (touchStream.pinchOnly) {
+            if (event.actionMasked == MotionEvent.ACTION_UP && !canceled) {
+                val result = when {
+                    pinchChanged -> DiagnosticResult.APPLIED
+                    pinchRecognized -> DiagnosticResult.UNCHANGED
+                    else -> DiagnosticResult.REJECTED
+                }
+                activeDiagnostics?.action(
+                    if (pinchRecognized) DiagnosticAction.PINCH else DiagnosticAction.PINCH_ATTEMPT, result,
+                )
+            }
+            return true
+        }
         if (ownsDimensionStream) {
             handleHeldDimension(event)
             return true
@@ -528,10 +615,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 if (event.flags and MotionEvent.FLAG_CANCELED == 0 &&
                     clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop
                 ) {
+                    activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.MISSED)
                     onSelectDimension(null)
                     invalidate()
                     performClick()
                 }
+                if (dragging && event.flags and MotionEvent.FLAG_CANCELED == 0) activeDiagnostics?.action(
+                    DiagnosticAction.PAN, if (panChanged) DiagnosticResult.APPLIED else DiagnosticResult.UNCHANGED,
+                )
                 clickCandidate = false
                 activePointerId = MotionEvent.INVALID_POINTER_ID
             }
@@ -543,28 +634,80 @@ internal class PhotoEditorView(context: Context) : View(context) {
         return true
     }
 
+    private fun inputKind(event: MotionEvent, index: Int): EditorPointerKind = when (event.getToolType(index)) {
+        MotionEvent.TOOL_TYPE_FINGER -> EditorPointerKind.FINGER
+        MotionEvent.TOOL_TYPE_STYLUS -> EditorPointerKind.STYLUS
+        MotionEvent.TOOL_TYPE_ERASER -> EditorPointerKind.ERASER
+        MotionEvent.TOOL_TYPE_MOUSE -> EditorPointerKind.MOUSE
+        else -> EditorPointerKind.OTHER
+    }
+
+    private fun recordTouch(recorder: EditorDiagnostics, event: MotionEvent) {
+        val kind = when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> DiagnosticTouch.DOWN
+            MotionEvent.ACTION_MOVE -> DiagnosticTouch.MOVE
+            MotionEvent.ACTION_UP -> DiagnosticTouch.UP
+            MotionEvent.ACTION_POINTER_DOWN -> DiagnosticTouch.POINTER_DOWN
+            MotionEvent.ACTION_POINTER_UP -> DiagnosticTouch.POINTER_UP
+            MotionEvent.ACTION_CANCEL -> DiagnosticTouch.CANCEL
+            else -> return
+        }
+        val index = event.actionIndex
+        if (index !in 0 until event.pointerCount) return
+        recorder.touch(
+            kind, inputKind(event, index), event.getX(index), event.getY(index), event.pointerCount,
+            width, height, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+            (SystemClock.uptimeMillis() - event.eventTime).coerceAtLeast(0),
+            event.flags and MotionEvent.FLAG_CANCELED != 0,
+        )
+    }
+
+    private fun DimensionEdit.diagnosticAction(): DiagnosticAction = when {
+        tapTarget.label -> DiagnosticAction.EDIT_LABEL
+        hit == DimensionHit.BODY -> DiagnosticAction.EDIT_BODY
+        hit == DimensionHit.START -> DiagnosticAction.EDIT_START
+        else -> DiagnosticAction.EDIT_END
+    }
+
+    private fun recordGestureCancellation() {
+        val recorder = activeDiagnostics ?: return
+        val edit = dimensionEdit
+        when {
+            edit != null -> recorder.action(edit.diagnosticAction(), DiagnosticResult.CANCELED, edit.original.id)
+            dimensionDrag != null -> recorder.action(DiagnosticAction.DRAWING, DiagnosticResult.CANCELED)
+            touchStream.pinchOnly -> recorder.action(
+                if (pinchRecognized) DiagnosticAction.PINCH else DiagnosticAction.PINCH_ATTEMPT, DiagnosticResult.CANCELED,
+            )
+            dragging -> recorder.action(DiagnosticAction.PAN, DiagnosticResult.CANCELED)
+            else -> recorder.action(DiagnosticAction.TAP, DiagnosticResult.CANCELED)
+        }
+    }
+
     private fun beginDimensionGesture(event: MotionEvent): Boolean {
         val down = EditorPoint(event.x, event.y)
-        val downAnchor = viewport.toPhotoAnchor(down.x, down.y) ?: return false
+        val downAnchor = viewport.toPhotoAnchor(down.x, down.y) ?: run {
+            activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.REJECTED)
+            return false
+        }
         val pointerId = event.getPointerId(0)
-        val profile = editorInputProfile(when (event.getToolType(0)) {
-            MotionEvent.TOOL_TYPE_FINGER -> EditorPointerKind.FINGER
-            MotionEvent.TOOL_TYPE_STYLUS -> EditorPointerKind.STYLUS
-            MotionEvent.TOOL_TYPE_ERASER -> EditorPointerKind.ERASER
-            MotionEvent.TOOL_TYPE_MOUSE -> EditorPointerKind.MOUSE
-            else -> EditorPointerKind.OTHER
-        }, density)
+        val profile = editorInputProfile(inputKind(event, 0), density)
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down, profile)
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
             // Label and notebook gestures never fall through to moving the whole dimension.
+            val span = viewport.screenPoint(dimension.start).distanceTo(viewport.screenPoint(dimension.end))
             val threshold = if (target.label) profile.editDragThreshold else dimensionDragThreshold(
-                viewport.screenPoint(dimension.start).distanceTo(viewport.screenPoint(dimension.end)),
-                profile.hitDensity, profile.editDragThreshold,
+                span, profile.hitDensity, profile.editDragThreshold,
             )
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
-                movesLabel = target.label && !target.notebook, dragThreshold = threshold)
+                movesLabel = target.label && !target.notebook, dragThreshold = threshold).also {
+                activeDiagnostics?.let { recorder ->
+                    recorder.action(it.diagnosticAction(), DiagnosticResult.START, dimension.id, threshold)
+                    recorder.action(DiagnosticAction.EDIT_SPAN, DiagnosticResult.START, dimension.id, span)
+                }
+            }
         } else if (scene.tool != DimensionTool.SELECT) {
+            activeDiagnostics?.action(DiagnosticAction.DRAWING, DiagnosticResult.START)
             lensContact = down
             dimensionDrag = DimensionDrag(
                 pointerId, downAnchor, tap = down.takeIf { scene.tool == DimensionTool.REPEAT },
@@ -580,8 +723,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     private fun targetAt(point: EditorPoint, profile: EditorInputProfile): DimensionTarget? {
-        val metrics = stressMetrics
-        val started = if (metrics != null) System.nanoTime() else 0L
+        val recorder = activeDiagnostics
+        val started = if (recorder != null) System.nanoTime() else 0L
         // Keep every eligible part. A nearby handle must not erase a direct label or line hit.
         val frontToBack = buildList {
             scene.find(scene.selectedId)?.let { add(it) }
@@ -600,7 +743,12 @@ internal class PhotoEditorView(context: Context) : View(context) {
             }
         }
         val result = preferredDimensionTarget(targets, scene.selectedId, profile.hitDensity)
-        metrics?.hit(System.nanoTime() - started)
+        recorder?.let {
+            val elapsed = System.nanoTime() - started
+            it.metrics.hit(elapsed)
+            it.action(DiagnosticAction.HIT_TEST, if (result == null) DiagnosticResult.MISSED else DiagnosticResult.APPLIED,
+                result?.dimension?.id, elapsed)
+        }
         return result
     }
 
@@ -609,11 +757,16 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val currentTarget = targetAtDown?.takeIf { scene.find(it.dimension.id) == it.dimension }
         val decision = decideDimensionTap(currentTarget, scene.selectedId)
         if (decision == null) {
+            activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.MISSED)
             onSelectDimension(null)
             return
         }
         val target = decision.target.dimension
+        val wasSelected = target.id == scene.selectedId
         onSelectDimension(target.id)
+        activeDiagnostics?.action(
+            DiagnosticAction.SELECT, if (wasSelected) DiagnosticResult.UNCHANGED else DiagnosticResult.APPLIED, target.id,
+        )
         if (decision.openValue) onEditValue(target)
         performClick()
     }
@@ -626,6 +779,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             MotionEvent.ACTION_MOVE -> {
                 val heldIndex = event.findPointerIndex(heldId)
                 if (canceled || heldIndex < 0) {
+                    if (!canceled) recordGestureCancellation()
                     clearDimensionGesture()
                     return
                 }
@@ -655,17 +809,38 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val draft = dimensionDrag
         val edit = dimensionEdit
         clearDimensionGesture()
-        if (contact == null) return
+        if (contact == null) {
+            activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.REJECTED)
+            return
+        }
         if (draft != null && scene.tool != DimensionTool.SELECT) {
             val result = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
                 .finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
-            if (result != null) onCreateDimension(result.dimension)
-            else if (draft.tap != null && !passesDragThreshold(draft.tap, contact, touchSlop.toFloat())) selectTarget(draft.tapTarget)
+            if (result != null) {
+                val applied = onCreateDimension(result.dimension)
+                activeDiagnostics?.action(
+                    DiagnosticAction.DRAWING, if (applied) DiagnosticResult.APPLIED else DiagnosticResult.REJECTED,
+                    result.dimension.id,
+                )
+            } else if (draft.tap != null && !passesDragThreshold(draft.tap, contact, touchSlop.toFloat())) {
+                activeDiagnostics?.action(DiagnosticAction.DRAWING, DiagnosticResult.UNCHANGED)
+                selectTarget(draft.tapTarget)
+            } else activeDiagnostics?.action(DiagnosticAction.DRAWING, DiagnosticResult.REJECTED)
         } else if (edit != null) {
             if (edit.preview != null || passesDragThreshold(edit.down, contact, edit.dragThreshold)) {
                 onSelectDimension(edit.original.id)
-                onChangeDimension(edit.original, editedDimension(edit, contact))
+                val changed = editedDimension(edit, contact)
+                val applied = onChangeDimension(edit.original, changed)
+                val result = when {
+                    applied -> DiagnosticResult.APPLIED
+                    edit.original == changed -> DiagnosticResult.UNCHANGED
+                    else -> DiagnosticResult.REJECTED
+                }
+                activeDiagnostics?.action(edit.diagnosticAction(), result, edit.original.id, edit.down.distanceTo(contact))
             } else {
+                activeDiagnostics?.action(
+                    edit.diagnosticAction(), DiagnosticResult.UNCHANGED, edit.original.id, edit.down.distanceTo(contact),
+                )
                 selectTarget(edit.tapTarget)
             }
         }
@@ -786,9 +961,13 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val y = event.getY(index)
         if (!dragging && hypot(x - lastX, y - lastY) < touchSlop) return
 
+        if (!dragging) activeDiagnostics?.action(DiagnosticAction.PAN, DiagnosticResult.START)
         dragging = true
         clickCandidate = false
+        val previousLeft = viewport.left
+        val previousTop = viewport.top
         viewport.transform(lastX, lastY, x, y)
+        panChanged = panChanged || previousLeft != viewport.left || previousTop != viewport.top
         lastX = x
         lastY = y
         invalidate()

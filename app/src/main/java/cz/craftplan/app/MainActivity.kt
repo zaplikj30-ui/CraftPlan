@@ -1,8 +1,10 @@
 package cz.craftplan.app
 
-import android.content.pm.PackageManager
+import android.content.ContentResolver
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Bundle
+import android.view.Window
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -36,17 +38,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -59,17 +62,65 @@ class MainActivity : ComponentActivity() {
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
-                CraftPlan(editorState)
+                CraftPlan(editorState, window)
             }
         }
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) editorState.stopDiagnostics()
+        super.onStop()
     }
 }
 
 internal class PhotoEditorState : ViewModel() {
-    var scene by mutableStateOf(DimensionScene())
+    private var currentScene by mutableStateOf(DimensionScene())
+    var scene: DimensionScene
+        get() = currentScene
+        set(next) {
+            val previous = currentScene
+            currentScene = next
+            if (previous.tool != next.tool) diagnostics.action(
+                DiagnosticAction.TOOL, DiagnosticResult.APPLIED, detail = next.tool.ordinal,
+            )
+            if (previous.dimensions.size != next.dimensions.size) diagnostics.action(
+                DiagnosticAction.SCENE, DiagnosticResult.APPLIED, detail = next.dimensions.size,
+            )
+        }
     var history by mutableStateOf(DimensionHistory())
         private set
-    val stressMetrics = EditorStressMetrics()
+    val diagnostics = EditorDiagnostics()
+    var diagnosticsEnabled by mutableStateOf(false)
+        private set
+    var diagnosticsRecording by mutableStateOf(false)
+        private set
+
+    fun toggleDiagnostics() {
+        if (diagnosticsEnabled) stopDiagnostics()
+        diagnosticsEnabled = !diagnosticsEnabled
+    }
+
+    fun startDiagnostics() {
+        if (!BuildConfig.ENABLE_STRESS_TOOLS || !diagnosticsEnabled || diagnosticsRecording) return
+        lastDrawnObjects = null
+        visibleDrawCandidates = null
+        diagnostics.start()
+        diagnosticsRecording = true
+    }
+
+    fun stopDiagnostics() {
+        diagnostics.stop()
+        diagnosticsRecording = false
+    }
+
+    fun resetDiagnostics() {
+        stopDiagnostics()
+        diagnostics.reset()
+    }
+
+    var pendingDiagnosticExport: String? = null
+    var lastDrawnObjects: Int? = null
+    var visibleDrawCandidates: Int? = null
     var stressBusy by mutableStateOf(false)
         private set
     var stressGenerationMs by mutableStateOf<Double?>(null)
@@ -81,6 +132,7 @@ internal class PhotoEditorState : ViewModel() {
             count !in SyntheticDimensions.counts || stressBusy
         ) return
         stressBusy = true
+        diagnostics.action(DiagnosticAction.GENERATE, DiagnosticResult.START, detail = count)
         stressJob = viewModelScope.launch {
             try {
                 val (batch, elapsed) = withContext(Dispatchers.Default) {
@@ -88,10 +140,13 @@ internal class PhotoEditorState : ViewModel() {
                     val dimensions = SyntheticDimensions.generate(photoId, count)
                     dimensions to (System.nanoTime() - start) / 1_000_000.0
                 }
-                stressMetrics.reset()
                 stressGenerationMs = elapsed
                 // Use the current scene: manual edits made while the worker ran must survive.
                 applyDimensionChange(scene.replaceSynthetic(batch))
+                diagnostics.action(DiagnosticAction.GENERATE, DiagnosticResult.APPLIED, detail = elapsed * 1_000_000)
+            } catch (canceled: CancellationException) {
+                diagnostics.action(DiagnosticAction.GENERATE, DiagnosticResult.CANCELED)
+                throw canceled
             } finally {
                 stressBusy = false
             }
@@ -100,9 +155,9 @@ internal class PhotoEditorState : ViewModel() {
 
     fun clearStressBatch(photoId: PhotoId) {
         if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH || stressBusy) return
-        stressMetrics.reset()
         stressGenerationMs = null
         applyDimensionChange(scene.replaceSynthetic(emptyList()))
+        diagnostics.action(DiagnosticAction.CLEAR_BATCH, DiagnosticResult.APPLIED)
     }
 
     fun cancelStressGeneration() { stressJob?.cancel() }
@@ -126,51 +181,106 @@ internal class PhotoEditorState : ViewModel() {
         labelsLocked = source.getBoolean("labels_locked", false)
     }
 
+    private fun recordToolbarState() {
+        diagnostics.action(
+            DiagnosticAction.TOOLBAR, DiagnosticResult.APPLIED,
+            detail = (if (toolbarExpanded) 1 else 0) + (if (toolbarExtraExpanded) 2 else 0),
+        )
+    }
+
     fun setToolbarExpansion(expanded: Boolean) {
         if (toolbarExpanded == expanded) return
         toolbarExpanded = expanded
+        recordToolbarState()
         preferences?.edit()?.putBoolean("toolbar_expanded", expanded)?.apply()
     }
 
     fun setToolbarExtraExpansion(expanded: Boolean) {
         if (toolbarExtraExpanded == expanded) return
         toolbarExtraExpanded = expanded
+        recordToolbarState()
         preferences?.edit()?.putBoolean("toolbar_extra_expanded", expanded)?.apply()
     }
 
-    fun requestFit() { fitRequest++ }
+    fun requestFit() {
+        fitRequest++
+        diagnostics.action(DiagnosticAction.FIT, DiagnosticResult.APPLIED)
+    }
+
+    fun toggleNotes() {
+        showNotes = !showNotes
+        diagnostics.action(DiagnosticAction.NOTES, DiagnosticResult.APPLIED, detail = if (showNotes) 1 else 0)
+    }
+
+    fun deleteSelected() {
+        val deleted = scene.selectedId ?: return
+        applyDimensionChange(scene.deleteSelected())
+        diagnostics.action(DiagnosticAction.DELETE, DiagnosticResult.APPLIED, deleted)
+    }
 
     fun toggleLabelLock() {
         labelsLocked = !labelsLocked
+        diagnostics.action(DiagnosticAction.LABEL_LOCK, DiagnosticResult.APPLIED, detail = if (labelsLocked) 1 else 0)
         preferences?.edit()?.putBoolean("labels_locked", labelsLocked)?.apply()
     }
 
-    fun applyDimensionChange(next: DimensionScene) {
+    fun applyDimensionChange(next: DimensionScene): Boolean {
+        val previousHistory = history
         history = history.record(scene, next)
         scene = next
+        return history !== previousHistory
+    }
+
+    fun writeDiagnosticExport(resolver: ContentResolver, uri: Uri, data: String, finished: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                try {
+                    val output = resolver.openOutputStream(uri) ?: throw IOException("No output stream")
+                    output.bufferedWriter(Charsets.UTF_8).use { it.write(data) }
+                    true
+                } catch (_: IOException) {
+                    false
+                } catch (_: SecurityException) {
+                    false
+                }
+            }
+            finished(saved)
+        }
     }
 
     fun undo() {
         val (previous, nextHistory) = history.undo(scene) ?: return
         scene = previous
         history = nextHistory
+        diagnostics.action(DiagnosticAction.UNDO, DiagnosticResult.APPLIED)
     }
 
     fun redo() {
         val (next, nextHistory) = history.redo(scene) ?: return
         scene = next
         history = nextHistory
+        diagnostics.action(DiagnosticAction.REDO, DiagnosticResult.APPLIED)
     }
 
     fun openValue(dimension: PhotoDimension) {
-        val current = scene.find(dimension.id) ?: return
-        if (current == dimension) valueDraft = DimensionValueDraft(current)
+        val current = scene.find(dimension.id)
+        val opened = current == dimension
+        if (opened) valueDraft = DimensionValueDraft(checkNotNull(current))
+        diagnostics.action(DiagnosticAction.OPEN_VALUE, if (opened) DiagnosticResult.APPLIED else DiagnosticResult.REJECTED, dimension.id)
     }
 
     fun confirmValue(): Boolean {
         val draft = valueDraft ?: return false
         val current = scene.find(draft.targetId) ?: return false
-        val confirmed = draft.confirm(current) ?: return false
+        val confirmed = draft.confirm(current) ?: run {
+            diagnostics.action(DiagnosticAction.COMMIT_VALUE, DiagnosticResult.REJECTED, current.id)
+            return false
+        }
+        diagnostics.action(
+            DiagnosticAction.COMMIT_VALUE,
+            if (confirmed == current) DiagnosticResult.UNCHANGED else DiagnosticResult.APPLIED,
+            current.id,
+        )
         applyDimensionChange(scene.edit(current, confirmed))
         valueDraft = null
         return true
@@ -178,10 +288,11 @@ internal class PhotoEditorState : ViewModel() {
 }
 
 @Composable
-private fun CraftPlan(editorState: PhotoEditorState) {
+private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
     val closePhoto = {
         editorState.cancelStressGeneration()
+        editorState.stopDiagnostics()
         editorState.scene = editorState.scene.closePhoto()
         photoOpen = false
     }
@@ -201,7 +312,12 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 fitRequest = editorState.fitRequest,
-                stressMetrics = editorState.stressMetrics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS },
+                diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS },
+                onDrawCounts = { drawn, visible ->
+                    editorState.lastDrawnObjects = drawn
+                    editorState.visibleDrawCandidates = visible
+                },
+                overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState, window) },
                 toolbar = { modifier ->
                     EditorToolbar(editorState, modifier.alpha(if (editorState.valueDraft == null) 1f else 0f))
                 },
@@ -211,9 +327,12 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                     draft = draft,
                     onChange = { update -> editorState.valueDraft = editorState.valueDraft?.let(update) },
                     onConfirm = editorState::confirmValue,
-                    onCancel = { editorState.valueDraft = null },
+                    onCancel = {
+                        editorState.diagnostics.action(DiagnosticAction.CANCEL_VALUE, DiagnosticResult.CANCELED)
+                        editorState.valueDraft = null
+                    },
                     showNotes = editorState.showNotes,
-                    onToggleNotes = { editorState.showNotes = !editorState.showNotes },
+                    onToggleNotes = editorState::toggleNotes,
                 )
             }
         } else {
@@ -226,16 +345,10 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 Button(onClick = { photoOpen = true }) {
                     Text(stringResource(R.string.open_sample))
                 }
-                val context = LocalContext.current
-                val installed = remember(context) {
-                    context.packageManager.getPackageInfo(
-                        context.packageName, PackageManager.PackageInfoFlags.of(0),
-                    )
-                }
+                val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
-                    stringResource(
-                        R.string.installed_version, installed.versionName.orEmpty(), installed.longVersionCode,
-                    ),
+                    if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)
+                    else stringResource(R.string.installed_local_version, BuildConfig.VERSION_NAME),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -247,15 +360,17 @@ private fun CraftPlan(editorState: PhotoEditorState) {
 private fun SamplePhoto(
     modifier: Modifier,
     scene: DimensionScene,
-    onCreateDimension: (PhotoDimension) -> Unit,
-    onChangeDimension: (PhotoDimension, PhotoDimension) -> Unit,
+    onCreateDimension: (PhotoDimension) -> Boolean,
+    onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean,
     onSelectDimension: (UUID?) -> Unit,
     onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
     fitRequest: Int,
-    stressMetrics: EditorStressMetrics?,
+    diagnostics: EditorDiagnostics?,
+    onDrawCounts: (Int, Int) -> Unit,
+    overlays: @Composable () -> Unit,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
     Column(modifier = modifier) {
@@ -281,7 +396,7 @@ private fun SamplePhoto(
             AndroidView(
                 factory = { context ->
                     PhotoEditorView(context).apply {
-                        this.stressMetrics = stressMetrics
+                        this.diagnostics = diagnostics
                         this.scene = scene
                     }
                 },
@@ -291,6 +406,7 @@ private fun SamplePhoto(
                     view.onChangeDimension = onChangeDimension
                     view.onSelectDimension = onSelectDimension
                     view.onEditValue = onEditValue
+                    view.onDrawCounts = onDrawCounts
                     view.showNotes = showNotes
                     view.labelsLocked = labelsLocked
                     view.scene = scene
@@ -298,6 +414,7 @@ private fun SamplePhoto(
                 },
             )
             toolbar(Modifier.align(Alignment.BottomStart))
+            Box(Modifier.align(Alignment.TopEnd)) { overlays() }
         }
     }
 }

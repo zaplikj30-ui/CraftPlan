@@ -167,6 +167,30 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun fingerAndStylusCanDistinguishAndMoveAVeryShortDimensionAtMaximumZoom() {
+        val viewport = PhotoViewport(400, 400)
+        viewport.fit(400, 400)
+        viewport.transform(200f, 200f, 200f, 200f, factor = 100f)
+        val original = dimension.copy(start = PhotoAnchor(0.5f, 0.5f), end = PhotoAnchor(0.501f, 0.5f))
+        val start = viewport.screenPoint(original.start)
+        val end = viewport.screenPoint(original.end)
+        val middle = EditorPoint((start.x + end.x) / 2f, start.y)
+        for (kind in listOf(EditorPointerKind.FINGER, EditorPointerKind.STYLUS)) {
+            val profile = editorInputProfile(kind, 1f)
+            assertEquals(DimensionHit.START, hitDimension(start, start, end, profile.hitDensity))
+            assertEquals(DimensionHit.END, hitDimension(end, start, end, profile.hitDensity))
+            assertEquals(DimensionHit.BODY, hitDimension(middle, start, end, profile.hitDensity))
+            val threshold = dimensionDragThreshold(start.distanceTo(end), profile.hitDensity, profile.editDragThreshold)
+            val release = EditorPoint(middle.x, middle.y + threshold + 2f)
+            assertTrue(passesDragThreshold(middle, release, threshold))
+            val moved = viewport.moveDimension(original, DimensionHit.BODY, release - middle)
+            assertEquals(original.id, moved.id)
+            assertTrue(moved.start.v > original.start.v)
+            assertEquals(moved.start.v, moved.end.v, 0f)
+        }
+    }
+
+    @Test
     fun magnifierKeepsItsCornerBetweenSwitchThresholds() {
         assertTrue(magnifierOnRight(44f, 100, null))
         assertTrue(magnifierOnRight(55f, 100, true))

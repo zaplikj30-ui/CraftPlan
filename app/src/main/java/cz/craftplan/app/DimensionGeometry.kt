@@ -109,14 +109,21 @@ internal class EditorTouchStream {
     }
 }
 
-internal fun readableAngle(axis: EditorPoint): Float {
-    val degrees = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
-    return when {
-        degrees > 90f -> degrees - 180f
-        degrees <= -90f -> degrees + 180f
-        else -> degrees
-    }
+internal fun readableAngle(axis: EditorPoint): Float =
+    readableDegrees(Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat())
+
+internal fun readableDegrees(degrees: Float): Float = when {
+    degrees > 90f -> degrees - 180f
+    degrees <= -90f -> degrees + 180f
+    else -> degrees
 }
+
+/** Conservative screen bounds; an intersection can be a false positive, never a clipped decoration. */
+internal fun boundsMayBeVisible(
+    x1: Float, y1: Float, x2: Float, y2: Float, padding: Float, width: Int, height: Int,
+): Boolean =
+    maxOf(x1, x2) + padding >= 0f && minOf(x1, x2) - padding <= width &&
+        maxOf(y1, y2) + padding >= 0f && minOf(y1, y2) - padding <= height
 
 internal fun magnifierOnRight(x: Float, width: Int, previous: Boolean?): Boolean = when {
     x < width * 0.45f -> true

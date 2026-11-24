@@ -29,6 +29,7 @@ if [[ "${certificate_sum%% *}" != "$fingerprint" ]]; then
     exit 1
 fi
 
+export CRAFTPLAN_M1_BUILD_NUMBER="$GITHUB_RUN_NUMBER"
 export CRAFTPLAN_M1_VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
 gradle --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g" :app:assembleM1
 

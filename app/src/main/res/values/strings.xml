@@ -64,7 +64,15 @@
     <string name="stress_generation_ms">Generování %1$.2f ms</string>
     <string name="stress_draw">CPU kreslení max. %1$.2f ms (%2$d měření)</string>
     <string name="stress_hit">Detekce dotyku max. %1$.2f ms (%2$d měření)</string>
-    <string name="stress_preparation">Příprava scény na vlákně UI max. %1$.2f ms</string>
-    <string name="stress_gesture">Intervaly kreslení při dotyku včetně pauz: max. %1$.2f ms (%2$d nad 50 ms)</string>
-    <string name="stress_heap">Java heap %1$.1f MiB</string>
+    <string name="installed_local_version">Verze %1$s · místní sestavení</string>
+    <string name="diagnostic_timer">Záznam · %1$d s</string>
+    <string name="diagnostic_enable">Zapnout diagnostiku</string>
+    <string name="diagnostic_disable">Vypnout diagnostiku</string>
+    <string name="diagnostic_start">Zahájit záznam</string>
+    <string name="diagnostic_stop">Ukončit záznam</string>
+    <string name="diagnostic_reset">Vymazat měření a záznam</string>
+    <string name="diagnostic_copy">Kopírovat souhrn</string>
+    <string name="diagnostic_export">Exportovat časovou osu</string>
+    <string name="diagnostic_export_done">Diagnostický soubor byl uložen.</string>
+    <string name="diagnostic_export_error">Diagnostický soubor se nepodařilo uložit.</string>
 </resources>

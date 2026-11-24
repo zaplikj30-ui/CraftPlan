@@ -53,6 +53,27 @@ private val toolbarQuickSize = Modifier.size(width = 56.dp, height = 56.dp)
 
 @Composable
 internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifier) {
+    val tool = state.scene.tool
+    Column(modifier) {
+        if (tool != DimensionTool.SELECT) {
+            Surface(
+                Modifier.padding(bottom = 4.dp, start = 4.dp),
+                shape = toolbarShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Text(
+                    stringResource(if (tool == DimensionTool.REPEAT) R.string.toolbar_repeat_active else R.string.drag_dimension_short),
+                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        EditorToolbarSurface(state)
+    }
+}
+
+@Composable
+private fun EditorToolbarSurface(state: PhotoEditorState) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
@@ -65,7 +86,7 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
     val handleLabel = stringResource(if (verticalExpanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
-    Surface(if (expanded || verticalExpanded) modifier.fillMaxWidth() else modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
+    Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier.size(width = 64.dp, height = 24.dp)
@@ -88,13 +109,13 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                 Box(Modifier.size(32.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
             }
             if (verticalExpanded) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
                         Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
                     }
                     IconButton(
-                        onClick = { state.showNotes = !state.showNotes },
+                        onClick = state::toggleNotes,
                         modifier = toolbarButtonSize.background(
                             if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
                         ),
@@ -115,14 +136,8 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     if (BuildConfig.ENABLE_STRESS_TOOLS) StressToolbarMenu(state)
                 }
             }
-            if (repeat || tool == DimensionTool.SINGLE) {
-                Text(
-                    stringResource(if (repeat) R.string.toolbar_repeat_active else R.string.drag_dimension_short),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
             Row(
-                modifier = Modifier.align(Alignment.Start),
+                modifier = Modifier.align(Alignment.Start).padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
             ) {
@@ -187,7 +202,7 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                             tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
                         )
                         if (repeat) {
-                            Icon(painterResource(R.drawable.ic_toolbar_repeat), null, Modifier.size(44.dp), activeColors.onPrimary)
+                            Icon(painterResource(R.drawable.ic_toolbar_repeat), null, Modifier.size(52.dp), activeColors.onPrimary)
                         }
                     }
                 }
@@ -198,7 +213,7 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
                         IconButton(
                             enabled = state.scene.selectedId != null,
-                            onClick = { state.applyDimensionChange(state.scene.deleteSelected()) },
+                            onClick = state::deleteSelected,
                             modifier = toolbarButtonSize,
                         ) {
                             Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
@@ -243,11 +258,13 @@ private fun StressToolbarMenu(state: PhotoEditorState) {
     var open by remember { mutableStateOf(false) }
     val photoId = PhotoId.SYNTHETIC_WORKBENCH
     val total = state.scene.dimensions.size
+    val export = rememberDiagnosticExport(state)
     Box {
         TextButton(onClick = { open = true }) {
             Text(stringResource(R.string.stress_toolbar, total))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(max = 310.dp)) {
+            DiagnosticActions(state, export) { open = false }
             for (count in SyntheticDimensions.counts) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.stress_generate, count)) },
@@ -261,18 +278,15 @@ private fun StressToolbarMenu(state: PhotoEditorState) {
                 enabled = !state.stressBusy && generated > 0,
                 onClick = { state.clearStressBatch(photoId) },
             )
-            val metrics = state.stressMetrics.snapshot()
-            val heap = Runtime.getRuntime()
-            val heapMiB = (heap.totalMemory() - heap.freeMemory()) / 1_048_576.0
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 Text(stringResource(R.string.stress_counts, total, generated))
                 if (state.stressBusy) Text(stringResource(R.string.stress_working))
                 state.stressGenerationMs?.let { Text(stringResource(R.string.stress_generation_ms, it)) }
-                Text(stringResource(R.string.stress_preparation, metrics.maxPreparationMs))
-                Text(stringResource(R.string.stress_draw, metrics.maxDrawMs, metrics.draws))
-                Text(stringResource(R.string.stress_hit, metrics.maxHitMs, metrics.hits))
-                Text(stringResource(R.string.stress_gesture, metrics.maxGestureGapMs, metrics.gapsOver50ms))
-                Text(stringResource(R.string.stress_heap, heapMiB))
+                if (state.diagnostics.hasSession) {
+                    val snapshot = state.diagnostics.metrics.snapshot()
+                    if (snapshot.draws > 0) Text(stringResource(R.string.stress_draw, snapshot.maxDrawMs, snapshot.draws))
+                    if (snapshot.hits > 0) Text(stringResource(R.string.stress_hit, snapshot.maxHitMs, snapshot.hits))
+                }
             }
         }
     }

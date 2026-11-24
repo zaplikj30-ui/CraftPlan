@@ -17,6 +17,12 @@ val verifiedM1VersionCode = if (configureM1) {
         "CraftPlan M1 version code is missing or outside the supported range."
     }
 } else null
+val m1BuildNumber = providers.environmentVariable("CRAFTPLAN_M1_BUILD_NUMBER").orNull
+val verifiedBuildNumber = m1BuildNumber?.let {
+    requireNotNull(it.toIntOrNull()?.takeIf { number ->
+        number in 1..2_099_999_000 && verifiedM1VersionCode == 1000 + number
+    }) { "CraftPlan build number must match the signed M1 run." }
+}
 android {
     namespace = "cz.craftplan.app"
     compileSdk = 36
@@ -29,6 +35,7 @@ android {
         versionCode = 1
         versionName = "0.1.0-test"
         buildConfigField("boolean", "ENABLE_STRESS_TOOLS", "false")
+        buildConfigField("int", "M1_BUILD_NUMBER", "0")
     }
 
     buildTypes.getByName("debug").buildConfigField("boolean", "ENABLE_STRESS_TOOLS", "true")
@@ -44,6 +51,7 @@ android {
         val debugBuildType = buildTypes.getByName("debug")
         buildTypes.create("m1") {
             initWith(debugBuildType)
+            buildConfigField("int", "M1_BUILD_NUMBER", (verifiedBuildNumber ?: 0).toString())
             signingConfig = m1Signing
             matchingFallbacks += "debug"
         }
