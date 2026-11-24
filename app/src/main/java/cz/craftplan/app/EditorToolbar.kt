@@ -72,10 +72,7 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
                 )
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            ToolbarExpansionGrip(state)
-            EditorToolbarSurface(state)
-        }
+        EditorToolbarSurface(state)
     }
 }
 
@@ -125,6 +122,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
     Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            ToolbarExpansionGrip(state)
             if (verticalExpanded) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically) {
@@ -154,7 +152,8 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                 }
             }
             Row(
-                modifier = Modifier.align(Alignment.Start).padding(vertical = 3.dp),
+                modifier = Modifier.align(Alignment.Start)
+                    .padding(top = if (verticalExpanded) 3.dp else 0.dp, bottom = if (verticalExpanded) 3.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
             ) {
