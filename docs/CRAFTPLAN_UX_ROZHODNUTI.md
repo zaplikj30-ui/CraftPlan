@@ -468,6 +468,10 @@ Dříve schválené **omezení vzdálenosti pracovního prostoru** zachovat pro 
 
 **Potvrzeno k evidenci vlastníkem:** [UX kontrakt kóty, oddíl 3.6](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md) uchovává nové možnosti z rešerše My Measures PRO, REEKON BOLDR a STABILA Measures II: geometrické výpočty, vlastní formuláře/šablony a vzorce, laserový půdorys, rozpoznávání tvarů, export výřezu a připínání dokumentů. Odkazuje na existující F/J/UX požadavky, nezavádí duplicitní funkce ani nemění etapy; nářezák zůstává samostatný. Nové možnosti jsou otevřené, bez GO k implementaci a bez testů.
 
+## M1 – výsledky sestavení 45 a schválené doladění (24. 11. 2026)
+
+**Potvrzeno vlastníkem:** úplný zápis fyzických výsledků sestavení 45, zbývajících úprav spodní lišty, kruhové šipky, krátkých kót, zobrazení čísla sestavení a nově schváleného přímého rukopisu S Pen do hodnoty a poznámky je v [referenčním UX kontraktu kóty, §3.7](CRAFTPLAN_KOTA_REFERENCNI_UX_KONTRAKT.md). Obě vlastní klávesnice a existující ikony zůstávají, bez nové ikony rukopisu; potvrzení hodnoty výhradně vědomou akcí. Nová ikona zámku a funkční výběr/opakování/zoom zachovat. Dílčí fyzické PASS dle vlastníka, zátěžový test a rukopis NOT RUN. Bez změny etap a bez implementačního GO tímto zápisem. Novější výsledky mají přednost před historickými údaji NOT RUN pouze v uvedeném rozsahu.
+
 ## Bezpečnost a způsob další práce
 
 - Každé přeuspořádání nástrojů nebo přepnutí jejich zobrazení nesmí změnit měření, jednotky, obsah dokumentu ani originál fotografie.

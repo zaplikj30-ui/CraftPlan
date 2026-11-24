@@ -161,9 +161,46 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 - Symbol metru je podélně posouvatelný stejně jako číslo, respektuje společný zámek a Undo/Redo. První zadání hodnoty zachová jeho pozici, geometrii i rozdíl mezi NEZMĚŘENO a skutečnou nulou.
 - Testovací syntetická fotografie má reprodukovatelný generátor 100/500/1 000/5 000/10 000 různorodých kót včetně překryvů, přesných hodnot, nezměřených kót a poznámek. Generování běží mimo UI vlákno, stav ukazuje přesný počet a čištění se týká pouze generovaných objektů. Sleduje se čas generování, kresby, hit-testu, paměť a plynulost. Fyzická a objektivní výkonová měření změn jsou zatím **NOT RUN**.
 
+### 3.7 M1 – fyzická zpětná vazba ze sestavení 45, doladění lišty a rukopis S Pen (24. 11. 2026)
+
+**Výchozí stav:** zdrojová revize [6b5ad36](https://github.com/zaplikj30-ui/CraftPlan/commit/6b5ad363499431f7c8c78b65cba2942cdfb1328f), podepsané testovací [sestavení 45](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45434396951), revize [5b18207](https://github.com/zaplikj30-ui/CraftPlan/commit/5b18207f8be63f0692cfd60371cf68ccdf3eeb74). Běh Actions SUCCESS (JVM testy, lint, sestavení a ověření podpisu). Sestavení 44 selhalo při rozlišení závislostí (HTTP 429); následně povolen zápis Gradle cache pro sestavovací větev. Není to důkaz bezpečné persistence.
+
+**Fyzické ověření vlastníkem na telefonu, sestavení 45:**
+
+| Oblast | Výsledek |
+|---|---|
+| Dlouhé podržení nástroje, opakované vytváření kót, krátké klepnutí vypíná opakování | PASS; funkční chování zachovat. |
+| Nová ikona zámku (123, zámeček, obousměrná šipka) | Vzhled SCHVÁLEN; neměnit grafiku. |
+| Výběr těsně sousedících konců kót | PASS; schválené chování neměnit. |
+| Přesouvání velmi krátkých kót | PŘEDBĚŽNÝ NÁLEZ: občas podle vlastníka nereaguje, reprodukce a příčina neověřeny; cíleně prověřit. |
+| Zoom dvěma prsty přímo přes kótu | PASS; zachovat přednost zoomu a bezpečné zrušení rozpracované editace. |
+| Posouvání symbolu metru před zadáním hodnoty | PASS. |
+| Undo/Redo po změnách | PASS v rozsahu praktického testování vlastníka. |
+| Otočení telefonu na výšku a šířku | PASS v rozsahu praktického testování vlastníka. |
+| Zátěž 100/500/1 000/5 000/10 000 syntetických kót | NOT RUN / výsledky dosud nedodány; objektivní výkon neověřen. |
+
+**Schválené doladění pro další implementační krok (bez GO k implementaci tímto zápisem):**
+
+- Spodní lišta: celá tlačítka s ikonami svisle vycentrovat mezi skutečný horní a spodní okraj řádku lišty, se stejnou horní a spodní mezerou. Platí i pro vysunuté nástroje. Zachovat současnou velikost ikon a tlačítek; lze mírně zmenšit nadbytečnou výšku lišty (4–6 dp pouze orientační návrh, nikoli závazný rozměr). Zachovat pohodlné dotykové cíle, obě orientace a systémové bezpečné okraje.
+- Hlášku „Opakování zapnuto“ umístit NAD lištu do prostoru editoru, nikoli dovnitř lišty. Nemá měnit výšku lišty, velikost pracovní plochy ani posouvat fotografii. Lišta má stejnou výšku s opakováním i bez něj.
+- Kruhovou šipku opakování roztáhnout směrem ven tak, aby se ani opticky nedotýkala vnitřního symbolu kóty, ponechat jej čitelný; ověřit odstup i centrování. Funkčnost opakování neměnit. Novou ikonu zámku ponechat.
+- Občasné nereagování krátkých kót reprodukovat na syntetických datech a rozlišit příčinu (koncový/středový úchop, popisek, práh tahu, zoom, prst/pero). Nezvětšovat bez důkazu obecně hit-zóny a neporušit již funkční výběr sousedních konců, zoom a historii.
+- Zobrazení verze v aplikaci: uživatel vidí 0.1.0-test a sestavení 1045. Zobrazovat skutečné číslo běhu sestavení, např. „0.1.0-test, sestavení 45“, nikoli interní Android versionCode. Automaticky odvodit z existujícího schváleného schématu nebo předat při sestavení; nevymýšlet čísla, interní versionCode a podpis/aktualizovatelnost neměnit. U nečíslovaného lokálního buildu nepředstírat číslo CI.
+
+**Rukopis do obou polí dialogu kóty – SCHVÁLENO VLASTNÍKEM:**
+
+- Psaní S Pen (případně kompatibilním perem) přímo do stávajícího vstupního pole hodnoty kóty i samostatné poznámky. Rukopis má být rozpoznán na běžný editovatelný text/čísla v daném poli, nikoli inkoustovou anotaci fotografie.
+- Rozlišit pero a prst: prst nikdy nezahajuje rozpoznávání rukopisu, běžné klepnutí, výběr a posun kurzoru zachovat. Klepnutí perem také umožňuje normální editaci. Psaní pouze ve vstupních polích, ne na tlačítkách klávesnic.
+- Zachovat obě současné vlastní klávesnice (numerickou a symbolovou), stávající systémovou textovou klávesnici pro poznámky, existující přepínače, ikony a rozložení dialogu. Tlačítka se nadále ovládají klasickým klepnutím prstem i perem. Bez nové ikony pera nebo nové ikony systémové klávesnice, bez povinného ručního režimu rukopisu.
+- Preferovat vestavěnou podporu Android/Compose a kompatibilní IME (Samsung S Pen to text), nikoli přidání neověřené knihovny. Podpora platformy závisí na verzi Androidu, zařízení, IME a nastavení rukopisu; zejména ověřit součinnost s vlastní klávesnicí a na Androidu 13 zachovat normální zadávání, pokud přímý rukopis není dostupný. Implementační řešení a skutečné rozpoznávání zatím NOT RUN; žádná záruka automatického přepnutí na všech zařízeních.
+- Rozpoznaný text vždy zůstává rozepsaným vstupem k opravě a vědomému potvrzení stávajícím tlačítkem Uložit. Žádná automatická změna měření či potvrzení, žádná tichá oprava jednotky nebo dosazení nuly. Zachovat přesný desetinný/zlomkový zápis, stavy NEZMĚŘENO a skutečnou nulu, poznámku oddělenou od hodnoty, správné ID kóty, rozepsané údaje a dosavadní Undo/Redo. Při nedostupnosti nebo chybě rozpoznávání zachovat běžné klávesnice a rozepsaná data; neodesílat zákaznická data do externí služby bez samostatného rozhodnutí.
+- Praktická akceptace: na Samsungu s S Pen a podporovanou IME napsat přímo čísla včetně desetinné čárky/zlomku a text poznámky, opravit výsledek, kombinovat rukopis s tlačítky vlastních klávesnic, zkusit stejné gesto prstem (bez rukopisu), změnit orientaci a zrušit dialog, ověřit potvrzení až při Uložit a Undo/Redo. Ověřit také běžné zadávání na zařízení/IME bez podpory rukopisu. Všechny nové scénáře NOT RUN.
+
+**Stav:** uvedené výsledky jsou pozorování vlastníka na sestavení 45, nikoli nové automatické nebo úplné akceptační testy. Schválené úpravy čekají na samostatné implementační GO; tento zápis nemění etapy, přesné datové kontrakty ani povinnost bezpečného save/reopen. Pouze syntetická/nahraditelná data. Žádný nový build, APK ani testy tímto zápisem.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
-**V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
+**Historické návrhové scénáře níže nebyly jako celek provedeny.** Dílčí fyzické výsledky sestavení 45 viz §3.7; úplná akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
 
 | Scénář | Očekávání |
 |---|---|
@@ -175,9 +212,11 @@ Vlastník na sestavení 43 (`dd779a2`) potvrdil, že běžný výběr převážn
 | Zamknout zámeček → na několika kótách zkusit tažení čísel, konců a celku, klepnout na hodnotu; odemknout → přesunout čísla | Jediný zámeček najednou chrání relativní polohy **všech** čísel na aktuální fotografii. Při zamčení lze upravit naměřenou hodnotu, konce a přesunout kótu včetně popisku; odemčený stav dovolí pohyb popisku podél čáry. Stav ikony poznatelný tvarem i zvýrazněním. |
 | Otočení telefonu, zvětšení/zmenšení, přerušení gesta, restart, plný disk | Zachovaná identita, kóta, popisek, přesnost a poslední potvrzená práce, žádné falešné potvrzení. |
 
-**Potvrzeno:** jeden otevřený/zavřený zámeček v liště pro všechny popisky na právě otevřené fotografii; výchozí **ODEMČENO** je zapamatovaná společná preference napříč fotografiemi, nikoli per-foto přepínač; zřetelné zvýraznění aktivního zámku a nezávislost na geometrii. **Novější schválené rozhodnutí UX-95/97:** výchozí stav odemčeno, zámek je společná zapamatovaná preference napříč fotografiemi a restarty. **Otevřeno:** pouze definitivní grafická podoba ikony a fyzické ověření ovládání na telefonu. **Zámek celé kóty NENÍ nyní schválen**, může se řešit odděleně pouze při prokázané potřebě. Zámek lišty nástrojů je jiná preference. Další přesná technologie/renderer a formát čísel stále patří do brány M0 a nemohou být vybrány tímto dokumentem.
+**Potvrzeno:** jeden otevřený/zavřený zámeček v liště pro všechny popisky na právě otevřené fotografii; výchozí **ODEMČENO** je zapamatovaná společná preference napříč fotografiemi, nikoli per-foto přepínač; zřetelné zvýraznění aktivního zámku a nezávislost na geometrii. **Novější schválené rozhodnutí UX-95/97:** výchozí stav odemčeno, zámek je společná zapamatovaná preference napříč fotografiemi a restarty. **Aktualizace sestavení 45:** grafická podoba ikony vlastníkem schválena, dílčí fyzické výsledky viz §3.7; úplná akceptace zůstává otevřená. **Zámek celé kóty NENÍ nyní schválen**, může se řešit odděleně pouze při prokázané potřebě. Zámek lišty nástrojů je jiná preference. Další přesná technologie/renderer a formát čísel stále patří do brány M0 a nemohou být vybrány tímto dokumentem.
 
 ## 5. Co je hotové / neověřené / další krok
+
+*Následující body jsou historickým stavem návrhové fáze; aktuální M1 výsledky a další opravy viz §3.7.*
 
 - **HOTOVO dokumentačně:** izolovaná referenční předloha vzhledu i gest s dohledatelnými parametry z v1; po opravě mylného výkladu zaznamenána potřeba zapínat/vypínat samostatný posun čísla v liště.
 - **NEOVĚŘENO:** fyzická vizuální a ergonomická referenční shoda, výkon, skutečná podoba ikonky metru, přesný vizuál/funkce přepínače posunu popisků, M0-D technologie; žádná aplikace CraftPlan podle tohoto dokumentu nebyla naprogramována.
