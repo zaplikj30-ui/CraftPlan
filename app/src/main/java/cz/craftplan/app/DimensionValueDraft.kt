@@ -63,6 +63,8 @@ internal class DimensionValueDraft private constructor(
     val note: String = "",
     val showUnit: Boolean = true,
 ) {
+    val targetId get() = target.id
+
     constructor(dimension: PhotoDimension) : this(
         dimension,
         dimension.textLabel ?: dimension.measurement?.length?.displayNumberForUi(dimension.displayUnit)?.text

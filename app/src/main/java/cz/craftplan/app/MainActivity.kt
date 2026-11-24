@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     private val editorState by viewModels<PhotoEditorState>()
@@ -58,19 +59,20 @@ class MainActivity : ComponentActivity() {
 }
 
 internal class PhotoEditorState : ViewModel() {
-    var placement by mutableStateOf<DimensionPlacement>(DimensionPlacement.Idle)
+    var scene by mutableStateOf(DimensionScene())
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
     var showNotes by mutableStateOf(true)
 
     fun openValue(dimension: PhotoDimension) {
-        val current = (placement as? DimensionPlacement.Complete)?.dimension ?: return
+        val current = scene.find(dimension.id) ?: return
         if (current == dimension) valueDraft = DimensionValueDraft(current)
     }
 
     fun confirmValue(): Boolean {
-        val current = (placement as? DimensionPlacement.Complete)?.dimension ?: return false
-        val confirmed = valueDraft?.confirm(current) ?: return false
-        placement = DimensionPlacement.Complete(confirmed)
+        val draft = valueDraft ?: return false
+        val current = scene.find(draft.targetId) ?: return false
+        val confirmed = draft.confirm(current) ?: return false
+        scene = scene.edit(current, confirmed)
         valueDraft = null
         return true
     }
@@ -80,9 +82,7 @@ internal class PhotoEditorState : ViewModel() {
 private fun CraftPlan(editorState: PhotoEditorState) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
     val closePhoto = {
-        if (editorState.placement !is DimensionPlacement.Complete) {
-            editorState.placement = DimensionPlacement.Idle
-        }
+        editorState.scene = editorState.scene.copy(tool = DimensionTool.SELECT, selectedId = null)
         photoOpen = false
     }
     BackHandler(enabled = photoOpen && editorState.valueDraft == null, onBack = closePhoto)
@@ -92,18 +92,13 @@ private fun CraftPlan(editorState: PhotoEditorState) {
         if (photoOpen) {
             SamplePhoto(
                 modifier = screen,
-                placement = editorState.placement,
+                scene = editorState.scene,
                 onStartDimension = {
-                    editorState.placement = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
+                    editorState.scene = editorState.scene.copy(tool = DimensionTool.SINGLE)
                 },
-                onDimension = { result ->
-                    val current = editorState.placement
-                    if (current is DimensionPlacement.Ready ||
-                        current is DimensionPlacement.Complete && current.dimension.id == result.dimension.id
-                    ) {
-                        editorState.placement = result
-                    }
-                },
+                onCreateDimension = { editorState.scene = editorState.scene.create(it) },
+                onChangeDimension = { old, new -> editorState.scene = editorState.scene.edit(old, new) },
+                onSelectDimension = { editorState.scene = editorState.scene.select(it) },
                 onClose = closePhoto,
                 onEditValue = editorState::openValue,
                 showNotes = editorState.showNotes,
@@ -148,21 +143,20 @@ private fun CraftPlan(editorState: PhotoEditorState) {
 @Composable
 private fun SamplePhoto(
     modifier: Modifier,
-    placement: DimensionPlacement,
+    scene: DimensionScene,
     onStartDimension: () -> Unit,
-    onDimension: (DimensionPlacement.Complete) -> Unit,
+    onCreateDimension: (PhotoDimension) -> Unit,
+    onChangeDimension: (PhotoDimension, PhotoDimension) -> Unit,
+    onSelectDimension: (UUID?) -> Unit,
     onClose: () -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
     showNotes: Boolean,
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val hint = when (placement) {
-        DimensionPlacement.Idle -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
-        is DimensionPlacement.Ready -> if (isLandscape) R.string.drag_dimension_short else R.string.drag_dimension
-        is DimensionPlacement.Complete -> when (placement.dimension.measurementState) {
-            MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
-            MeasurementState.MEASURED -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
-        }
+    val hint = when {
+        scene.tool != DimensionTool.SELECT -> if (isLandscape) R.string.drag_dimension_short else R.string.drag_dimension
+        scene.find(scene.selectedId)?.measurementState == MeasurementState.UNMEASURED -> R.string.dimension_unmeasured
+        else -> if (isLandscape) R.string.photo_gestures_short else R.string.photo_gestures
     }
     Column(modifier = modifier) {
         Surface(
@@ -189,7 +183,7 @@ private fun SamplePhoto(
                     )
                     Button(
                         onClick = onStartDimension,
-                        enabled = placement == DimensionPlacement.Idle,
+                        enabled = scene.tool == DimensionTool.SELECT,
                     ) {
                         Text(stringResource(R.string.add_dimension), maxLines = 1)
                     }
@@ -211,7 +205,7 @@ private fun SamplePhoto(
                     )
                     Button(
                         onClick = onStartDimension,
-                        enabled = placement == DimensionPlacement.Idle,
+                        enabled = scene.tool == DimensionTool.SELECT,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     ) {
                         Text(stringResource(R.string.add_dimension))
@@ -226,13 +220,15 @@ private fun SamplePhoto(
             }
         }
         AndroidView(
-            factory = { context -> PhotoEditorView(context).apply { this.placement = placement } },
+            factory = { context -> PhotoEditorView(context).apply { this.scene = scene } },
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
-                view.onDimension = onDimension
+                view.onCreateDimension = onCreateDimension
+                view.onChangeDimension = onChangeDimension
+                view.onSelectDimension = onSelectDimension
                 view.onEditValue = onEditValue
                 view.showNotes = showNotes
-                view.placement = placement
+                view.scene = scene
             },
         )
     }

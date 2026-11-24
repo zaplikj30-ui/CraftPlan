@@ -15,11 +15,27 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     private var height = 0
     private var photoFitScale = 1f
     private var contentFitScale = 1f
-    private var dimension: PhotoDimension? = null
+    private var minU = 0f
+    private var maxU = 1f
+    private var minV = 0f
+    private var maxV = 1f
     private var handleMargin = 0f
 
     fun updateContentBounds(dimension: PhotoDimension?, handleMargin: Float) {
-        this.dimension = dimension
+        updateContentBounds(listOfNotNull(dimension), handleMargin)
+    }
+
+    fun updateContentBounds(dimensions: List<PhotoDimension>, handleMargin: Float) {
+        minU = 0f
+        maxU = 1f
+        minV = 0f
+        maxV = 1f
+        for ((_, _, start, end) in dimensions) {
+            minU = minOf(minU, start.u, end.u)
+            maxU = maxOf(maxU, start.u, end.u)
+            minV = minOf(minV, start.v, end.v)
+            maxV = maxOf(maxV, start.v, end.v)
+        }
         this.handleMargin = handleMargin
         if (width > 0 && height > 0) contentFitScale = contentFit().scale
         transform(0f, 0f, 0f, 0f)
@@ -68,12 +84,6 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     private data class ViewportFit(val scale: Float, val centerX: Double, val centerY: Double)
 
     private fun contentFit(): ViewportFit {
-        val start = dimension?.start
-        val end = dimension?.end
-        val minU = minOf(0f, start?.u ?: 0f, end?.u ?: 0f)
-        val maxU = maxOf(1f, start?.u ?: 1f, end?.u ?: 1f)
-        val minV = minOf(0f, start?.v ?: 0f, end?.v ?: 0f)
-        val maxV = maxOf(1f, start?.v ?: 1f, end?.v ?: 1f)
         if (minU == 0f && maxU == 1f && minV == 0f && maxV == 1f) {
             return ViewportFit(photoFitScale, imageWidth / 2.0, imageHeight / 2.0)
         }
@@ -104,17 +114,16 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         val minScale = minOf(scale, contentFitScale)
         val nextScale = (scale * factor).coerceIn(minScale, photoFitScale * MAX_ZOOM)
         val ratio = nextScale.toDouble() / scale
-        val active = dimension
         val requestedLeft = (toX - (fromX - left) * ratio).toFloat()
         val requestedTop = (toY - (fromY - top) * ratio).toFloat()
         if (!requestedLeft.isFinite() || !requestedTop.isFinite()) return
         left = boundedOffset(
             requestedLeft, width, imageWidth * nextScale,
-            active?.start?.u, active?.end?.u, extendingForDrag,
+            minU, maxU, extendingForDrag,
         )
         top = boundedOffset(
             requestedTop, height, imageHeight * nextScale,
-            active?.start?.v, active?.end?.v, extendingForDrag,
+            minV, maxV, extendingForDrag,
         )
         scale = nextScale
     }
@@ -164,12 +173,10 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
     private fun boundedOffset(
         offset: Float, viewportSize: Int, imageSize: Float,
-        start: Float?, end: Float?, extendingForDrag: Boolean,
+        nearAnchor: Float, farAnchor: Float, extendingForDrag: Boolean,
     ): Float {
         val visible = minOf(viewportSize.toFloat(), imageSize) / 2f
         val margin = minOf(handleMargin, viewportSize / 2f)
-        val nearAnchor = minOf(start ?: 0f, end ?: 0f)
-        val farAnchor = maxOf(start ?: 1f, end ?: 1f)
         var lower = visible - imageSize
         var upper = viewportSize - visible
         if (nearAnchor < 0f) upper = maxOf(upper, viewportSize - margin - nearAnchor * imageSize)
