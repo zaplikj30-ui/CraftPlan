@@ -168,10 +168,25 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                         ) {
                             Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools), Modifier.size(toolbarIconSize))
                         }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false },
+                            modifier = Modifier.widthIn(min = 144.dp),
+                        ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.toolbar_dimension)) },
-                                leadingIcon = { Icon(painterResource(R.drawable.ic_dimension_tool), null) },
+                                text = {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(painterResource(R.drawable.ic_dimension_tool), null, Modifier.size(32.dp))
+                                        Text(
+                                            stringResource(R.string.toolbar_dimension),
+                                            style = MaterialTheme.typography.titleLarge,
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     state.scene = state.scene.prepareSingle()
                                     menuOpen = false
