@@ -31,7 +31,7 @@ internal data class DimensionStrokeTarget(
 )
 
 internal fun dimensionStrokeTargets(
-    point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float, selected: Boolean,
+    point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float,
 ): List<DimensionStrokeTarget> {
     val axis = end - start
     val length = hypot(axis.x, axis.y)
@@ -53,11 +53,8 @@ internal fun dimensionStrokeTargets(
             distanceToDimensionLine(point, center, from(center, direction * arrow, arrow / 2f)),
             distanceToDimensionLine(point, center, from(center, direction * arrow, -arrow / 2f)),
         )
-        // The visible selected handle is a direct target only inside the end portion,
-        // not across the middle of a short dimension. The wider 31dp zone is merely a candidate.
-        val direct = distance <= strokeRadius ||
-            selected && centerDistance <= minOf(14f * density, length * 0.27f)
-        result += DimensionStrokeTarget(hit, distance, centerDistance, direct)
+        // The handle halo is feedback, not a painted endpoint stroke.
+        result += DimensionStrokeTarget(hit, distance, centerDistance, distance <= strokeRadius)
     }
     if (t <= 0.27f) endpoint(DimensionHit.START, start, 1f)
     if (t >= 0.73f) endpoint(DimensionHit.END, end, -1f)
@@ -85,7 +82,7 @@ internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): Photo
 }
 
 internal fun PhotoDimension.shiftLabel(axis: EditorPoint, delta: EditorPoint, locked: Boolean): PhotoDimension {
-    if (locked || measurement == null) return this
+    if (locked) return this
     val lengthSquared = axis.x.toDouble() * axis.x + axis.y.toDouble() * axis.y
     val projected = (delta.x.toDouble() * axis.x + delta.y.toDouble() * axis.y) / lengthSquared
     if (!projected.isFinite()) return this
@@ -99,19 +96,17 @@ private fun PhotoAnchor.shift(du: Float, dv: Float): PhotoAnchor? {
     return if (x.isFinite() && y.isFinite()) PhotoAnchor(x, y) else null
 }
 
-internal enum class HeldPointerRelease {
-    FINISH, CANCEL, END_PAN, IGNORE,
-}
+/** After pinch starts, single-pointer edits and taps resume only on a new ACTION_DOWN. */
+internal class EditorTouchStream {
+    var pinchOnly = false
+        private set
 
-internal fun heldPointerRelease(
-    heldId: Int,
-    panId: Int?,
-    releasedId: Int,
-    canceled: Boolean,
-): HeldPointerRelease = when (releasedId) {
-    heldId -> if (canceled) HeldPointerRelease.CANCEL else HeldPointerRelease.FINISH
-    panId -> HeldPointerRelease.END_PAN
-    else -> HeldPointerRelease.IGNORE
+    fun begin() { pinchOnly = false }
+    fun beginPinch(cancelPreview: () -> Unit) {
+        if (pinchOnly) return
+        pinchOnly = true
+        cancelPreview()
+    }
 }
 
 internal fun readableAngle(axis: EditorPoint): Float {
@@ -131,6 +126,10 @@ internal fun magnifierOnRight(x: Float, width: Int, previous: Boolean?): Boolean
 
 internal fun passesDragThreshold(down: EditorPoint, current: EditorPoint, threshold: Float): Boolean =
     down.distanceTo(current) > threshold
+
+/** A short stroke can be deliberately dragged without first leaving its entire hit region. */
+internal fun dimensionDragThreshold(span: Float, density: Float, usualThreshold: Float): Float =
+    (span * 0.2f).coerceIn(3f * density, usualThreshold)
 
 /** Screen-space dot grid phase following the workspace offset in either direction. */
 internal fun workspaceGridOffset(workspaceOffset: Float, spacing: Float): Float {

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -25,6 +27,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -41,6 +45,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+
+private val toolbarShape = RoundedCornerShape(8.dp)
+private val toolbarIconSize = 28.dp
+private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
+private val toolbarQuickSize = Modifier.size(width = 56.dp, height = 56.dp)
 
 @Composable
 internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifier) {
@@ -81,21 +90,29 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
             if (verticalExpanded) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = state::requestFit) {
-                        Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit))
+                    IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
+                        Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
                     }
-                    IconButton(onClick = { state.showNotes = !state.showNotes }) {
+                    IconButton(
+                        onClick = { state.showNotes = !state.showNotes },
+                        modifier = toolbarButtonSize.background(
+                            if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
+                        ),
+                    ) {
                         Icon(
                             painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
                             stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
+                            Modifier.size(toolbarIconSize),
                         )
                     }
                     IconButton(
                         enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
                         onClick = { state.scene = state.scene.closePhoto() },
+                        modifier = toolbarButtonSize,
                     ) {
-                        Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect))
+                        Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
                     }
+                    if (BuildConfig.ENABLE_STRESS_TOOLS) StressToolbarMenu(state)
                 }
             }
             if (repeat || tool == DimensionTool.SINGLE) {
@@ -127,8 +144,13 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools))
+                        IconButton(
+                            onClick = { menuOpen = true },
+                            modifier = toolbarQuickSize.background(
+                                if (menuOpen) activeColors.primaryContainer else Color.Transparent, toolbarShape,
+                            ),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools), Modifier.size(toolbarIconSize))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
@@ -148,12 +170,12 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         DimensionTool.SELECT -> Color.Transparent
                     }
                     Box(
-                        Modifier.size(48.dp)
-                            .background(toolBackground, RoundedCornerShape(8.dp))
+                        toolbarQuickSize
+                            .background(toolBackground, toolbarShape)
                             .semantics { contentDescription = dimensionLabel }
                             .combinedClickable(
                                 role = Role.Button,
-                                onClick = { state.scene = state.scene.prepareSingle() },
+                                onClick = { state.scene = state.scene.tapDrawingTool() },
                                 onLongClickLabel = repeatAction,
                                 onLongClick = { state.scene = state.scene.toggleRepeat() },
                             ),
@@ -161,20 +183,25 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     ) {
                         Icon(
                             painterResource(R.drawable.ic_dimension_tool), null,
+                            Modifier.size(toolbarIconSize),
                             tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
                         )
+                        if (repeat) {
+                            Icon(painterResource(R.drawable.ic_toolbar_repeat), null, Modifier.size(44.dp), activeColors.onPrimary)
+                        }
                     }
                 }
                 if (expanded) {
                     Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
                     Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
-                        ToolbarAction("↶", R.string.toolbar_undo, state.history.canUndo, state::undo)
-                        ToolbarAction("↷", R.string.toolbar_redo, state.history.canRedo, state::redo)
+                        HistoryAction(false, R.string.toolbar_undo, state.history.canUndo, state::undo)
+                        HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
                         IconButton(
                             enabled = state.scene.selectedId != null,
                             onClick = { state.applyDimensionChange(state.scene.deleteSelected()) },
+                            modifier = toolbarButtonSize,
                         ) {
-                            Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete))
+                            Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
                         }
                         val locked = state.labelsLocked
                         val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
@@ -184,19 +211,23 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                             colors = IconButtonDefaults.iconToggleButtonColors(
                                 containerColor = Color.Transparent,
                                 contentColor = activeColors.onSurface,
-                                checkedContainerColor = activeColors.primaryContainer,
+                                checkedContainerColor = Color.Transparent,
                                 checkedContentColor = activeColors.onPrimaryContainer,
                             ),
-                            modifier = Modifier.semantics { contentDescription = lockLabel },
+                            modifier = toolbarButtonSize
+                                .background(if (locked) activeColors.primaryContainer else Color.Transparent, toolbarShape)
+                                .semantics { contentDescription = lockLabel },
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("123", style = MaterialTheme.typography.labelSmall)
-                                    Text("↔", style = MaterialTheme.typography.labelSmall)
+                                    Icon(
+                                        painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
+                                        null, Modifier.size(15.dp),
+                                    )
                                 }
                                 Icon(
-                                    painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
-                                    null, Modifier.size(20.dp),
+                                    painterResource(R.drawable.ic_toolbar_label_motion), null, Modifier.size(32.dp, 12.dp),
                                 )
                             }
                         }
@@ -208,10 +239,55 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun ToolbarAction(glyph: String, label: Int, enabled: Boolean, onClick: () -> Unit) {
+private fun StressToolbarMenu(state: PhotoEditorState) {
+    var open by remember { mutableStateOf(false) }
+    val photoId = PhotoId.SYNTHETIC_WORKBENCH
+    val total = state.scene.dimensions.size
+    Box {
+        TextButton(onClick = { open = true }) {
+            Text(stringResource(R.string.stress_toolbar, total))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(max = 310.dp)) {
+            for (count in SyntheticDimensions.counts) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.stress_generate, count)) },
+                    enabled = !state.stressBusy,
+                    onClick = { state.generateStressBatch(photoId, count) },
+                )
+            }
+            val generated = state.scene.dimensions.count(SyntheticDimensions::owns)
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.stress_clear)) },
+                enabled = !state.stressBusy && generated > 0,
+                onClick = { state.clearStressBatch(photoId) },
+            )
+            val metrics = state.stressMetrics.snapshot()
+            val heap = Runtime.getRuntime()
+            val heapMiB = (heap.totalMemory() - heap.freeMemory()) / 1_048_576.0
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Text(stringResource(R.string.stress_counts, total, generated))
+                if (state.stressBusy) Text(stringResource(R.string.stress_working))
+                state.stressGenerationMs?.let { Text(stringResource(R.string.stress_generation_ms, it)) }
+                Text(stringResource(R.string.stress_preparation, metrics.maxPreparationMs))
+                Text(stringResource(R.string.stress_draw, metrics.maxDrawMs, metrics.draws))
+                Text(stringResource(R.string.stress_hit, metrics.maxHitMs, metrics.hits))
+                Text(stringResource(R.string.stress_gesture, metrics.maxGestureGapMs, metrics.gapsOver50ms))
+                Text(stringResource(R.string.stress_heap, heapMiB))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryAction(redo: Boolean, label: Int, enabled: Boolean, onClick: () -> Unit) {
     val description = stringResource(label)
     IconButton(
         onClick = onClick, enabled = enabled,
-        modifier = Modifier.semantics { contentDescription = description },
-    ) { Text(glyph, style = MaterialTheme.typography.titleLarge) }
+        modifier = toolbarButtonSize.semantics { contentDescription = description },
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_toolbar_undo), null,
+            Modifier.size(toolbarIconSize).graphicsLayer { scaleX = if (redo) -1f else 1f },
+        )
+    }
 }

@@ -42,6 +42,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -64,6 +69,43 @@ internal class PhotoEditorState : ViewModel() {
     var scene by mutableStateOf(DimensionScene())
     var history by mutableStateOf(DimensionHistory())
         private set
+    val stressMetrics = EditorStressMetrics()
+    var stressBusy by mutableStateOf(false)
+        private set
+    var stressGenerationMs by mutableStateOf<Double?>(null)
+        private set
+    private var stressJob: Job? = null
+
+    fun generateStressBatch(photoId: PhotoId, count: Int) {
+        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH ||
+            count !in SyntheticDimensions.counts || stressBusy
+        ) return
+        stressBusy = true
+        stressJob = viewModelScope.launch {
+            try {
+                val (batch, elapsed) = withContext(Dispatchers.Default) {
+                    val start = System.nanoTime()
+                    val dimensions = SyntheticDimensions.generate(photoId, count)
+                    dimensions to (System.nanoTime() - start) / 1_000_000.0
+                }
+                stressMetrics.reset()
+                stressGenerationMs = elapsed
+                // Use the current scene: manual edits made while the worker ran must survive.
+                applyDimensionChange(scene.replaceSynthetic(batch))
+            } finally {
+                stressBusy = false
+            }
+        }
+    }
+
+    fun clearStressBatch(photoId: PhotoId) {
+        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH || stressBusy) return
+        stressMetrics.reset()
+        stressGenerationMs = null
+        applyDimensionChange(scene.replaceSynthetic(emptyList()))
+    }
+
+    fun cancelStressGeneration() { stressJob?.cancel() }
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
     var showNotes by mutableStateOf(true)
     var toolbarExpanded by mutableStateOf(false)
@@ -139,6 +181,7 @@ internal class PhotoEditorState : ViewModel() {
 private fun CraftPlan(editorState: PhotoEditorState) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
     val closePhoto = {
+        editorState.cancelStressGeneration()
         editorState.scene = editorState.scene.closePhoto()
         photoOpen = false
     }
@@ -158,6 +201,7 @@ private fun CraftPlan(editorState: PhotoEditorState) {
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 fitRequest = editorState.fitRequest,
+                stressMetrics = editorState.stressMetrics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS },
                 toolbar = { modifier ->
                     EditorToolbar(editorState, modifier.alpha(if (editorState.valueDraft == null) 1f else 0f))
                 },
@@ -211,6 +255,7 @@ private fun SamplePhoto(
     showNotes: Boolean,
     labelsLocked: Boolean,
     fitRequest: Int,
+    stressMetrics: EditorStressMetrics?,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
     Column(modifier = modifier) {
@@ -234,7 +279,12 @@ private fun SamplePhoto(
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(
-                factory = { context -> PhotoEditorView(context).apply { this.scene = scene } },
+                factory = { context ->
+                    PhotoEditorView(context).apply {
+                        this.stressMetrics = stressMetrics
+                        this.scene = scene
+                    }
+                },
                 modifier = Modifier.fillMaxSize(),
                 update = { view ->
                     view.onCreateDimension = onCreateDimension

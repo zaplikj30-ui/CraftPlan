@@ -16,7 +16,7 @@ class DimensionGeometryTest {
     // Exercise the same geometry and resolver as PhotoEditorView, not a legacy hit-test.
     private fun hitDimension(point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float): DimensionHit? =
         preferredDimensionTarget(
-            dimensionStrokeTargets(point, start, end, density, false).map {
+            dimensionStrokeTargets(point, start, end, density).map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
             }, null, density,
         )?.hit
@@ -45,12 +45,12 @@ class DimensionGeometryTest {
     fun visibleStrokeAndExpandedEndpointAreSeparateCandidates() {
         val start = EditorPoint(0f, 0f)
         val end = EditorPoint(100f, 0f)
-        val near = dimensionStrokeTargets(EditorPoint(16f, 0f), start, end, 1f, false)
+        val near = dimensionStrokeTargets(EditorPoint(16f, 0f), start, end, 1f)
         assertTrue(near.any { it.hit == DimensionHit.START && !it.direct })
         assertTrue(near.any { it.hit == DimensionHit.BODY && it.direct })
-        val tick = dimensionStrokeTargets(EditorPoint(0f, 10f), start, end, 1f, false)
+        val tick = dimensionStrokeTargets(EditorPoint(0f, 10f), start, end, 1f)
         assertTrue(tick.any { it.hit == DimensionHit.START && it.direct })
-        val short = dimensionStrokeTargets(EditorPoint(20f, 0f), start, EditorPoint(40f, 0f), 1f, true)
+        val short = dimensionStrokeTargets(EditorPoint(20f, 0f), start, EditorPoint(40f, 0f), 1f)
         assertEquals(listOf(DimensionHit.BODY), short.map { it.hit })
     }
 
@@ -113,12 +113,34 @@ class DimensionGeometryTest {
     }
 
     @Test
-    fun releasingThePanFingerDoesNotFinishOrCancelTheHeldDimension() {
-        assertEquals(HeldPointerRelease.END_PAN, heldPointerRelease(7, 3, 3, canceled = false))
-        assertEquals(HeldPointerRelease.END_PAN, heldPointerRelease(7, 3, 3, canceled = true))
-        assertEquals(HeldPointerRelease.IGNORE, heldPointerRelease(7, 3, 4, canceled = false))
-        assertEquals(HeldPointerRelease.FINISH, heldPointerRelease(7, 3, 7, canceled = false))
-        assertEquals(HeldPointerRelease.CANCEL, heldPointerRelease(7, 3, 7, canceled = true))
+    fun pinchDiscardsEndpointBodyLabelAndDrawingPreviewsAndOwnsRemainingFinger() {
+        for (target in listOf("start", "end", "body", "label", "empty workspace", "new dimension")) {
+            val stream = EditorTouchStream()
+            var preview: String? = target
+            var cancellations = 0
+            stream.begin()
+            stream.beginPinch { preview = null; cancellations++ }
+            assertNull(preview)
+            assertTrue(stream.pinchOnly)
+            stream.beginPinch { cancellations++ }
+            assertEquals(1, cancellations)
+            stream.begin()
+            assertFalse(stream.pinchOnly)
+        }
+    }
+
+    @Test
+    fun tinyDiagonalDimensionReservesItsCenterAndUsesAReachableDragThreshold() {
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(8f, 8f)
+        assertEquals(DimensionHit.START, hitDimension(start, start, end, 1f))
+        assertEquals(DimensionHit.BODY, hitDimension(EditorPoint(4f, 4f), start, end, 1f))
+        assertEquals(DimensionHit.END, hitDimension(end, start, end, 1f))
+        val threshold = dimensionDragThreshold(start.distanceTo(end), 1f, 7f)
+        assertEquals(3f, threshold, 0f)
+        assertFalse(passesDragThreshold(start, EditorPoint(2f, 0f), threshold))
+        assertTrue(passesDragThreshold(start, EditorPoint(4f, 0f), threshold))
+        assertEquals(7f, dimensionDragThreshold(100f, 1f, 7f), 0f)
     }
 
     @Test

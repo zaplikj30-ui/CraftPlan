@@ -15,6 +15,9 @@ internal data class DimensionScene(
 
     fun prepareSingle() = copy(tool = DimensionTool.SINGLE, selectedId = null)
 
+    fun tapDrawingTool() = if (tool == DimensionTool.SELECT) prepareSingle()
+        else copy(tool = DimensionTool.SELECT)
+
     fun toggleRepeat() = if (tool == DimensionTool.REPEAT) copy(tool = DimensionTool.SELECT)
         else copy(tool = DimensionTool.REPEAT, selectedId = null)
 
@@ -38,6 +41,12 @@ internal data class DimensionScene(
     fun deleteSelected(): DimensionScene {
         val selected = find(selectedId) ?: return this
         return copy(dimensions = dimensions.filterNot { it.id == selected.id }, selectedId = null)
+    }
+
+    fun replaceSynthetic(batch: List<PhotoDimension>): DimensionScene {
+        require(batch.all(SyntheticDimensions::owns))
+        val manual = dimensions.filterNot(SyntheticDimensions::owns)
+        return copy(dimensions = manual + batch, selectedId = selectedId?.takeIf { id -> manual.any { it.id == id } })
     }
 
     private fun accepts(dimension: PhotoDimension): Boolean = dimension.photoId == PhotoId.SYNTHETIC_WORKBENCH

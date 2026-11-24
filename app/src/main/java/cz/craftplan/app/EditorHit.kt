@@ -1,7 +1,6 @@
 package cz.craftplan.app
 
 import java.util.UUID
-import kotlin.math.abs
 
 /** Shape-independent touch arbitration. Distances and tolerances are in screen pixels. */
 /** Keep input type separate from gesture meaning; identical initial ergonomics until device tests. */
@@ -32,10 +31,7 @@ private fun EditorHitPart.priority(): Int = when (this) {
     EditorHitPart.BODY -> 2
 }
 
-private fun EditorHitPart.isLabel(): Boolean = this == EditorHitPart.LABEL || this == EditorHitPart.NOTE
-
-/** Direct geometry beats any expanded-only target. Selection breaks near ties within the same
- * hit class. Stable front-to-back input order is the last tie-break; no cycling. */
+/** Direct geometry beats any expanded-only target. Selection breaks exact geometric ties. */
 internal fun <T> chooseEditorHit(
     candidates: List<T>, selectedId: UUID?, density: Float, scoreOf: (T) -> EditorHitScore,
 ): T? {
@@ -44,20 +40,11 @@ internal fun <T> chooseEditorHit(
         it.second.distance.isFinite() && it.second.distance >= 0f &&
             it.second.labelCenterDistance.isFinite() && it.second.labelCenterDistance >= 0f
     }
-    val nearest = scored.minWithOrNull(
+    return scored.minWithOrNull(
         compareBy<Pair<T, EditorHitScore>> { !it.second.direct }
             .thenBy { it.second.distance }
             .thenBy { it.second.part.priority() }
-            .thenBy { it.second.labelCenterDistance },
-    ) ?: return null
-    val best = nearest.second
-    val tolerance = if (best.part == EditorHitPart.ENDPOINT) 7f * density else density
-    val selected = scored.filter { (_, score) ->
-        score.ownerId == selectedId && score.part == best.part && score.direct == best.direct &&
-            score.distance <= best.distance + tolerance &&
-            (!best.part.isLabel() ||
-                abs(score.labelCenterDistance - best.labelCenterDistance) <= density)
-    }.minWithOrNull(compareBy<Pair<T, EditorHitScore>> { it.second.distance }
-        .thenBy { it.second.labelCenterDistance })
-    return (selected ?: nearest).first
+            .thenBy { it.second.labelCenterDistance }
+            .thenBy { it.second.ownerId != selectedId },
+    )?.first
 }

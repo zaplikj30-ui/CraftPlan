@@ -56,4 +56,15 @@
     <string name="dimension_assign_quick_symbol">Nastavit jako rychlý symbol</string>
     <string name="dimension_clear_quick_symbol">Vyprázdnit rychlou klávesu</string>
     <string name="dimension_quick_drop_target">Rychlá</string>
+    <string name="stress_toolbar">Test · %1$d</string>
+    <string name="stress_generate">Vygenerovat %1$d kót</string>
+    <string name="stress_clear">Odstranit vygenerované kóty</string>
+    <string name="stress_counts">Celkem %1$d · vygenerováno %2$d</string>
+    <string name="stress_working">Generuji syntetické kóty…</string>
+    <string name="stress_generation_ms">Generování %1$.2f ms</string>
+    <string name="stress_draw">CPU kreslení max. %1$.2f ms (%2$d měření)</string>
+    <string name="stress_hit">Detekce dotyku max. %1$.2f ms (%2$d měření)</string>
+    <string name="stress_preparation">Příprava scény na vlákně UI max. %1$.2f ms</string>
+    <string name="stress_gesture">Intervaly kreslení při dotyku včetně pauz: max. %1$.2f ms (%2$d nad 50 ms)</string>
+    <string name="stress_heap">Java heap %1$.1f MiB</string>
 </resources>

@@ -42,6 +42,55 @@ class DimensionSceneTest {
     }
 
     @Test
+    fun shortTapTogglesActiveModesAndOneShotStopsAfterCreation() {
+        val ready = DimensionScene().tapDrawingTool()
+        assertEquals(DimensionTool.SINGLE, ready.tool)
+        assertEquals(DimensionTool.SELECT, ready.tapDrawingTool().tool)
+        assertEquals(DimensionTool.SELECT, ready.create(dimension(1)).tool)
+        val repeat = ready.toggleRepeat()
+        assertEquals(DimensionTool.REPEAT, repeat.create(dimension(1)).tool)
+        assertEquals(DimensionTool.SELECT, repeat.tapDrawingTool().tool)
+    }
+
+    @Test
+    fun rulerMovesWithUndoAndKeepsItsPositionWhenAssignedRealZero() {
+        val original = dimension(1)
+        val axis = EditorPoint(80f, 0f)
+        assertSame(original, original.shiftLabel(axis, axis, locked = true))
+        val moved = original.shiftLabel(axis, EditorPoint(20f, 15f), locked = false)
+        assertEquals(0.5f, moved.labelT, 0f)
+        assertEquals(MeasurementState.UNMEASURED, moved.measurementState)
+        assertEquals(original, moved.copy(labelT = original.labelT))
+        val measured = moved.withManualLength("0 mm")
+        assertEquals(moved.labelT, measured.labelT, 0f)
+        assertEquals(moved, measured.copy(measurement = null))
+        val before = DimensionScene(listOf(original))
+        val after = before.edit(original, moved)
+        val (undone, history) = DimensionHistory().record(before, after).undo(after)!!
+        assertEquals(before, undone)
+        assertEquals(after, history.redo(undone)?.first)
+    }
+
+    @Test
+    fun projectingTicksAndArrowTipsBeatTheHaloOfNearbySelectedEndpoint() {
+        val upper = dimension(1)
+        val lower = dimension(2)
+        val startX = 12f
+        for ((point, winner, selected) in listOf(
+            Triple(EditorPoint(startX, 10f), upper, lower),
+            Triple(EditorPoint(startX, 37f), lower, upper),
+            Triple(EditorPoint(startX + 7f, 16.5f), upper, lower),
+        )) {
+            val candidates = listOf(upper to 20f, lower to 27f).flatMap { (dimension, y) ->
+                dimensionStrokeTargets(point, EditorPoint(startX, y), EditorPoint(100f, y), 1f).map {
+                    DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
+                }
+            }
+            assertEquals(winner.id, preferredDimensionTarget(candidates, selected.id, 1f)?.dimension?.id)
+        }
+    }
+
+    @Test
     fun independentCreationAndEditsUseStableIdentity() {
         val first = dimension(0).withManualLength("1/3 in").copy(note = "První")
         val items = (1..200).map(::dimension)
@@ -63,12 +112,14 @@ class DimensionSceneTest {
     }
 
     @Test
-    fun endpointWinsAndSelectedEndpointOnlyWinsWithinTolerance() {
+    fun endpointWinsAndSelectionBreaksOnlyGeometricTies() {
         val label = DimensionTarget(dimension(0), DimensionHit.BODY, true, 0f)
         val nearest = DimensionTarget(dimension(1), DimensionHit.END, false, 9f)
         val selected = DimensionTarget(dimension(2), DimensionHit.START, false, 15f)
         val targets = listOf(nearest, selected)
-        assertEquals(selected, preferredDimensionTarget(targets, selected.dimension.id, 1f))
+        assertEquals(nearest, preferredDimensionTarget(targets, selected.dimension.id, 1f))
+        val tied = selected.copy(distance = nearest.distance)
+        assertEquals(tied, preferredDimensionTarget(listOf(nearest, tied), tied.dimension.id, 1f))
         assertEquals(nearest, preferredDimensionTarget(targets, selected.dimension.id, 0.5f))
         assertEquals(label, preferredDimensionTarget(targets + label, selected.dimension.id, 1f))
         val directEnd = nearest.copy(distance = 0f, direct = true)
@@ -96,6 +147,28 @@ class DimensionSceneTest {
         val directLine = fringe.copy(distance = 0f, direct = true)
         val wideEnd = DimensionTarget(lower, DimensionHit.END, false, 12f)
         assertEquals(directLine, preferredDimensionTarget(listOf(wideEnd, directLine), lower.id, 1f))
+    }
+
+    @Test
+    fun shortDimensionCenterAndRulerAreSeparateTargets() {
+        val dimension = dimension(1)
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(12f, 0f)
+        fun target(x: Float, y: Float): DimensionTarget? {
+            val stroke = dimensionStrokeTargets(EditorPoint(x, y), start, end, 1f).map {
+                DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
+            }
+            val ruler = labelRectangleDistance(x - 6f, y, -14f, -17f, 14f, -7f)
+            return preferredDimensionTarget(
+                stroke + DimensionTarget(dimension, DimensionHit.BODY, true, ruler.distance, ruler.centerDistance),
+                dimension.id, 1f,
+            )
+        }
+        assertEquals(DimensionHit.START, target(0f, 0f)?.hit)
+        assertEquals(DimensionHit.END, target(12f, 0f)?.hit)
+        assertEquals(DimensionHit.BODY, target(6f, 0f)?.hit)
+        assertEquals(false, target(6f, 0f)?.label)
+        assertEquals(true, target(6f, -12f)?.label)
     }
 
     @Test

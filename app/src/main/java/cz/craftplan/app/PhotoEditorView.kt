@@ -55,7 +55,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val tapTarget: DimensionTarget,
         val movesLabel: Boolean = false,
         val dragThreshold: Float,
-        val tapAllowed: Boolean = true,
         val preview: PhotoDimension? = null,
     )
 
@@ -69,8 +68,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var lensOnRight: Boolean? = null
     private var lensContact: EditorPoint? = null
     private var ownsDimensionStream = false
-    private var panPointerId: Int? = null
-    private var panContact: EditorPoint? = null
+    private val touchStream = EditorTouchStream()
+    var stressMetrics: EditorStressMetrics? = null
+    private var touchInProgress = false
     private var autoPanTime: Long? = null
     private val autoPan = Runnable { stepAutoPan() }
     var onCreateDimension: (PhotoDimension) -> Unit = {}
@@ -110,8 +110,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 clearDimensionGesture()
             }
             if (changedContent) {
+                val metrics = stressMetrics
+                val started = if (metrics != null) System.nanoTime() else 0L
                 updateDimensionLabels()
                 viewport.updateContentBounds(value.dimensions, 24f * density)
+                metrics?.prepareScene(System.nanoTime() - started)
             }
             invalidate()
         }
@@ -160,12 +163,18 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
-        if (!hasWindowFocus) clearDimensionGesture()
+        if (!hasWindowFocus) {
+            touchInProgress = false
+            clearDimensionGesture()
+        }
     }
 
     override fun onWindowVisibilityChanged(visibility: Int) {
         super.onWindowVisibilityChanged(visibility)
-        if (visibility != VISIBLE) clearDimensionGesture()
+        if (visibility != VISIBLE) {
+            touchInProgress = false
+            clearDimensionGesture()
+        }
     }
 
     override fun onDetachedFromWindow() {
@@ -174,6 +183,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        val metrics = stressMetrics
+        val started = if (metrics != null) System.nanoTime() else 0L
         // AndroidView can draw on the Compose canvas without a clip at the View bounds.
         val saveCount = canvas.save()
         canvas.clipRect(0, 0, width, height)
@@ -215,6 +226,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             drawMagnifier(canvas, viewport.screenPoint(target), lensStart, drag?.end ?: edited?.end)
         }
         canvas.restoreToCount(saveCount)
+        metrics?.draw(started, System.nanoTime(), touchInProgress)
     }
 
     private fun drawWorkspaceGrid(canvas: Canvas) {
@@ -475,32 +487,39 @@ internal class PhotoEditorView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            stressMetrics?.beginGesture()
+            touchInProgress = true
+            touchStream.begin()
             clearDimensionGesture()
             if (event.flags and MotionEvent.FLAG_CANCELED != 0) {
+                touchInProgress = false
                 clickCandidate = false
                 return true
             }
             ownsDimensionStream = beginDimensionGesture(event)
         }
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            touchInProgress = false
+        }
+        if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+            touchStream.beginPinch {
+                clearDimensionGesture()
+                clickCandidate = false
+                activePointerId = MotionEvent.INVALID_POINTER_ID
+            }
+        }
+        // Feed the detector the original DOWN even when a dimension owns the one-finger gesture.
+        scaleDetector.onTouchEvent(event)
+        if (touchStream.pinchOnly) return true
         if (ownsDimensionStream) {
             handleHeldDimension(event)
             return true
         }
 
-        scaleDetector.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 startTracking(event, 0)
                 clickCandidate = event.flags and MotionEvent.FLAG_CANCELED == 0
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                activePointerId = MotionEvent.INVALID_POINTER_ID
-                clickCandidate = false
-            }
-            MotionEvent.ACTION_POINTER_UP -> {
-                if (event.pointerCount == 2) {
-                    startTracking(event, 1 - event.actionIndex)
-                }
             }
             MotionEvent.ACTION_MOVE -> {
                 if (event.pointerCount == 1 && !scaleDetector.isInProgress) pan(event)
@@ -539,9 +558,12 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
             // Label and notebook gestures never fall through to moving the whole dimension.
-            // Keep the established touch threshold for both inputs until physical pen tests.
+            val threshold = if (target.label) profile.editDragThreshold else dimensionDragThreshold(
+                viewport.screenPoint(dimension.start).distanceTo(viewport.screenPoint(dimension.end)),
+                profile.hitDensity, profile.editDragThreshold,
+            )
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
-                movesLabel = target.label && !target.notebook, dragThreshold = profile.editDragThreshold)
+                movesLabel = target.label && !target.notebook, dragThreshold = threshold)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
             dimensionDrag = DimensionDrag(
@@ -558,6 +580,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     }
 
     private fun targetAt(point: EditorPoint, profile: EditorInputProfile): DimensionTarget? {
+        val metrics = stressMetrics
+        val started = if (metrics != null) System.nanoTime() else 0L
         // Keep every eligible part. A nearby handle must not erase a direct label or line hit.
         val frontToBack = buildList {
             scene.find(scene.selectedId)?.let { add(it) }
@@ -566,7 +590,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, dimension.id == scene.selectedId)
+            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity)
             val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct)
@@ -575,7 +599,9 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     direct = it.hit.distance == 0f, notebook = it.notebook)
             }
         }
-        return preferredDimensionTarget(targets, scene.selectedId, profile.hitDensity)
+        val result = preferredDimensionTarget(targets, scene.selectedId, profile.hitDensity)
+        metrics?.hit(System.nanoTime() - started)
+        return result
     }
 
     private fun selectTarget(targetAtDown: DimensionTarget?) {
@@ -597,14 +623,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val canceled = event.flags and MotionEvent.FLAG_CANCELED != 0
         when (event.actionMasked) {
             MotionEvent.ACTION_CANCEL -> clearDimensionGesture()
-            MotionEvent.ACTION_POINTER_DOWN -> if (!canceled && panPointerId == null) {
-                dimensionEdit = dimensionEdit?.copy(tapAllowed = false)
-                dimensionDrag = dimensionDrag?.copy(tap = null)
-                val index = event.actionIndex
-                panPointerId = event.getPointerId(index)
-                panContact = viewport.clampContact(event.getX(index), event.getY(index))
-                stopAutoPan()
-            }
             MotionEvent.ACTION_MOVE -> {
                 val heldIndex = event.findPointerIndex(heldId)
                 if (canceled || heldIndex < 0) {
@@ -612,12 +630,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     return
                 }
                 val contact = viewport.clampContact(event.getX(heldIndex), event.getY(heldIndex)) ?: return
-                val cameraMoved = panWithSecondPointer(event)
                 val edit = dimensionEdit
-                if (edit == null || cameraMoved || edit.preview != null ||
+                if (edit == null || edit.preview != null ||
                     passesDragThreshold(edit.down, contact, edit.dragThreshold)
                 ) {
-                    if (edit != null || cameraMoved || dimensionDrag?.tap?.let {
+                    if (edit != null || dimensionDrag?.tap?.let {
                             passesDragThreshold(it, contact, touchSlop.toFloat())
                         } == true
                     ) {
@@ -627,35 +644,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
                     resumeAutoPanIfDragging()
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                val index = event.actionIndex
-                when (heldPointerRelease(heldId, panPointerId, event.getPointerId(index), canceled)) {
-                    HeldPointerRelease.FINISH -> finishHeldDimension(
-                        viewport.clampContact(event.getX(index), event.getY(index)),
-                    )
-                    HeldPointerRelease.CANCEL -> clearDimensionGesture()
-                    HeldPointerRelease.END_PAN -> {
-                        panPointerId = null
-                        panContact = null
-                        resumeAutoPanIfDragging()
-                    }
-                    HeldPointerRelease.IGNORE -> Unit
-                }
+            MotionEvent.ACTION_UP -> {
+                if (canceled || event.getPointerId(0) != heldId) clearDimensionGesture()
+                else finishHeldDimension(viewport.clampContact(event.x, event.y))
             }
         }
-    }
-
-    private fun panWithSecondPointer(event: MotionEvent): Boolean {
-        val index = panPointerId?.let(event::findPointerIndex) ?: return false
-        if (index < 0) return false
-        val contact = viewport.clampContact(event.getX(index), event.getY(index)) ?: return false
-        val previous = panContact
-        panContact = contact
-        if (previous == null || previous == contact) return false
-        val left = viewport.left
-        val top = viewport.top
-        viewport.transform(previous.x, previous.y, contact.x, contact.y, extendingForDrag = true)
-        return left != viewport.left || top != viewport.top
     }
 
     private fun finishHeldDimension(contact: EditorPoint?) {
@@ -672,7 +665,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             if (edit.preview != null || passesDragThreshold(edit.down, contact, edit.dragThreshold)) {
                 onSelectDimension(edit.original.id)
                 onChangeDimension(edit.original, editedDimension(edit, contact))
-            } else if (edit.tapAllowed) {
+            } else {
                 selectTarget(edit.tapTarget)
             }
         }
@@ -710,7 +703,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val contact = lensContact
         val drag = dimensionDrag
         val edit = dimensionEdit
-        val canPan = ownsDimensionStream && panPointerId == null && contact != null &&
+        val canPan = ownsDimensionStream && contact != null &&
             if (drag != null) {
                 passesDragThreshold(viewport.screenPoint(drag.start), contact, touchSlop.toFloat())
             } else {
@@ -736,7 +729,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun stepAutoPan() {
         val previous = autoPanTime ?: return
         // A scheduled callback must never continue without an active held pointer.
-        if (!ownsDimensionStream || panPointerId != null ||
+        if (!ownsDimensionStream ||
             (dimensionDrag == null && dimensionEdit == null)
         ) {
             stopAutoPan()
@@ -772,8 +765,6 @@ internal class PhotoEditorView(context: Context) : View(context) {
         dimensionEdit = null
         lensOnRight = null
         lensContact = null
-        panPointerId = null
-        panContact = null
         ownsDimensionStream = false
         stopAutoPan()
         if (needsRedraw) invalidate()

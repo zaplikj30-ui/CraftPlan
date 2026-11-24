@@ -28,7 +28,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0-test"
+        buildConfigField("boolean", "ENABLE_STRESS_TOOLS", "false")
     }
+
+    buildTypes.getByName("debug").buildConfigField("boolean", "ENABLE_STRESS_TOOLS", "true")
 
     if (verifiedM1VersionCode != null) {
         val m1Signing = signingConfigs.create("m1") {
@@ -48,6 +51,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
