@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val toolbarShape = RoundedCornerShape(8.dp)
@@ -52,13 +54,13 @@ private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
 private val toolbarQuickSize = Modifier.size(width = 56.dp, height = 56.dp)
 
 @Composable
-internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifier) {
+internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier) {
     val tool = state.scene.tool
-    Column(modifier) {
+    Column(modifier.fillMaxWidth()) {
         if (tool != DimensionTool.SELECT) {
             Surface(
-                Modifier.align(if (tool == DimensionTool.REPEAT) Alignment.End else Alignment.Start)
-                    .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
+                (if (tool == DimensionTool.REPEAT) Modifier.align(Alignment.CenterHorizontally).absoluteOffset(x = repeatHintOffset)
+                else Modifier.align(Alignment.Start)).padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                 shape = toolbarShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {

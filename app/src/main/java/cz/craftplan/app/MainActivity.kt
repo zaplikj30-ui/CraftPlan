@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -301,6 +302,10 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { insets ->
         val screen = Modifier.fillMaxSize().padding(insets)
         if (photoOpen) {
+            val direction = LocalLayoutDirection.current
+            val repeatHintOffset = toolbarHintCenterOffset(
+                insets.calculateLeftPadding(direction), insets.calculateRightPadding(direction),
+            )
             SamplePhoto(
                 modifier = screen,
                 scene = editorState.scene,
@@ -319,7 +324,10 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 },
                 overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState, window) },
                 toolbar = { modifier ->
-                    EditorToolbar(editorState, modifier.alpha(if (editorState.valueDraft == null) 1f else 0f))
+                    EditorToolbar(
+                        editorState, repeatHintOffset,
+                        modifier.alpha(if (editorState.valueDraft == null) 1f else 0f),
+                    )
                 },
             )
             editorState.valueDraft?.let { draft ->
