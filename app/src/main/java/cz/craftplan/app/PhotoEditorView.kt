@@ -692,7 +692,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
             } else {
                 edit?.preview != null && edit.hit != DimensionHit.BODY
             }
-        if (!canPan || autoPanVelocity(contact!!) == EditorPoint(0f, 0f)) {
+        if (!canPan || autoPanVelocity(contact) == EditorPoint(0f, 0f)) {
             stopAutoPan()
             return
         }

@@ -1,6 +1,13 @@
 # CraftPlan
 
-Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóta může zasahovat do volné plochy kolem snímku. Po stisku **Přidat kótu** táhněte prstem nebo S Penem po fotografii od prvního bodu k druhému. Kóta zůstane ukotvená při změně přiblížení nebo posunu a zobrazí stav **NEZMĚŘENO**. Klepnutím na kótu ji vyberete. Tažením koncového úchopu změníte jeden konec, tažením středu posunete celou kótu. Při kreslení a tažení konce pomáhá lupa. Kóta je pouze v paměti.
+Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokument kót je zatím pouze v paměti.
+
+### M1 – více kót, lišta a historie
+
+- **Seznam +** otevře nabídku nástrojů. Krátké klepnutí na ikonu kóty připraví jeden tah. Dlouhé podržení zapíná nebo vypíná opakování. Jednorázová kóta zůstane vybraná. Při opakování se nová kóta dokončí bez výběru a bez dialogu. Opuštění fotografie režim kreslení vypne.
+- Čára vybírá, hodnota nebo značka metru otevírá dialog. V překryvu mají přednost konce. Opakovaný dotyk ve stejném místě cykluje kandidáty. Vybranou kótu lze upravovat i v režimu opakování. Tažení konce či středu upravuje kotvu či celek, při kreslení a tažení konce pomáhá lupa.
+- Tahem za středový úchyt rozbalíte spodní lištu. Obsahuje **Undo**, **Redo**, smazání výběru a společný zámek podélného posunu čísel. Zámek začíná odemčený. Jeho stav a rozbalení lišty jsou lokální preference společné pro fotografie.
+- Historie drží posledních 100 potvrzených změn v paměti. Umožňuje vrátit vytvoření, smazání, přesun kotvy/celku/popisku a změnu hodnoty, jednotky či poznámky. Zrušený tah, výběr, pan/zoom a preference historii nemění. Nová potvrzená změna po Undo ruší Redo.
 
 ## Debug sestavení (pouze po samostatném GO)
 
@@ -43,4 +50,4 @@ Numerická klávesnice 4 × 4 zachová hlavní čísla uprostřed, malé alterna
 
 Poslední numerické tlačítko je zpočátku volné. Krátké klepnutí vloží nastavený symbol (u prázdného otevře výběr), dlouhý stisk otevře nabídku všech 15 vkládaných symbolů a vyprázdnění. Alternativně lze symbol podržet a přetáhnout na zvýrazněné pravé spodní políčko druhé klávesnice; při platném puštění se přiřadí a zobrazí numerická klávesnice. Výběr/přetažení samo nic nevkládá, neplatné puštění nic nemění. Preference je lokální a společná pro kóty. Historie laseru zůstává vyhrazená, bez nové funkce.
 
-Fyzické ověření dotyku, dlouhého podržení, přetažení, otáčení, restartu a APK vyžaduje následné samostatné GO. Úprava nepřidává trvalé ukládání dokumentů, další kóty ani měření ploch a úhlů.
+Fyzické ověření nových gest lišty, překryvů, posunu popisků a Undo/Redo vyžaduje následné samostatné GO pro APK a praktický test. Trvalé ukládání dokumentů, plochy a úhly jsou mimo tento rozsah.

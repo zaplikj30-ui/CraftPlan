@@ -99,12 +99,14 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                     }
                 }
                 val dimensionLabel = stringResource(R.string.add_dimension)
+                val toolBackground = when (tool) {
+                    DimensionTool.REPEAT -> activeColors.primary
+                    DimensionTool.SINGLE -> activeColors.primaryContainer
+                    DimensionTool.SELECT -> activeColors.surface
+                }
                 Box(
                     Modifier.size(48.dp)
-                        .background(
-                            if (tool != DimensionTool.SELECT) activeColors.primaryContainer else activeColors.surface,
-                            RoundedCornerShape(8.dp),
-                        )
+                        .background(toolBackground, RoundedCornerShape(8.dp))
                         .semantics { contentDescription = dimensionLabel }
                         .combinedClickable(
                             role = Role.Button,
@@ -114,7 +116,10 @@ internal fun EditorToolbar(state: PhotoEditorState, modifier: Modifier = Modifie
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_dimension_tool), null)
+                    Icon(
+                        painterResource(R.drawable.ic_dimension_tool), null,
+                        tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
+                    )
                 }
                 if (expanded) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {

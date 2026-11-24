@@ -8,6 +8,23 @@ import org.junit.Test
 
 class PhotoViewportTest {
     @Test
+    fun fitIncludesAnchorsFromDifferentDimensionsAfterAResize() {
+        val viewport = PhotoViewport(400, 400)
+        val left = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(-1f, 0.25f), PhotoAnchor(0.25f, 0.25f),
+        )
+        val right = left.copy(id = UUID.randomUUID(), start = PhotoAnchor(0.75f, 0.75f), end = PhotoAnchor(2f, 0.75f))
+        viewport.updateContentBounds(listOf(left, right), 24f)
+        viewport.fit(400, 400)
+        assertEquals(24f, viewport.screenX(left.start), 0.001f)
+        assertEquals(376f, viewport.screenX(right.end), 0.001f)
+        viewport.resize(700, 320)
+        assertTrue(viewport.contains(viewport.screenX(left.start), viewport.screenY(left.start)))
+        assertTrue(viewport.contains(viewport.screenX(right.end), viewport.screenY(right.end)))
+    }
+
+    @Test
     fun openingFitsThePhotoAndBothAnchorsInEveryDirection() {
         val cases = listOf(
             PhotoAnchor(-1f, 0.5f) to PhotoAnchor(2f, 0.5f),
