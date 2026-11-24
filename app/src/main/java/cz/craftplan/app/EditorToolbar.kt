@@ -77,12 +77,12 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
 }
 
 @Composable
-private fun ToolbarExpansionGrip(state: PhotoEditorState) {
+private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = Modifier) {
     val expanded by rememberUpdatedState(state.toolbarExtraExpanded)
     val handleLabel = stringResource(if (expanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val activeColors = MaterialTheme.colorScheme
     Box(
-        Modifier.size(width = 112.dp, height = 12.dp)
+        modifier.size(width = 112.dp, height = 9.dp)
             .semantics { contentDescription = handleLabel }
             .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
             .pointerInput(state) {
@@ -100,7 +100,7 @@ private fun ToolbarExpansionGrip(state: PhotoEditorState) {
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.size(76.dp, 10.dp).background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
+            Modifier.size(76.dp, 9.dp).background(activeColors.surfaceContainerHigh, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(64.dp, 4.dp).background(activeColors.onSurfaceVariant, RoundedCornerShape(2.dp)))
@@ -121,165 +121,169 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
     Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            ToolbarExpansionGrip(state)
-            if (verticalExpanded) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
-                        Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
-                    }
-                    IconButton(
-                        onClick = state::toggleNotes,
-                        modifier = toolbarButtonSize.background(
-                            if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
-                        ),
-                    ) {
-                        Icon(
-                            painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
-                            stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
-                            Modifier.size(toolbarIconSize),
-                        )
-                    }
-                    IconButton(
-                        enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
-                        onClick = { state.scene = state.scene.closePhoto() },
-                        modifier = toolbarButtonSize,
-                    ) {
-                        Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
-                    }
-                    if (BuildConfig.ENABLE_STRESS_TOOLS) StressToolbarMenu(state)
-                }
-            }
-            Row(
-                modifier = Modifier.align(Alignment.Start)
-                    .padding(top = if (verticalExpanded) 3.dp else 0.dp, bottom = if (verticalExpanded) 3.dp else 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start,
+        Box {
+            Column(
+                modifier = Modifier.padding(vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Row(
-                    Modifier.pointerInput(state) {
-                        var motion = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { motion = 0f },
-                            onDragEnd = {
-                                state.setToolbarExpansion(toolbarExpansionAfterDrag(currentExpanded, motion, 4.dp.toPx()))
-                            },
-                        ) { change, delta ->
-                            motion += delta
-                            change.consume()
+                if (verticalExpanded) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 3.dp), horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
+                            Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
                         }
-                    }.semantics {
-                        contentDescription = fixedToolsLabel
-                    },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box {
                         IconButton(
-                            onClick = { menuOpen = true },
-                            modifier = toolbarQuickSize.background(
-                                if (menuOpen) activeColors.primaryContainer else Color.Transparent, toolbarShape,
+                            onClick = state::toggleNotes,
+                            modifier = toolbarButtonSize.background(
+                                if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
                             ),
                         ) {
-                            Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools), Modifier.size(toolbarIconSize))
-                        }
-                        DropdownMenu(
-                            expanded = menuOpen,
-                            onDismissRequest = { menuOpen = false },
-                            modifier = Modifier.widthIn(min = 144.dp),
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Icon(painterResource(R.drawable.ic_dimension_tool), null, Modifier.size(32.dp))
-                                        Text(
-                                            stringResource(R.string.toolbar_dimension),
-                                            style = MaterialTheme.typography.titleLarge,
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    state.scene = state.scene.prepareSingle()
-                                    menuOpen = false
-                                },
+                            Icon(
+                                painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
+                                stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
+                                Modifier.size(toolbarIconSize),
                             )
                         }
-                    }
-                    val dimensionLabel = stringResource(R.string.add_dimension)
-                    val toolBackground = when (tool) {
-                        DimensionTool.REPEAT -> activeColors.primary
-                        DimensionTool.SINGLE -> activeColors.primaryContainer
-                        DimensionTool.SELECT -> Color.Transparent
-                    }
-                    Box(
-                        toolbarQuickSize
-                            .background(toolBackground, toolbarShape)
-                            .semantics { contentDescription = dimensionLabel }
-                            .combinedClickable(
-                                role = Role.Button,
-                                onClick = { state.scene = state.scene.tapDrawingTool() },
-                                onLongClickLabel = repeatAction,
-                                onLongClick = { state.scene = state.scene.toggleRepeat() },
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_dimension_tool), null,
-                            Modifier.size(toolbarIconSize),
-                            tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
-                        )
-                        if (repeat) {
-                            Icon(painterResource(R.drawable.ic_toolbar_repeat), null, Modifier.size(52.dp), activeColors.onPrimary)
-                        }
-                    }
-                }
-                if (expanded) {
-                    Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
-                    Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
-                        HistoryAction(false, R.string.toolbar_undo, state.history.canUndo, state::undo)
-                        HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
                         IconButton(
-                            enabled = state.scene.selectedId != null,
-                            onClick = state::deleteSelected,
+                            enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
+                            onClick = { state.scene = state.scene.closePhoto() },
                             modifier = toolbarButtonSize,
                         ) {
-                            Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
+                            Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
                         }
-                        val locked = state.labelsLocked
-                        val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
-                        IconToggleButton(
-                            checked = locked,
-                            onCheckedChange = { state.toggleLabelLock() },
-                            colors = IconButtonDefaults.iconToggleButtonColors(
-                                containerColor = Color.Transparent,
-                                contentColor = activeColors.onSurface,
-                                checkedContainerColor = Color.Transparent,
-                                checkedContentColor = activeColors.onPrimaryContainer,
-                            ),
-                            modifier = toolbarButtonSize
-                                .background(if (locked) activeColors.primaryContainer else Color.Transparent, toolbarShape)
-                                .semantics { contentDescription = lockLabel },
+                        if (BuildConfig.ENABLE_STRESS_TOOLS) StressToolbarMenu(state)
+                    }
+                }
+                Row(
+                    modifier = Modifier.align(Alignment.Start).padding(top = if (verticalExpanded) 3.dp else 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start,
+                ) {
+                    Row(
+                        Modifier.pointerInput(state) {
+                            var motion = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { motion = 0f },
+                                onDragEnd = {
+                                    state.setToolbarExpansion(toolbarExpansionAfterDrag(currentExpanded, motion, 4.dp.toPx()))
+                                },
+                            ) { change, delta ->
+                                motion += delta
+                                change.consume()
+                            }
+                        }.semantics {
+                            contentDescription = fixedToolsLabel
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box {
+                            IconButton(
+                                onClick = { menuOpen = true },
+                                modifier = toolbarQuickSize.background(
+                                    if (menuOpen) activeColors.primaryContainer else Color.Transparent, toolbarShape,
+                                ),
+                            ) {
+                                Icon(painterResource(R.drawable.ic_tools_list), stringResource(R.string.toolbar_tools), Modifier.size(toolbarIconSize))
+                            }
+                            DropdownMenu(
+                                expanded = menuOpen,
+                                onDismissRequest = { menuOpen = false },
+                                modifier = Modifier.widthIn(min = 144.dp),
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Icon(painterResource(R.drawable.ic_dimension_tool), null, Modifier.size(32.dp))
+                                            Text(
+                                                stringResource(R.string.toolbar_dimension),
+                                                style = MaterialTheme.typography.titleLarge,
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        state.scene = state.scene.prepareSingle()
+                                        menuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                        val dimensionLabel = stringResource(R.string.add_dimension)
+                        val toolBackground = when (tool) {
+                            DimensionTool.REPEAT -> activeColors.primary
+                            DimensionTool.SINGLE -> activeColors.primaryContainer
+                            DimensionTool.SELECT -> Color.Transparent
+                        }
+                        Box(
+                            toolbarQuickSize
+                                .background(toolBackground, toolbarShape)
+                                .semantics { contentDescription = dimensionLabel }
+                                .combinedClickable(
+                                    role = Role.Button,
+                                    onClick = { state.scene = state.scene.tapDrawingTool() },
+                                    onLongClickLabel = repeatAction,
+                                    onLongClick = { state.scene = state.scene.toggleRepeat() },
+                                ),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("123", style = MaterialTheme.typography.labelSmall)
+                            Icon(
+                                painterResource(R.drawable.ic_dimension_tool), null,
+                                Modifier.size(toolbarIconSize),
+                                tint = if (repeat) activeColors.onPrimary else activeColors.onSurface,
+                            )
+                            if (repeat) {
+                                Icon(painterResource(R.drawable.ic_toolbar_repeat), null, Modifier.size(52.dp), activeColors.onPrimary)
+                            }
+                        }
+                    }
+                    if (expanded) {
+                        Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outlineVariant))
+                        Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
+                            HistoryAction(false, R.string.toolbar_undo, state.history.canUndo, state::undo)
+                            HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
+                            IconButton(
+                                enabled = state.scene.selectedId != null,
+                                onClick = state::deleteSelected,
+                                modifier = toolbarButtonSize,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
+                            }
+                            val locked = state.labelsLocked
+                            val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
+                            IconToggleButton(
+                                checked = locked,
+                                onCheckedChange = { state.toggleLabelLock() },
+                                colors = IconButtonDefaults.iconToggleButtonColors(
+                                    containerColor = Color.Transparent,
+                                    contentColor = activeColors.onSurface,
+                                    checkedContainerColor = Color.Transparent,
+                                    checkedContentColor = activeColors.onPrimaryContainer,
+                                ),
+                                modifier = toolbarButtonSize
+                                    .background(if (locked) activeColors.primaryContainer else Color.Transparent, toolbarShape)
+                                    .semantics { contentDescription = lockLabel },
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("123", style = MaterialTheme.typography.labelSmall)
+                                        Icon(
+                                            painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
+                                            null, Modifier.size(15.dp),
+                                        )
+                                    }
                                     Icon(
-                                        painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
-                                        null, Modifier.size(15.dp),
+                                        painterResource(R.drawable.ic_toolbar_label_motion), null, Modifier.size(32.dp, 12.dp),
                                     )
                                 }
-                                Icon(
-                                    painterResource(R.drawable.ic_toolbar_label_motion), null, Modifier.size(32.dp, 12.dp),
-                                )
                             }
                         }
                     }
                 }
             }
+            ToolbarExpansionGrip(state, Modifier.align(Alignment.TopCenter))
         }
     }
 }
