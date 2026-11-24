@@ -59,8 +59,9 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
     Column(modifier.fillMaxWidth()) {
         if (tool != DimensionTool.SELECT) {
             Surface(
-                (if (tool == DimensionTool.REPEAT) Modifier.align(Alignment.CenterHorizontally).absoluteOffset(x = repeatHintOffset)
-                else Modifier.align(Alignment.Start)).padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
+                Modifier.align(Alignment.CenterHorizontally)
+                    .absoluteOffset(x = repeatHintOffset)
+                    .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                 shape = toolbarShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
