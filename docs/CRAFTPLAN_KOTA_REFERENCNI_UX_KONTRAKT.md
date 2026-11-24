@@ -258,6 +258,8 @@ Stav: **směr a sběr dotyků schváleny vlastníkem; konkrétní provedení a p
 
 **Upřesnění vlastníka při retestu 47:** hlášku „Opakování zapnuto“ zarovnat vodorovně na střed nad lištou, nikoli k pravému ani levému kraji. Toto rozhodnutí nahrazuje předchozí požadavek na pravé zarovnání. Zachovat návaznost na horní hranu lišty a neměnit velikost plátna ani pozici fotografie. Oprava dosud neprovedena.
 
+**Další upřesnění vlastníka při retestu 47:** dvě pevná tlačítka vlevo (nabídka nástrojů a přidávání kóty) rozšířit každé přibližně o 2–3 mm na testovacím displeji, pouze vodorovně; výšku a velikost ikon zachovat, ikony centrovat v nových šířkách. Ostatní tlačítka se posunou doprava, jejich velikost se nemění; zachovat dostupnost a stávající horizontální vysouvání/posouvání i na menším displeji. Nápovědu „Opakování zapnuto“ centrovat na vodorovný střed celého displeje nezávisle na šířce lišty, nad její horní hranou, v obou orientacích. Přesné dp zatím neurčeny, nutný fyzický retest. Pouze evidence požadavku, bez nového implementačního GO.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **Historické návrhové scénáře níže nebyly jako celek provedeny.** Dílčí fyzické výsledky sestavení 45 viz §3.7; úplná akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
