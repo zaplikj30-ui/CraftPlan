@@ -54,6 +54,16 @@
 
 Implementace: [M1 commit dc56c2a](https://github.com/zaplikj30-ui/CraftPlan/commit/dc56c2a494975265cabbaf95e8f3609868610a04). Fyzický dotyk, dlouhé podržení, zrušení gesta, přetažení (včetně puštění mimo), změna/mazání rychlého symbolu, restart, oba režimy orientace a přepnutí klávesnic: **NOT RUN**, ověřit po samostatném GO pro APK. Žádný zásah do save/recovery.
 
+### 3.2 SCHVÁLENO 24. 11. 2026 – více kót, spodní lišta a Undo/Redo v M1
+
+- Samostatné kóty mají vlastní stabilní ID a nezávislé kotvy, hodnotu, jednotku, poznámku a polohu popisku. Tap na čáru vybírá, mimo ni ruší výběr, na popisek otevírá zadání. Úchopy konců mají v překryvu přednost s referenční tolerancí pro vybranou kótu. Opakované klepnutí na stejné místo cykluje kandidáty.
+- První lišta je dole. Stálé ovladače jsou pracovní ikona **Seznam +** a ikona kótovací čáry s koncovými ryskami a hroty. Nabídka zatím obsahuje **Kóta** a výběrem se zavře. Rozbalená část se ovládá středovým zaobleným úchytem a obsahuje Undo, Redo, smazání výběru a společný zámek posunu čísel.
+- Krátký stisk posledního nástroje připraví jedinou kótu. Dlouhý stisk přepíná opakování, které má zvýraznění a nápovědu. Dokončená jednorázová kóta zůstane vybraná, v opakování se dokončí bez výběru a bez dialogu. Existující kótu lze v opakování vybrat a upravit. Režim končí při odchodu z fotografie nebo volbě jiného nástroje.
+- Zámek má motiv **123 nad ↔** vedle otevřeného/zavřeného zámku. Výchozí stav je odemčeno. Zámek i rozbalení lišty jsou místní preference společné pro fotografie. Zámek omezuje pouze samostatný podélný posun čísla.
+- Jedna potvrzená změna hodnoty nebo dokončený tah je jeden krok Undo/Redo. Patří sem i vytvoření a smazání výběru. Zrušený tah, výběr, pan/zoom a preference historii nemění. Nová potvrzená změna po Undo ruší Redo. Historie a dokument jsou v tomto řezu M1 v paměti. Přemisťování lišty, změny pořadí a trvalé ukládání dokumentu následují až v dalších schválených krocích.
+
+Praktické ověření prstem, S Penem, při otáčení a po restartu: **NOT RUN**.
+
 ## 4. Ověřovací scénáře a otevřené otázky
 
 **V CraftPlanu všechny NOT RUN.** Akceptace bude vyžadovat skutečný referenční telefon/stejnou testovací fotografii v obou aplikacích, syntetická/nahraditelná data, prst zvlášť a S Pen zvlášť, kontrolu pixelové/vizuální podoby i ergonomického pocitu. Neimportovat zákaznické fotky.
