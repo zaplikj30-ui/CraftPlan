@@ -1,9 +1,9 @@
 package cz.craftplan.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,23 +44,28 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 
 private val toolbarShape = RoundedCornerShape(8.dp)
 private val toolbarIconSize = 28.dp
 private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
 private val toolbarQuickSize = Modifier.size(width = 72.dp, height = 56.dp)
+private val gripOuterHitPadding = 15.dp
 
 @Composable
 internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier) {
     val tool = state.scene.tool
+    val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
     Column(modifier.fillMaxWidth()) {
         if (tool != DimensionTool.SELECT) {
             Surface(
                 Modifier.align(Alignment.CenterHorizontally)
-                    .absoluteOffset(x = repeatHintOffset)
+                    .absoluteOffset(x = repeatHintOffset, y = if (sideGrip) 0.dp else gripOuterHitPadding)
                     .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                 shape = toolbarShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -78,26 +83,44 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
 
 @Composable
 private fun ToolbarExpansionGrip(state: PhotoEditorState, modifier: Modifier = Modifier, side: Boolean = false) {
-    val expanded by rememberUpdatedState(state.toolbarExtraExpanded)
-    val handleLabel = stringResource(if (expanded) R.string.toolbar_collapse else R.string.toolbar_expand)
+    val handleLabel = stringResource(if (state.toolbarExtraExpanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val activeColors = MaterialTheme.colorScheme
+    // Extend only outwards: the visible 9dp strip and the neighbouring buttons keep their layout.
     Box(
-        modifier.size(width = if (side) 9.dp else 112.dp, height = if (side) 74.dp else 9.dp)
-            .semantics { contentDescription = handleLabel }
-            .clickable(role = Role.Button) { state.setToolbarExtraExpansion(!state.toolbarExtraExpanded) }
-            .pointerInput(state) {
-                var motion = 0f
-                detectVerticalDragGestures(
-                    onDragStart = { motion = 0f },
-                    onDragEnd = {
-                        state.setToolbarExtraExpansion(toolbarExpansionAfterDrag(expanded, -motion, 4.dp.toPx()))
-                    },
-                ) { change, delta ->
-                    motion += delta
+        modifier.size(
+            width = if (side) 9.dp + gripOuterHitPadding else 112.dp,
+            height = if (side) 74.dp else 9.dp + gripOuterHitPadding,
+        ).semantics {
+            contentDescription = handleLabel
+            role = Role.Button
+            onClick {
+                state.setToolbarExtraExpansion(!state.toolbarExtraExpanded)
+                true
+            }
+        }.pointerInput(state, side) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                val expanded = state.toolbarExtraExpanded
+                val threshold = viewConfiguration.touchSlop
+                var maxTravel = 0f
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    // A cancelled/consumed gesture or a second pointer must not toggle the toolbar.
+                    if (change.isConsumed || event.changes.any { it.id != down.id && it.pressed }) break
+                    val dx = change.position.x - down.position.x
+                    val dy = change.position.y - down.position.y
+                    maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
                     change.consume()
+                    if (!change.pressed) {
+                        state.setToolbarExtraExpansion(toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold))
+                        break
+                    }
                 }
-            },
-        contentAlignment = Alignment.Center,
+            }
+        },
+        contentAlignment = if (side) Alignment.CenterStart else Alignment.BottomCenter,
     ) {
         Box(
             Modifier.size(width = if (side) 9.dp else 76.dp, height = if (side) 70.dp else 9.dp)
@@ -123,8 +146,13 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
     val activeColors = MaterialTheme.colorScheme
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
-    Surface(if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier, shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), tonalElevation = 4.dp) {
-        Box {
+    Box {
+        Surface(
+            modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
+                .padding(top = if (sideGrip) 0.dp else gripOuterHitPadding, end = if (sideGrip) gripOuterHitPadding else 0.dp),
+            shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
+            tonalElevation = 4.dp,
+        ) {
             Column(
                 modifier = Modifier.padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -286,12 +314,12 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                     }
                 }
             }
-            ToolbarExpansionGrip(
-                state,
-                Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
-                side = sideGrip,
-            )
         }
+        ToolbarExpansionGrip(
+            state,
+            Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
+            side = sideGrip,
+        )
     }
 }
 

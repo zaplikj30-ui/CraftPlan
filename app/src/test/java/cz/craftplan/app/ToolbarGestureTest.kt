@@ -11,6 +11,20 @@ class ToolbarGestureTest {
         assertEquals(12.dp, toolbarHintCenterOffset(0.dp, 24.dp))
     }
 
+    @Test fun gripTapAndVerticalDragAreExclusiveAndDirectional() {
+        for (current in listOf(false, true)) {
+            assertEquals(!current, toolbarGripAfterRelease(current, 0f, 0f, 0f, 8f))
+            assertEquals(!current, toolbarGripAfterRelease(current, 3f, 2f, 3f, 8f))
+            assertEquals(true, toolbarGripAfterRelease(current, 2f, -8f, 8f, 8f))
+            assertEquals(false, toolbarGripAfterRelease(current, 2f, 8f, 8f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 20f, 2f, 20f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 9f, -9f, 9f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 0f, 0f, 20f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 0f, -20f, 20f, 0f))
+            assertEquals(current, toolbarGripAfterRelease(current, 0f, Float.NaN, 20f, 8f))
+        }
+    }
+
     @Test fun expansionAndCollapseAreDirectionalAndIdempotent() {
         for (current in listOf(false, true)) {
             assertEquals(true, toolbarExpansionAfterDrag(current, 5f, 4f))
