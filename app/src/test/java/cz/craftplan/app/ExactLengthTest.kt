@@ -14,6 +14,9 @@ class ExactLengthTest {
     fun canonicalLengthsUseExactDecimalOrReducedRationalMillimeters() {
         val examples = mapOf(
             "850,5 mm" to LengthMmEncoding.Decimal("850.5"),
+            "1 µm" to LengthMmEncoding.Decimal("0.001"),
+            "0,25 µm" to LengthMmEncoding.Decimal("0.00025"),
+            "0 µm" to LengthMmEncoding.Decimal("0"),
             "85 cm" to LengthMmEncoding.Decimal("850"),
             "1.2 m" to LengthMmEncoding.Decimal("1200"),
             "1.25 in" to LengthMmEncoding.Decimal("31.75"),
@@ -119,6 +122,22 @@ class ExactLengthTest {
         assertEquals("127/15", third.displayNumber(LengthUnit.MM))
         assertEquals(LengthMmEncoding.Rational("127", "15"), third.encoding)
         assertTrue(third.displayNumberForUi(LengthUnit.MM).approximate)
+    }
+
+    @Test
+    fun micrometersAndDecimalCommaArePresentationSafe() {
+        val length = ManualLengthMeasurement.parse("123,45 mm")!!.length
+        assertEquals(DisplayLengthNumber("123,45", false), length.displayNumberForUi(LengthUnit.MM))
+        assertEquals(DisplayLengthNumber("12,345", false), length.displayNumberForUi(LengthUnit.CM))
+        assertEquals(DisplayLengthNumber("0,12345", false), length.displayNumberForUi(LengthUnit.M))
+        assertEquals(DisplayLengthNumber("123450", false), length.displayNumberForUi(LengthUnit.UM))
+        assertEquals("123.45", length.displayNumber(LengthUnit.MM))
+        assertEquals(LengthMmEncoding.Decimal("123.45"), length.encoding)
+        assertEquals(DisplayLengthNumber("8466,7", true),
+            ManualLengthMeasurement.parse("1/3 in")!!.length.displayNumberForUi(LengthUnit.UM))
+        assertEquals(LengthMmEncoding.Decimal("0.001"),
+            ManualLengthMeasurement.parse("1", LengthUnit.UM)?.length?.encoding)
+        assertNull(ManualLengthMeasurement.parse("1 µm", LengthUnit.MM))
     }
 
     @Test

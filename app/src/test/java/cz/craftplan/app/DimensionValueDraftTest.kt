@@ -20,13 +20,28 @@ class DimensionValueDraftTest {
         val locked = draft.selectUnit(LengthUnit.CM, keepNumber = true)
 
         assertEquals("123", draft.input)
-        assertEquals("12.3", converted.input)
+        assertEquals("12,3", converted.input)
         assertEquals("123", locked.input)
         assertSame(original.measurement, converted.confirm(original)!!.measurement)
         val reinterpreted = locked.confirm(original)!!
         assertEquals("1230", reinterpreted.measurement!!.length.displayNumber(LengthUnit.MM))
         assertEquals(original.note, reinterpreted.note)
         assertEquals("123", original.measurement!!.length.displayNumber(LengthUnit.MM))
+    }
+
+    @Test
+    fun micrometerConversionKeepsExactLengthAndOriginalInput() {
+        val original = dimension.withManualLength("9665056 mm")
+        val converted = DimensionValueDraft(original).selectUnit(LengthUnit.CM)
+        assertEquals("966505,6", converted.input)
+        val micrometers = converted.selectUnit(LengthUnit.UM)
+        assertEquals("9665056000", micrometers.input)
+        assertSame(original.measurement, micrometers.confirm(original)!!.measurement)
+        assertEquals("966505,6", micrometers.selectUnit(LengthUnit.CM).input)
+        assertEquals("9665056 mm", original.measurement!!.originalInput)
+        for (invalid in listOf("12 m²", "12 m³", "12°", "12 × 2", "12 ÷ 2", "12 = 2")) {
+            assertNull(invalid, DimensionValueDraft(dimension).type(invalid).confirm(dimension))
+        }
     }
 
     @Test
@@ -96,7 +111,7 @@ class DimensionValueDraftTest {
             .selectUnit(LengthUnit.CM, keepNumber = true)
         assertEquals("1,25", draft.input)
         val converted = draft.selectUnit(LengthUnit.MM)
-        assertEquals("12.5", converted.input)
+        assertEquals("12,5", converted.input)
         assertEquals(ManualLengthMeasurement.parse("1,25", LengthUnit.CM), converted.confirm(dimension)?.measurement)
     }
 
@@ -145,7 +160,7 @@ class DimensionValueDraftTest {
         val original = DimensionValueDraft(dimension).type("1 1/16 převýšení")
             .selectUnit(LengthUnit.IN, keepNumber = true).confirm(dimension)!!
         assertEquals("26.9875", original.measurement!!.length.displayNumber(LengthUnit.MM))
-        assertEquals("1.0625 in převýšení", original.displayLabel())
+        assertEquals("1,0625 in převýšení", original.displayLabel())
         for (bad in listOf("12%", "12 + 2", "12−3", "1/0 poznámka")) {
             assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))
         }
@@ -179,7 +194,7 @@ class DimensionValueDraftTest {
         assertEquals("500", twoNumbers.confirm(dimension)!!.labelSuffix)
 
         val mixed = DimensionValueDraft(dimension).type("1 1/2 in").selectUnit(LengthUnit.MM)
-        assertEquals("38.1", mixed.input)
+        assertEquals("38,1", mixed.input)
         assertEquals("38.1", mixed.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
         for (bad in listOf("1 3/2 in", "1 1/0 in", "1 234 mm", "12 x 2")) {
             assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))

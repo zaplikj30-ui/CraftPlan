@@ -26,7 +26,7 @@ internal data class ManualLengthMeasurement private constructor(
         private const val DECIMAL = "$DIGITS(?:[.,]$DIGITS)?"
         private const val INCH_NUMBER = "(?:${DIGITS} +)?$DIGITS/$DIGITS|$DECIMAL"
         private val feetAndInches = Regex("($DECIMAL) *(?:ft|') *($INCH_NUMBER) *(?:in|\")")
-        private val single = Regex("($INCH_NUMBER) *(mm|cm|m|in|ft|'|\")?")
+        private val single = Regex("($INCH_NUMBER) *(µm|mm|cm|m|in|ft|'|\")?")
         private val fraction = Regex("(?:($DIGITS) +)?($DIGITS)/($DIGITS)")
 
         /**

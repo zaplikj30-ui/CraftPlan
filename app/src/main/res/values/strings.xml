@@ -34,4 +34,11 @@
     <string name="cancel_value">Zrušit</string>
     <string name="confirm_value">Uložit</string>
     <string name="installed_version">Verze %1$s · sestavení %2$d</string>
+    <string name="dimension_quick_key_empty">Volná rychlá klávesa – vybrat symbol</string>
+    <string name="dimension_quick_key_value">Rychlá klávesa: %1$s</string>
+    <string name="dimension_key_insert_alternate">Vložit symbol %1$s</string>
+    <string name="dimension_choose_quick_symbol">Vybrat rychlý symbol</string>
+    <string name="dimension_assign_quick_symbol">Nastavit jako rychlý symbol</string>
+    <string name="dimension_clear_quick_symbol">Vyprázdnit rychlou klávesu</string>
+    <string name="dimension_quick_drop_target">Rychlá</string>
 </resources>

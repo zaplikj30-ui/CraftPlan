@@ -1,8 +1,8 @@
 package cz.craftplan.app
 
+import android.content.Context
 import android.content.res.Configuration
 import android.view.WindowInsets as AndroidWindowInsets
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,7 +36,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -66,6 +66,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
@@ -114,6 +115,20 @@ internal fun DimensionValueDialog(
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var keys by rememberSaveable(stateSaver = keyboardSaver) { mutableStateOf(DimensionKeyboard()) }
     var showSymbols by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current.applicationContext
+    val quickPreferences = remember(context) {
+        context.getSharedPreferences("dimension_keypad", Context.MODE_PRIVATE)
+    }
+    var quickSymbol by remember(quickPreferences) {
+        mutableStateOf(validQuickSymbol(quickPreferences.getString("quick_symbol", "") ?: ""))
+    }
+    val setQuickSymbol: (String) -> Unit = { symbol ->
+        val validated = validQuickSymbol(symbol)
+        quickSymbol = validated
+        // A local keyboard preference only, never a measurement or a document save.
+        quickPreferences.edit().putString("quick_symbol", validated).apply()
+        showSymbols = false
+    }
     var valueField by remember { mutableStateOf(editableText(draft.input)) }
     var noteField by remember { mutableStateOf(editableText(draft.note)) }
     var unitsOpen by remember { mutableStateOf(false) }
@@ -246,10 +261,11 @@ internal fun DimensionValueDialog(
                         DropdownMenu(
                             expanded = unitsOpen,
                             onDismissRequest = { unitsOpen = false },
-                            modifier = Modifier.width(96.dp).heightIn(max = 360.dp),
+                            modifier = Modifier.width(116.dp).heightIn(max = 408.dp),
                         ) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.dimension_no_unit)) },
+                                contentPadding = PaddingValues(horizontal = 16.dp),
                                 onClick = {
                                     onChange { it.withUnitVisibility(false) }
                                     unitsOpen = false
@@ -258,6 +274,7 @@ internal fun DimensionValueDialog(
                             LengthUnit.entries.forEach { unit ->
                                 DropdownMenuItem(
                                     text = { Text(unit.symbol) },
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
                                     onClick = {
                                         onChange {
                                             val next = it.selectUnit(unit, keepNumber)
@@ -276,35 +293,33 @@ internal fun DimensionValueDialog(
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
                             )
-                            IconToggleButton(
-                                checked = keepNumber,
-                                onCheckedChange = { keepNumber = it },
-                                modifier = Modifier.fillMaxWidth().semantics {
-                                    contentDescription = conversionMode
+                            DropdownMenuItem(
+                                onClick = { keepNumber = !keepNumber },
+                                modifier = Modifier.semantics { contentDescription = conversionMode },
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    ) {
+                                        Icon(
+                                            painterResource(
+                                                if (keepNumber) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked,
+                                            ),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.dimension_conversion_example),
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            autoSize = TextAutoSize.StepBased(6.sp, 11.sp, 0.5.sp),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            letterSpacing = 0.sp,
+                                        )
+                                    }
                                 },
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                ) {
-                                    Icon(
-                                        painterResource(
-                                            if (keepNumber) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked,
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.dimension_conversion_example),
-                                        modifier = Modifier.weight(1f, fill = false),
-                                        autoSize = TextAutoSize.StepBased(6.sp, 11.sp, 0.5.sp),
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        letterSpacing = 0.sp,
-                                    )
-                                }
-                            }
+                            )
                         }
                     }
                 }
@@ -380,6 +395,8 @@ internal fun DimensionValueDialog(
                     DimensionKeypad(
                         showSymbols = showSymbols,
                         keyHeight = keyHeight,
+                        quickSymbol = quickSymbol,
+                        onQuickSymbolChange = setQuickSymbol,
                         onToggleSymbols = { showSymbols = !showSymbols },
                         onKey = { key ->
                             val editingNote = keys.field == DimensionField.NOTE
@@ -420,6 +437,7 @@ internal fun DimensionValueDialog(
                             }
                             if (keypadVisible) keypad(62.dp)
                         }
+                        if (keypadVisible) Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
@@ -429,7 +447,7 @@ internal fun DimensionValueDialog(
                 } else {
                     Column(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -531,16 +549,6 @@ private fun DimensionInputField(
     }
 }
 
-internal val dimensionKeyRows = listOf("789\b", "456C", "123◷", "⋯0,_")
-internal val dimensionSymbolRows = listOf("+−±/", ".% ↩")
-
-internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<String> = when {
-    !showSymbols -> dimensionKeyRows
-    else -> dimensionSymbolRows + listOf("____", "____")
-}
-
-internal fun isDimensionKeyEnabled(key: Char): Boolean = key != '◷' && key != '_'
-
 internal fun landscapeInputRowWidth(availableWidth: Float): Float = availableWidth.coerceAtLeast(360f)
 
 // The measured keypad area excludes the header and panel padding.
@@ -551,80 +559,23 @@ internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -
     if (keyboardOpen) hideKeyboard() else confirm()
 }
 
-@Composable
-private fun DimensionKeypad(
-    showSymbols: Boolean,
-    keyHeight: Dp,
-    onToggleSymbols: () -> Unit,
-    onKey: (Char) -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    for (row in displayedDimensionKeyRows(showSymbols)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (key in row) {
-                val description = when (key) {
-                    '\b' -> stringResource(R.string.dimension_key_delete)
-                    'C' -> stringResource(R.string.dimension_key_clear)
-                    '◷' -> stringResource(R.string.dimension_key_history)
-                    '⋯' -> stringResource(R.string.dimension_key_symbols)
-                    '↩' -> stringResource(R.string.use_dimension_keypad)
-                    '_' -> stringResource(R.string.dimension_key_reserved)
-                    ' ' -> stringResource(R.string.dimension_key_space)
-                    else -> null
-                }
-                OutlinedButton(
-                    onClick = {
-                        when (key) {
-                            '⋯', '↩' -> onToggleSymbols()
-                            '◷', '_' -> Unit
-                            else -> onKey(key)
-                        }
-                    },
-                    enabled = isDimensionKeyEnabled(key),
-                    modifier = Modifier.weight(1f).height(keyHeight).semantics {
-                        if (description != null) contentDescription = description
-                    },
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, colors.outlineVariant),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = colors.surfaceContainerHigh,
-                        contentColor = colors.onSurface,
-                        disabledContainerColor = colors.surfaceContainer,
-                    ),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    if (key == '↩') {
-                        Icon(painterResource(R.drawable.ic_dimension_keypad), contentDescription = null)
-                    } else {
-                        Text(
-                            text = when (key) {
-                                '\b' -> "⌫"
-                                ' ' -> "␣"
-                                '_' -> ""
-                                else -> key.toString()
-                            },
-                            style = MaterialTheme.typography.headlineSmall,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
 private fun editableText(text: String) = TextFieldValue(text, TextRange(text.length))
 
 internal fun editDimensionInput(
     field: TextFieldValue, key: Char, limit: Int = ManualLengthMeasurement.MAX_INPUT_LENGTH,
+): TextFieldValue = editDimensionInput(field, key.toString(), limit)
+
+internal fun editDimensionInput(
+    field: TextFieldValue, key: String, limit: Int = ManualLengthMeasurement.MAX_INPUT_LENGTH,
 ): TextFieldValue {
-    if (key == 'C') return TextFieldValue()
+    if (key == "C") return TextFieldValue()
     val end = field.selection.max
-    val start = if (key == '\b' && field.selection.collapsed && end > 0) {
+    val start = if (key == "\b" && field.selection.collapsed && end > 0) {
         field.text.offsetByCodePoints(end, -1)
     } else {
         field.selection.min
     }
-    val replacement = if (key == '\b') "" else key.toString()
+    val replacement = if (key == "\b") "" else key
     val text = field.text.replaceRange(start, end, replacement)
     if (text.length > limit && text.length >= field.text.length) return field
     return TextFieldValue(text, TextRange(start + replacement.length))

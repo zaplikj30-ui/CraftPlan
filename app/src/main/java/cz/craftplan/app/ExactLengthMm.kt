@@ -5,6 +5,7 @@ import java.math.BigInteger
 import java.math.RoundingMode
 
 internal enum class LengthUnit(val symbol: String, val mmNumerator: Long, val mmDenominator: Long = 1) {
+    UM("µm", 1, 1000),
     MM("mm", 1),
     CM("cm", 10),
     M("m", 1000),
@@ -49,11 +50,12 @@ internal data class ExactLengthMm private constructor(val encoding: LengthMmEnco
     fun displayNumberForUi(unit: LengthUnit): DisplayLengthNumber {
         val exact = displayNumber(unit)
         if (unit == LengthUnit.IN || unit == LengthUnit.FT || '/' !in exact) {
-            return DisplayLengthNumber(exact, false)
+            return DisplayLengthNumber(exact.replace('.', ','), false)
         }
         val (numerator, denominator) = exact.split('/')
         // Four fractional millimeter places, adapted to the selected metric unit.
         val decimals = when (unit) {
+            LengthUnit.UM -> 1
             LengthUnit.MM -> 4
             LengthUnit.CM -> 5
             LengthUnit.M -> 7

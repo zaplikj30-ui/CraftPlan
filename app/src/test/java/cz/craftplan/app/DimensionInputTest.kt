@@ -11,22 +11,44 @@ import org.junit.Test
 class DimensionInputTest {
     @Test
     fun usesSpecifiedNumericAndSymbolRows() {
-        assertEquals(listOf("789\b", "456C", "123◷", "⋯0,_"), dimensionKeyRows)
-        assertEquals(listOf("+−±/", ".% ↩"), dimensionSymbolRows)
+        assertEquals(listOf(
+            listOf("7", "8", "9", "\b"), listOf("4", "5", "6", "C"),
+            listOf("1", "2", "3", "◷"), listOf("⋯", "0", ",", QUICK_KEY),
+        ), dimensionKeyRows)
+        assertEquals(listOf(
+            listOf("+", "−", "×", "÷"), listOf("±", "/", "=", "%"),
+            listOf("°", "Ø", "m²", "m³"), listOf(".", " ", SYMBOL_RETURN, "R"),
+        ), dimensionSymbolRows)
+        assertEquals(mapOf(
+            "7" to "+", "8" to "−", "9" to "×", "4" to "÷", "5" to "=", "6" to "%",
+            "1" to "/", "2" to "±", "3" to "°", "0" to "Ø", "," to ".",
+        ), dimensionAlternateSymbols)
     }
 
     @Test
-    fun symbolGridMatchesNumericGridInBothOrientationsWithoutAddingActions() {
+    fun symbolGridMatchesNumericGridAndOnlyInsertingSymbolsCanBeAssigned() {
         val numbers = displayedDimensionKeyRows(showSymbols = false)
         val symbols = displayedDimensionKeyRows(showSymbols = true)
-        assertEquals(List(4) { 4 }, numbers.map(String::length))
-        assertEquals(numbers.map(String::length), symbols.map(String::length))
-        assertEquals(dimensionSymbolRows + listOf("____", "____"), symbols)
-        for (rows in listOf(numbers, symbols)) {
-            val reserved = rows.last().last()
-            assertEquals('_', reserved)
-            assertFalse(isDimensionKeyEnabled(reserved))
-        }
+        assertEquals(List(4) { 4 }, numbers.map { it.size })
+        assertEquals(numbers.map { it.size }, symbols.map { it.size })
+        assertEquals(QUICK_KEY, numbers.last().last())
+        assertEquals("R", symbols.last().last())
+        assertFalse(isDimensionKeyEnabled("◷"))
+        assertEquals(15, dimensionQuickSymbolOptions.distinct().size)
+        for (symbol in dimensionQuickSymbolOptions) assertEquals(symbol, validQuickSymbol(symbol))
+        for (invalid in listOf("", QUICK_KEY, SYMBOL_RETURN, "C", "7")) assertEquals("", validQuickSymbol(invalid))
+    }
+
+    @Test
+    fun multiCharacterSymbolsInsertAtCaretAndRespectLimitsAtomically() {
+        val field = TextFieldValue("ABCD", TextRange(1, 3))
+        val edited = editDimensionInput(field, "m²")
+        assertEquals("Am²D", edited.text)
+        assertEquals(TextRange(3), edited.selection)
+        assertEquals("m³", editDimensionInput(TextFieldValue(), "m³").text)
+        val full = TextFieldValue("123", TextRange(3))
+        assertEquals(full, editDimensionInput(full, "m³", 4))
+        assertEquals("123m³", editDimensionInput(full, "m³", 5).text)
     }
 
     @Test
@@ -60,7 +82,7 @@ class DimensionInputTest {
 
     @Test
     fun unsupportedSymbolsAreEditableButNotValidMeasurements() {
-        for (symbol in "+−±%") {
+        for (symbol in listOf("+", "−", "±", "%", "×", "÷", "=", "°", "Ø", "m²", "m³", "R")) {
             val edited = editDimensionInput(TextFieldValue("12", TextRange(2)), symbol)
             assertEquals("12$symbol", edited.text)
             assertNull(ManualLengthMeasurement.parse(edited.text, LengthUnit.MM))
