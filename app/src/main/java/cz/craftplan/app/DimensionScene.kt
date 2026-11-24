@@ -48,6 +48,8 @@ internal data class DimensionTarget(
     val hit: DimensionHit,
     val label: Boolean,
     val distance: Float,
+    // Distance to the center of the visible label across its baseline, for overlapping labels.
+    val labelCenterDistance: Float = 0f,
 )
 
 internal fun orderedDimensionTargets(
@@ -57,9 +59,48 @@ internal fun orderedDimensionTargets(
     val favored = ends.firstOrNull {
         it.dimension.id == selectedId && it.distance <= ends.first().distance + endpointTolerance
     }
+    // A large hit area is only a candidate: prefer the actual nearest visible element.
     val body = targets.filter { it.hit == DimensionHit.BODY }
-        .sortedWith(compareByDescending<DimensionTarget> { it.label }.thenByDescending { it.dimension.id == selectedId })
+        .sortedWith(compareBy<DimensionTarget> { it.distance }
+            .thenByDescending { it.label }
+            .thenBy { it.labelCenterDistance }
+            .thenByDescending { it.dimension.id == selectedId })
     return if (favored == null) ends + body else listOf(favored) + (ends - favored) + body
+}
+
+/** Only genuinely ambiguous hits cycle, never merely overlapping generous touch areas. */
+internal fun ambiguousDimensionTargets(
+    ordered: List<DimensionTarget>, tolerance: Float,
+): List<DimensionTarget> {
+    val first = ordered.firstOrNull() ?: return emptyList()
+    return ordered.filter {
+        (it.hit == DimensionHit.BODY) == (first.hit == DimensionHit.BODY) &&
+            it.label == first.label &&
+            kotlin.math.abs(it.distance - first.distance) <= tolerance &&
+            (!first.label || kotlin.math.abs(it.labelCenterDistance - first.labelCenterDistance) <= tolerance)
+    }
+}
+
+internal data class DimensionTapDecision(val target: DimensionTarget, val openValue: Boolean, val cycle: DimensionTapCycle?)
+
+/** Coincident lines cycle; tapping their label opens the selected member without a long press. */
+internal fun decideDimensionTap(
+    ordered: List<DimensionTarget>, selectedId: UUID?, previous: DimensionTapCycle?,
+    point: EditorPoint, density: Float,
+): DimensionTapDecision? {
+    val preferred = ordered.firstOrNull() ?: return null
+    val candidates = ambiguousDimensionTargets(ordered, density)
+    if (preferred.hit == DimensionHit.BODY && preferred.label) {
+        val chosen = candidates.firstOrNull { it.dimension.id == selectedId }
+        if (chosen != null || candidates.size == 1) {
+            return DimensionTapDecision(chosen ?: preferred, true, null)
+        }
+        // First ambiguous label tap selects; the next ordinary tap opens that value.
+        return DimensionTapDecision(preferred, false, null)
+    }
+    val ids = candidates.map { it.dimension.id }
+    val cycle = previous?.next(point, ids, 7f * density) ?: DimensionTapCycle(point, ids, 0)
+    return DimensionTapDecision(candidates.first { it.dimension.id == cycle.candidates[cycle.index] }, false, cycle)
 }
 
 internal data class DimensionTapCycle(val point: EditorPoint, val candidates: List<UUID>, val index: Int) {

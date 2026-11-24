@@ -5,9 +5,9 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 ### M1 – více kót, lišta a historie
 
 - **Seznam +** otevře nabídku nástrojů. Krátké klepnutí na ikonu kóty připraví jeden tah. Dlouhé podržení zapíná nebo vypíná opakování. Jednorázová kóta zůstane vybraná. Při opakování se nová kóta dokončí bez výběru a bez dialogu. Opuštění fotografie režim kreslení vypne.
-- Čára vybírá, hodnota nebo značka metru otevírá dialog. V překryvu mají přednost konce. Opakovaný dotyk ve stejném místě cykluje kandidáty. Vybranou kótu lze upravovat i v režimu opakování. Tažení konce či středu upravuje kotvu či celek, při kreslení a tažení konce pomáhá lupa.
+- Čára vybírá, hodnota nebo značka metru otevírá dialog. V překryvu mají přednost konce. V kolizi rozhoduje vzdálenost od skutečné čáry nebo popisku, při téměř shodné vzdálenosti čísel též vzdálenost od jejich středu. Velké dotykové oblasti zůstávají mimo kolize. Opakovaný dotyk na skutečně nerozlišitelné čáry cykluje kandidáty; klepnutí na shodný popisek otevře vybranou kótu (bez výběru ji nejprve označí). Vybranou kótu lze upravovat i v režimu opakování. Tažení konce či středu upravuje kotvu či celek, při kreslení a tažení konce pomáhá lupa.
 - Tahem za středový úchyt rozbalíte spodní lištu. Obsahuje **Undo**, **Redo**, smazání výběru a společný zámek podélného posunu čísel. Zámek začíná odemčený. Tažení zamčeného čísla nepohne ani popiskem, ani geometrií; klepnutí otevře hodnotu. Mazání vybrané kóty má ikonu popelnice a lze je vrátit. Jeho stav a rozbalení lišty jsou lokální preference společné pro fotografie.
-- Historie drží posledních 100 potvrzených změn v paměti. Umožňuje vrátit vytvoření, smazání, přesun kotvy/celku/popisku a změnu hodnoty, jednotky či poznámky. Zrušený tah, výběr, pan/zoom a preference historii nemění. Nová potvrzená změna po Undo ruší Redo.
+- Historie drží posledních 30 potvrzených změn v paměti. Umožňuje vrátit vytvoření, smazání, přesun kotvy/celku/popisku a změnu hodnoty, jednotky či poznámky. Zrušený tah, výběr, pan/zoom a preference historii nemění. Nová potvrzená změna po Undo ruší Redo.
 
 ## Debug sestavení (pouze po samostatném GO)
 

@@ -274,10 +274,10 @@ internal class PhotoEditorView(context: Context) : View(context) {
         canvas.restore()
     }
 
-    private fun hitsValue(
+    private fun labelHitDistance(
         point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel, labelT: Float,
         includeNotebook: Boolean = true,
-    ): Boolean {
+    ): LabelHitDistance? {
         val axis = end - start
         val fraction = (1f + labelT) / 2f
         val x = point.x - (start.x + axis.x * fraction)
@@ -286,17 +286,36 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
         val height = maxOf(36f * density, labelPaint.descent() - labelPaint.ascent() + 12f * density)
+        var best: LabelHitDistance? = null
+        fun candidate(left: Float, top: Float, right: Float, bottom: Float) {
+            val next = labelRectangleDistance(along, across, left, top, right, bottom)
+            val old = best
+            if (old == null || next.distance < old.distance ||
+                next.distance == old.distance && next.centerDistance < old.centerDistance
+            ) best = next
+        }
+        // Retain the old generous bounds, but rank by the actual rendered rectangles.
         if (across in -height..(-2f * density)) {
-            if ((decoration.text == null || decoration.besideRuler) && along in (-24f * density)..(24f * density)) return true
+            if ((decoration.text == null || decoration.besideRuler) && along in (-24f * density)..(24f * density)) {
+                candidate(-14f * density, -17f * density, 14f * density, -7f * density)
+            }
             decoration.text?.let { label ->
-                val textHalfWidth = labelPaint.measureText(label) / 2f + 5f * density
-                if (kotlin.math.abs(along - labelCenter(textHalfWidth, decoration)) <= textHalfWidth + 3f * density) return true
+                val half = labelPaint.measureText(label) / 2f + 5f * density
+                val center = labelCenter(half, decoration)
+                if (kotlin.math.abs(along - center) <= half + 3f * density) {
+                    val bottom = -5f * density
+                    candidate(center - half, bottom - (labelPaint.descent() - labelPaint.ascent()) - 4f * density,
+                        center + half, bottom)
+                }
             }
         }
-        if (!includeNotebook || !decoration.notebook) return false
-        val left = notebookLeft(decoration.text)
-        return along in (left - 8f * density)..(left + 23f * density) &&
-            across in (-32f * density)..(1f * density)
+        if (includeNotebook && decoration.notebook) {
+            val left = notebookLeft(decoration.text)
+            if (along in (left - 8f * density)..(left + 23f * density) &&
+                across in (-32f * density)..(1f * density)
+            ) candidate(left, -24f * density, left + 15f * density, -7f * density)
+        }
+        return best
     }
 
     private fun notebookLeft(label: String?): Float =
@@ -503,11 +522,11 @@ internal class PhotoEditorView(context: Context) : View(context) {
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
             // A locked label still owns its gesture; never fall through to moving the whole dimension.
-            val movesLabel = dimension.measurement != null && target.hit == DimensionHit.BODY &&
-                hitsValue(
+            val movesLabel = dimension.measurement != null && target.hit == DimensionHit.BODY && target.label &&
+                labelHitDistance(
                     down, viewport.screenPoint(dimension.start), viewport.screenPoint(dimension.end),
                     labels.getValue(dimension.id), dimension.labelT, includeNotebook = false,
-                )
+                ) != null
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, movesLabel = movesLabel)
         } else if (scene.tool != DimensionTool.SELECT) {
             lensContact = down
@@ -525,47 +544,37 @@ internal class PhotoEditorView(context: Context) : View(context) {
         val targets = scene.dimensions.asReversed().mapNotNull { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val label = hitsValue(point, start, end, labels.getValue(dimension.id), dimension.labelT)
-            val hit = hitDimension(point, start, end, density) ?: DimensionHit.BODY.takeIf { label }
-                ?: return@mapNotNull null
-            val distance = when (hit) {
-                DimensionHit.START -> point.distanceTo(start)
-                DimensionHit.END -> point.distanceTo(end)
-                DimensionHit.BODY -> 0f
+            val label = labelHitDistance(point, start, end, labels.getValue(dimension.id), dimension.labelT)
+            val hit = hitDimension(point, start, end, density)
+            when (hit) {
+                DimensionHit.START -> DimensionTarget(dimension, hit, false, point.distanceTo(start))
+                DimensionHit.END -> DimensionTarget(dimension, hit, false, point.distanceTo(end))
+                else -> {
+                    val lineDistance = if (hit == DimensionHit.BODY)
+                        distanceToDimensionLine(point, start, end) else Float.POSITIVE_INFINITY
+                    // Keep the isolated label's full touch area. When it competes with its own
+                    // line, the nearest visible element wins (a direct label hit wins a tie).
+                    if (label != null && label.distance <= lineDistance) {
+                        DimensionTarget(dimension, DimensionHit.BODY, true, label.distance, label.centerDistance)
+                    } else if (hit == DimensionHit.BODY) {
+                        DimensionTarget(dimension, hit, false, lineDistance)
+                    } else null
+                }
             }
-            DimensionTarget(dimension, hit, label, distance)
         }
         return orderedDimensionTargets(targets, scene.selectedId, 7f * density)
     }
 
     private fun selectAt(point: EditorPoint) {
-        val targets = targetsAt(point)
-        if (targets.isEmpty()) {
-            tapCycle = null
+        val decision = decideDimensionTap(targetsAt(point), scene.selectedId, tapCycle, point, density)
+        tapCycle = decision?.cycle
+        if (decision == null) {
             onSelectDimension(null)
             return
         }
-        val ids = targets.map { it.dimension.id }
-        val previous = tapCycle
-        val repeated = previous != null && previous.point.distanceTo(point) <= 7f * density &&
-            previous.candidates.toSet() == ids.toSet()
-        val preferred = targets.first()
-        // A selection made on the line can disambiguate an overlapping label on a separate tap.
-        val labelTarget = preferred.takeIf {
-            it.label && it.hit == DimensionHit.BODY &&
-                (targets.count(DimensionTarget::label) == 1 || (!repeated && it.dimension.id == scene.selectedId))
-        }
-        if (labelTarget != null) {
-            tapCycle = null
-            onSelectDimension(labelTarget.dimension.id)
-            onEditValue(labelTarget.dimension)
-            performClick()
-            return
-        }
-        val cycle = previous?.next(point, ids, 7f * density) ?: DimensionTapCycle(point, ids, 0)
-        tapCycle = cycle
-        val target = targets.first { it.dimension.id == cycle.candidates[cycle.index] }
-        onSelectDimension(target.dimension.id)
+        val target = decision.target.dimension
+        onSelectDimension(target.id)
+        if (decision.openValue) onEditValue(target)
         performClick()
     }
 

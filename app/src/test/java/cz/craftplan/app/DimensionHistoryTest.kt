@@ -63,7 +63,7 @@ class DimensionHistoryTest {
     }
 
     @Test
-    fun historyKeepsOnlyTheMostRecentHundredChanges() {
+    fun historyKeepsOnlyTheMostRecentThirtyChanges() {
         val original = dimension(1)
         var scene = DimensionScene().prepareSingle().create(original)
         var history = DimensionHistory()
@@ -73,12 +73,12 @@ class DimensionHistoryTest {
             history = history.record(scene, next)
             scene = next
         }
-        repeat(100) {
+        repeat(30) {
             val (previous, log) = history.undo(scene)!!
             scene = previous
             history = log
         }
-        assertEquals("Změna 10", scene.find(original.id)?.note)
+        assertEquals("Změna 80", scene.find(original.id)?.note)
         assertFalse(history.canUndo)
     }
 

@@ -36,6 +36,26 @@ internal fun hitDimension(
     return DimensionHit.BODY.takeIf { point.distanceTo(onLine) <= 20f * density }
 }
 
+/** Screen-space distance to the finite line segment, not to its generous hit zone. */
+internal fun distanceToDimensionLine(point: EditorPoint, start: EditorPoint, end: EditorPoint): Float {
+    val axis = end - start
+    val squared = axis.x * axis.x + axis.y * axis.y
+    if (squared <= 0f) return point.distanceTo(start)
+    val relative = point - start
+    val t = ((relative.x * axis.x + relative.y * axis.y) / squared).coerceIn(0f, 1f)
+    return point.distanceTo(EditorPoint(start.x + t * axis.x, start.y + t * axis.y))
+}
+
+internal data class LabelHitDistance(val distance: Float, val centerDistance: Float)
+
+/** Distance to a visible rectangle in the label's rotated local coordinates. */
+internal fun labelRectangleDistance(
+    along: Float, across: Float, left: Float, top: Float, right: Float, bottom: Float,
+): LabelHitDistance = LabelHitDistance(
+    hypot(maxOf(left - along, along - right, 0f), maxOf(top - across, across - bottom, 0f)),
+    kotlin.math.abs(across - (top + bottom) / 2f),
+)
+
 internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): PhotoDimension {
     val movedStart = if (hit == DimensionHit.END) start else start.shift(du, dv) ?: return this
     val movedEnd = if (hit == DimensionHit.START) end else end.shift(du, dv) ?: return this

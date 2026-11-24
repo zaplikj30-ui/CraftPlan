@@ -32,6 +32,6 @@ internal data class DimensionHistory private constructor(
     )
 
     private companion object {
-        const val MAX_HISTORY = 100
+        const val MAX_HISTORY = 30
     }
 }

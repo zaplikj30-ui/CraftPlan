@@ -83,6 +83,61 @@ class DimensionSceneTest {
         assertEquals(0, second.next(EditorPoint(70f, 60f), ids, 7f).index)
     }
 
+    @Test
+    fun nearbyParallelLinesAndLabelsPreferActualNearestElement() {
+        val upper = dimension(1)
+        val lower = dimension(2)
+        val upperStart = EditorPoint(0f, 30f)
+        val upperEnd = EditorPoint(100f, 30f)
+        val lowerStart = EditorPoint(0f, 44f)
+        val lowerEnd = EditorPoint(100f, 44f)
+        for ((point, expected) in listOf(EditorPoint(50f, 34f) to upper, EditorPoint(50f, 42f) to lower)) {
+            val hits = listOf(
+                DimensionTarget(upper, DimensionHit.BODY, false, distanceToDimensionLine(point, upperStart, upperEnd)),
+                DimensionTarget(lower, DimensionHit.BODY, false, distanceToDimensionLine(point, lowerStart, lowerEnd)),
+            )
+            val ordered = orderedDimensionTargets(hits, upper.id, 7f)
+            assertEquals(expected, decideDimensionTap(ordered, upper.id, null, point, 1f)?.target?.dimension)
+            assertEquals(1, ambiguousDimensionTargets(ordered, 1f).size)
+        }
+        val direct = DimensionTarget(lower, DimensionHit.BODY, true, 0f, 2f)
+        val fringe = DimensionTarget(upper, DimensionHit.BODY, false, 5f)
+        assertEquals(direct, orderedDimensionTargets(listOf(fringe, direct), upper.id, 7f).first())
+    }
+
+    @Test
+    fun overlappingVisibleLabelsPreferNearestCenterAndCoincidentLinesCanCycle() {
+        val a = dimension(1)
+        val b = dimension(2)
+        val point = EditorPoint(50f, 60f)
+        val upper = labelRectangleDistance(0f, -10f, -30f, -24f, 30f, -5f)
+        val lower = labelRectangleDistance(0f, -15f, -30f, -24f, 30f, -5f)
+        val labels = listOf(
+            DimensionTarget(a, DimensionHit.BODY, true, upper.distance, upper.centerDistance),
+            DimensionTarget(b, DimensionHit.BODY, true, lower.distance, lower.centerDistance),
+        )
+        val closer = orderedDimensionTargets(labels, b.id, 7f)
+        assertEquals(b, decideDimensionTap(closer, a.id, null, point, 1f)?.target?.dimension)
+        val lines = listOf(DimensionTarget(a, DimensionHit.BODY, false, 0f), DimensionTarget(b, DimensionHit.BODY, false, 0f))
+        val first = decideDimensionTap(lines, null, null, point, 1f)!!
+        val next = decideDimensionTap(orderedDimensionTargets(lines, a.id, 7f), a.id, first.cycle, point, 1f)!!
+        assertEquals(b, next.target.dimension)
+        val coincidentLabels = lines.map { it.copy(label = true) }
+        val opened = decideDimensionTap(coincidentLabels, b.id, next.cycle, point, 1f)!!
+        assertEquals(b, opened.target.dimension)
+        assertEquals(true, opened.openValue)
+    }
+
+    @Test
+    fun crossingLinesUseFiniteSegmentDistance() {
+        val horizontal = EditorPoint(100f, 50f)
+        val vertical = EditorPoint(50f, 100f)
+        val p = EditorPoint(65f, 53f)
+        assertEquals(3f, distanceToDimensionLine(p, EditorPoint(0f, 50f), horizontal), 0.001f)
+        assertEquals(15f, distanceToDimensionLine(p, EditorPoint(50f, 0f), vertical), 0.001f)
+        assertEquals(5f, distanceToDimensionLine(EditorPoint(104f, 53f), EditorPoint(0f, 50f), horizontal), 0.001f)
+    }
+
     private fun dimension(number: Int) = PhotoDimension(
         UUID(0, number.toLong()), PhotoId.SYNTHETIC_WORKBENCH, PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f),
     )
