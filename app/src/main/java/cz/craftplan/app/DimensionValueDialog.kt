@@ -203,13 +203,11 @@ internal fun DimensionValueDialog(
         ) {
             val isNote = target == DimensionField.NOTE
             if (isNote) noteField = edited else valueField = edited
-            val committed = edited.composition == null && edited.selection.collapsed &&
-                edited.selection.end == edited.text.length
-            val previousText = if (previous.composition != null && committed &&
-                previous.text == edited.text && edited.text.endsWith('=')) previous.text.dropLast(1)
-                else previous.text
-            val calculate = committed && requestsDimensionCalculation(
-                previousText, edited.text, automaticCalculations, note = isNote,
+            // SwiftKey may retain composition when inserting punctuation.
+            // A newly inserted final '=' with the caret after it is the explicit action.
+            val calculate = requestsCalculationFromEdit(
+                previous.text, edited.text, edited.selection.start, edited.selection.end,
+                automaticCalculations, note = isNote,
             )
             if (calculate) {
                 calculationNeedsSave = true

@@ -149,10 +149,8 @@ internal class DimensionValueDraft private constructor(
         val prefix = resultPrefix
         if (prefix != null && '=' in text) {
             val nextPrefix = text.substring(0, text.lastIndexOf('=') + 1)
-            val result = text.substring(nextPrefix.length)
-            // An edited result is a new manual value, not an old approximation.
-            val cleaned = if (result != input.substring(prefix.length) || nextPrefix != prefix)
-                removeResultApproximation(text) else text
+            // An edited result is a new manual value; a continuation retains the old marker.
+            val cleaned = editedApproximation(input, text)
             val explicit = (parseDimensionEntry(cleaned.substring(nextPrefix.length).trim(), unit)
                 as? DimensionEntry.Measured)?.explicitlyTypedUnit == true
             return DimensionValueDraft(target, cleaned, unit, null, note, showUnit || explicit, nextPrefix,
@@ -246,13 +244,7 @@ internal class DimensionValueDraft private constructor(
     }
 
     fun editNote(text: String): DimensionValueDraft {
-        val oldEquals = note.lastIndexOf('=')
-        val newEquals = text.lastIndexOf('=')
-        val cleaned = if (oldEquals >= 0 && newEquals >= 0 &&
-            note.substring(oldEquals + 1) != text.substring(newEquals + 1) &&
-            note.substring(oldEquals + 1).trimStart().startsWith('≈'))
-            removeResultApproximation(text) else text
-        return withNote(cleaned)
+        return withNote(editedApproximation(note, text))
     }
 
     fun withNote(text: String): DimensionValueDraft =

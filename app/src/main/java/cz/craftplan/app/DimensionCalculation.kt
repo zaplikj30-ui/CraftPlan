@@ -203,6 +203,33 @@ internal fun requestsDimensionCalculation(
     next.count { it == '=' } > previous.count { it == '=' } &&
     isLiteralCalculationLabel(calculationSegment(next, note).second)
 
+/** A final, newly inserted equals is explicit even if the IME still reports
+ * an active composing region. Require the caret after it and never evaluate
+ * selection changes or an unchanged final equals. */
+internal fun requestsCalculationFromEdit(
+    previous: String, next: String, selectionStart: Int, selectionEnd: Int,
+    enabled: Boolean, note: Boolean = false,
+): Boolean = selectionStart == selectionEnd && selectionEnd == next.length &&
+    requestsDimensionCalculation(previous, next, enabled, note)
+
+/** Preserve an earlier approximation while the user extends its visible result.
+ * Only an edit to the actual rounded number removes its marker. */
+internal fun editedApproximation(previous: String, next: String): String {
+    val equals = previous.lastIndexOf('=')
+    if (equals < 0 || !previous.substring(equals + 1).trimStart().startsWith('≈')) return next
+    val marker = equals + 1 + previous.substring(equals + 1).takeWhile { it == ' ' }.length
+    if (!next.startsWith(previous.substring(0, marker + 1))) return next
+    val oldNumber = previous.substring(marker + 1)
+    if (!Regex("""[-−]?[0-9]+(?:[.,][0-9]+)?""").matches(oldNumber)) return next
+    val tail = next.substring(marker + 1)
+    if (tail == oldNumber) return next
+    if (tail.startsWith(oldNumber) &&
+        tail.drop(oldNumber.length).trimStart().firstOrNull() in listOf('+', '-', '−', '×', 'x', 'X', '*', '÷', '/')) return next
+    // Appending whitespace before the next operator is also not an edit.
+    if (tail.startsWith(oldNumber) && tail.drop(oldNumber.length).isBlank()) return next
+    return next.removeRange(marker, marker + 1)
+}
+
 /** Replayable result of a single equals action. The typed expression remains
  * editable; the rounded decimal is the authoritative new calculation result. */
 internal data class RoundedCalculation(

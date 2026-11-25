@@ -129,6 +129,29 @@ class DimensionCalculationTest {
     }
 
     @Test
+    fun explicitEqualsFromImeAndKeypadUsesSameTrigger() {
+        val before = "kuchyň 40x50"
+        val after = "$before="
+        assertTrue(requestsCalculationFromEdit(before, after, after.length, after.length, true, true))
+        assertFalse(requestsCalculationFromEdit(after, after, after.length, after.length, true, true))
+        assertFalse(requestsCalculationFromEdit(before, after, 1, after.length, true, true))
+        assertFalse(requestsCalculationFromEdit(before, after, after.length, after.length, false, true))
+        assertEquals("kuchyň 40 × 50 = 2000", DimensionValueDraft(dimension).calculateNote(after)!!.note)
+    }
+
+    @Test
+    fun roundedNoteMarkerSurvivesIncrementalContinuationButNotManualReplacement() {
+        var draft = DimensionValueDraft(dimension).calculateNote("100/3=", 0)!!
+        for (key in listOf(" ", "×", "3")) draft = draft.editNote(draft.note + key)
+        assertEquals("100 ÷ 3 = ≈33 ×3", draft.note)
+        val chained = draft.calculateNote(draft.note + "=", 0)!!
+        assertEquals("100 ÷ 3 = ≈33 × 3 = 99", chained.note)
+        val initial = DimensionValueDraft(dimension).calculateNote("100/3=", 0)!!
+        assertEquals("100 ÷ 3 = 34", initial.editNote("100 ÷ 3 = ≈34").note)
+        assertEquals("100 ÷ 3 = 333", initial.editNote("100 ÷ 3 = ≈333").note)
+    }
+
+    @Test
     fun failureAndNegativeResultsDoNotInventLength() {
         val original = dimension.withManualLength("50 mm")
         val draft = DimensionValueDraft(original).type("1÷0=")
