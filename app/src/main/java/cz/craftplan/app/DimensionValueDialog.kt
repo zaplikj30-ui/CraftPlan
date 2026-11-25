@@ -213,6 +213,7 @@ internal fun DimensionValueDialog(
     val valueEcho = remember(draft.targetId) { CalculationEchoGuard<TextFieldValue>() }
     val noteEcho = remember(draft.targetId) { CalculationEchoGuard<TextFieldValue>() }
     var unitsOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
         if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
@@ -690,26 +691,6 @@ internal fun DimensionValueDialog(
                                     },
                                 )
                             }
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.ink_language)) },
-                                onClick = {
-                                    unitsOpen = false
-                                    inkSettings.chooserOpen = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.dimension_automatic_calculations)) },
-                                trailingIcon = { Switch(checked = automaticCalculations, onCheckedChange = null) },
-                                onClick = { toggleCalculations() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.dimension_calculation_places, calculationPlaces)) },
-                                onClick = { unitsOpen = false; placesOpen = true },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.dimension_keypad_settings)) },
-                                onClick = { unitsOpen = false; keypadSettingsOpen = true },
-                            )
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
                             )
@@ -739,6 +720,47 @@ internal fun DimensionValueDialog(
                                         )
                                     }
                                 },
+                            )
+                        }
+                    }
+                }
+                val settingsControl: @Composable () -> Unit = {
+                    Box {
+                        IconButton(
+                            onClick = {
+                                if (ink.hasPendingInput) waitForInk()
+                                else settingsOpen = true
+                            },
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_dimension_settings),
+                                contentDescription = stringResource(R.string.dimension_settings),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = settingsOpen,
+                            onDismissRequest = { settingsOpen = false },
+                            modifier = Modifier.width(280.dp).heightIn(max = 408.dp),
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.ink_language)) },
+                                onClick = {
+                                    settingsOpen = false
+                                    inkSettings.chooserOpen = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_automatic_calculations)) },
+                                trailingIcon = { Switch(checked = automaticCalculations, onCheckedChange = null) },
+                                onClick = { toggleCalculations() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_calculation_places, calculationPlaces)) },
+                                onClick = { settingsOpen = false; placesOpen = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_keypad_settings)) },
+                                onClick = { settingsOpen = false; keypadSettingsOpen = true },
                             )
                         }
                     }
@@ -859,12 +881,12 @@ internal fun DimensionValueDialog(
                             else { ink.interrupt(); onCancel() }
                         },
                         modifier = Modifier.heightIn(min = 48.dp),
-                        contentPadding = PaddingValues(horizontal = if (portrait) 20.dp else 16.dp),
+                        contentPadding = PaddingValues(horizontal = if (portrait) 20.dp else 12.dp),
                     ) { Text(stringResource(R.string.cancel_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
                     Button(
                         onClick = confirm,
                         modifier = Modifier.heightIn(min = 48.dp),
-                        contentPadding = PaddingValues(horizontal = if (portrait) 28.dp else 18.dp),
+                        contentPadding = PaddingValues(horizontal = if (portrait) 28.dp else 14.dp),
                     ) { Text(stringResource(R.string.confirm_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
                 }
                 if (portrait) {
@@ -893,9 +915,12 @@ internal fun DimensionValueDialog(
                         Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
-                        ) { actions() }
+                        ) {
+                            settingsControl()
+                            Spacer(Modifier.weight(1f))
+                            actions()
+                        }
                     }
                 } else {
                     Column(
@@ -918,7 +943,8 @@ internal fun DimensionValueDialog(
                                     keyboardControl()
                                 }
                             }
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(2.dp))
+                            settingsControl()
                             actions()
                         }
                         errorMessage()

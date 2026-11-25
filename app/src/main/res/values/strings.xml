@@ -121,6 +121,7 @@
     <string name="pen_cut">Vyjmout</string>
     <string name="pen_paste">Vložit</string>
     <string name="pen_select_all">Vybrat vše</string>
+    <string name="dimension_settings">Nastavení kóty</string>
     <string name="dimension_keypad_settings">Nastavení numerické klávesnice</string>
     <string name="dimension_key_hold_ms">Doba podržení: %1$d ms</string>
     <string name="dimension_reset_hold">Obnovit výchozí dobu podržení</string>
