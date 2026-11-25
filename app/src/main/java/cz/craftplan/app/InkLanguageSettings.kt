@@ -196,7 +196,7 @@ internal fun rememberInkLanguageSettings(
 }
 
 @Composable
-internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
+internal fun InkLanguageDialogs(settings: InkLanguageSettings, hideStatusBar: Boolean) {
     val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
@@ -233,7 +233,10 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
         }
         AlertDialog(
             onDismissRequest = { settings.chooserOpen = false },
-            title = { Text(stringResource(R.string.ink_language)) },
+            title = {
+                EditorDialogStatusBarEffect(hideStatusBar)
+                Text(stringResource(R.string.ink_language))
+            },
             text = {
                 Column {
                     settings.language?.let { Text(stringResource(R.string.ink_selected_language, inkLanguageName(it, locale))) }
@@ -293,7 +296,10 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
         val display = inkLanguageName(tag, locale)
         AlertDialog(
             onDismissRequest = { settings.downloadConfirmation = null },
-            title = { Text(stringResource(R.string.ink_download_title, display)) },
+            title = {
+                EditorDialogStatusBarEffect(hideStatusBar)
+                Text(stringResource(R.string.ink_download_title, display))
+            },
             text = { Text(stringResource(R.string.ink_download_disclosure)) },
             dismissButton = {
                 TextButton(onClick = { settings.downloadConfirmation = null }) {

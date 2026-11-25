@@ -56,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -386,44 +388,73 @@ internal class PhotoEditorState : ViewModel() {
 }
 
 /**
- * Only the active photo workspace owns the status bar policy. Modal dialogs and
- * other screens use their normal system bars and retain their existing IME insets.
+ * The activity and each editor dialog own their own window policy. Closing a
+ * dialog must not request visible bars over the still-active photo editor.
  */
 @Composable
-private fun EditorStatusBarEffect(window: Window, active: Boolean, hidden: Boolean) {
-    DisposableEffect(window, active, hidden) {
-        val controller = window.insetsController
-        if (!active || controller == null) {
+private fun EditorStatusBarEffect(
+    window: Window?,
+    active: Boolean,
+    hidden: Boolean,
+    restoreOnDispose: Boolean = true,
+) {
+    DisposableEffect(window, active, hidden, restoreOnDispose) {
+        if (!active || window == null) {
             onDispose { }
         } else {
-            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-            val previousAppearance = controller.systemBarsAppearance and mask
-            val previousBehavior = controller.systemBarsBehavior
-            fun applyPolicy() {
-                controller.setSystemBarsAppearance(0, mask)
-                if (hidden) {
-                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    controller.hide(AndroidWindowInsets.Type.statusBars())
-                } else {
-                    controller.show(AndroidWindowInsets.Type.statusBars())
-                }
-            }
-            applyPolicy()
             val decor = window.decorView
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            var previousAppearance: Int? = null
+            var previousBehavior: Int? = null
+            fun applyPolicy() {
+                // A dialog can compose before its decor is attached.
+                val controller = window.insetsController ?: return
+                if (previousAppearance == null) {
+                    previousAppearance = controller.systemBarsAppearance and mask
+                    previousBehavior = controller.systemBarsBehavior
+                }
+                controller.setSystemBarsAppearance(0, mask)
+                controller.systemBarsBehavior = if (hidden) {
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    WindowInsetsController.BEHAVIOR_DEFAULT
+                }
+                if (hidden) controller.hide(AndroidWindowInsets.Type.statusBars())
+                else controller.show(AndroidWindowInsets.Type.statusBars())
+            }
             val observer = decor.viewTreeObserver
             val listener = ViewTreeObserver.OnWindowFocusChangeListener { focused ->
                 if (focused) applyPolicy()
             }
             observer.addOnWindowFocusChangeListener(listener)
+            applyPolicy()
             onDispose {
                 if (observer.isAlive) observer.removeOnWindowFocusChangeListener(listener)
                 else decor.viewTreeObserver.removeOnWindowFocusChangeListener(listener)
-                controller.show(AndroidWindowInsets.Type.statusBars())
-                controller.systemBarsBehavior = previousBehavior
-                controller.setSystemBarsAppearance(previousAppearance, mask)
+                if (restoreOnDispose) {
+                    window.insetsController?.let { controller ->
+                        controller.show(AndroidWindowInsets.Type.statusBars())
+                        previousBehavior?.let { controller.systemBarsBehavior = it }
+                        previousAppearance?.let { controller.setSystemBarsAppearance(it, mask) }
+                    }
+                }
             }
         }
     }
+}
+
+/** Configure the dialog's own window, never the activity or IME window. */
+@Suppress("DEPRECATION")
+@Composable
+internal fun EditorDialogStatusBarEffect(hidden: Boolean) {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    DisposableEffect(window) {
+        // Android 13/14 still use this window color; newer edge-to-edge windows
+        // are transparent by platform policy.
+        window?.statusBarColor = android.graphics.Color.TRANSPARENT
+        onDispose { }
+    }
+    EditorStatusBarEffect(window, active = true, hidden = hidden, restoreOnDispose = false)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -445,8 +476,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     val portrait = configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
     val isTablet = configuration.smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP
     val hideStatusBar = editorState.statusBarSettings.hidden(portrait, isTablet)
-    val workspaceActive = photoOpen && editorState.valueDraft == null
-    EditorStatusBarEffect(window, workspaceActive, hideStatusBar)
+    EditorStatusBarEffect(window, photoOpen, hideStatusBar)
 
     // The entire editor toolbar can sit behind the transparent gesture navigation bar.
     // Draw the photo beneath the status bar. Reserve stable horizontal insets,
@@ -471,7 +501,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
             val cutoutTop = WindowInsets.displayCutout.getTop(density)
             val contentTop = with(density) { insets.calculateTopPadding().roundToPx() }
             val safeOverlayTop = editorOverlayTop(statusTop, cutoutTop, contentTop)
-            val statusScrimHeight = if (workspaceActive && !hideStatusBar) {
+            val statusScrimHeight = if (!hideStatusBar) {
                 (statusTop - contentTop).coerceAtLeast(0)
             } else 0
             val repeatHintOffset = toolbarHintCenterOffset(

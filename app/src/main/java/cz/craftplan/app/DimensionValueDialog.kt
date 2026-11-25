@@ -158,6 +158,7 @@ internal fun DimensionValueDialog(
     diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
+    val hideStatusBar = if (portrait) hideStatusBarPortrait else hideStatusBarLandscape
     var showError by rememberSaveable { mutableStateOf(false) }
     var keepNumber by rememberSaveable { mutableStateOf(false) }
     var keys by rememberSaveable(stateSaver = keyboardSaver) { mutableStateOf(DimensionKeyboard()) }
@@ -396,6 +397,7 @@ internal fun DimensionValueDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
+        EditorDialogStatusBarEffect(hideStatusBar)
         KeypadWindowDiagnostics(diagnostics)
         val view = LocalView.current
         val ime = LocalSoftwareKeyboardController.current
@@ -1001,7 +1003,10 @@ internal fun DimensionValueDialog(
         if (discardInkOpen) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { discardInkOpen = false },
-                title = { Text(stringResource(R.string.ink_discard)) },
+                title = {
+                    EditorDialogStatusBarEffect(hideStatusBar)
+                    Text(stringResource(R.string.ink_discard))
+                },
                 text = { Text(stringResource(R.string.ink_discard_question)) },
                 confirmButton = {
                     TextButton(onClick = { ink.interrupt(); discardInkOpen = false }) {
@@ -1016,7 +1021,10 @@ internal fun DimensionValueDialog(
         if (placesOpen) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { placesOpen = false },
-                title = { Text(stringResource(R.string.dimension_calculation_places_title)) },
+                title = {
+                    EditorDialogStatusBarEffect(hideStatusBar)
+                    Text(stringResource(R.string.dimension_calculation_places_title))
+                },
                 text = {
                     Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         (0..12).forEach { places ->
@@ -1063,7 +1071,10 @@ internal fun DimensionValueDialog(
         if (keypadSettingsOpen) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { keypadSettingsOpen = false },
-                title = { Text(stringResource(R.string.dimension_keypad_settings)) },
+                title = {
+                    EditorDialogStatusBarEffect(hideStatusBar)
+                    Text(stringResource(R.string.dimension_keypad_settings))
+                },
                 text = {
                     Column {
                         Text(stringResource(R.string.dimension_key_hold_ms, holdMs))
@@ -1093,7 +1104,10 @@ internal fun DimensionValueDialog(
         if (statusBarSettingsOpen) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { statusBarSettingsOpen = false },
-                title = { Text(stringResource(R.string.editor_status_bar_settings)) },
+                title = {
+                    EditorDialogStatusBarEffect(hideStatusBar)
+                    Text(stringResource(R.string.editor_status_bar_settings))
+                },
                 text = {
                     Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         Text(stringResource(R.string.editor_status_bar_explanation))
@@ -1112,7 +1126,7 @@ internal fun DimensionValueDialog(
                 },
             )
         }
-        InkLanguageDialogs(inkSettings)
+        InkLanguageDialogs(inkSettings, hideStatusBar)
     }
 }
 
