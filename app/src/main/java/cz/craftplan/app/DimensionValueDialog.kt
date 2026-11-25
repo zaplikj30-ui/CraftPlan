@@ -210,6 +210,8 @@ internal fun DimensionValueDialog(
     var noteField by remember(draft.targetId) {
         mutableStateOf(ink.pendingInput(DimensionField.NOTE)?.takeIf { it.text == draft.note } ?: editableText(draft.note))
     }
+    val valueEcho = remember(draft.targetId) { CalculationEchoGuard<TextFieldValue>() }
+    val noteEcho = remember(draft.targetId) { CalculationEchoGuard<TextFieldValue>() }
     var unitsOpen by remember { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
@@ -240,11 +242,20 @@ internal fun DimensionValueDialog(
                     previous.composition != null, edited.composition != null)
             }
         }
+        val echo = if (target == DimensionField.VALUE) valueEcho else noteEcho
+        val nativeInput = source == CalculationInputSource.NATIVE_FIELD && keys.allowsSystemInput(target)
         if (ink.hasPendingInput) {
+            echo.clear()
             recordInput(CalculationInputDecision.INK_BLOCKED)
             if (previous != edited) waitForInk()
             return@apply
         }
+        if (nativeInput) {
+            if (echo.isEcho(previous, edited)) {
+                recordInput(CalculationInputDecision.ECHO_IGNORED)
+                return@apply
+            }
+        } else echo.clear()
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
             edited.text.length < previous.text.length
         ) {
@@ -267,7 +278,9 @@ internal fun DimensionValueDialog(
                     if (isNote) noteCalculationError = result == null else valueCalculationError = result == null
                     showError = false
                     if (result != null) {
-                        if (isNote) noteField = editableText(result.note) else valueField = editableText(result.input)
+                        val calculated = editableText(if (isNote) result.note else result.input)
+                        if (nativeInput) echo.arm(edited, calculated)
+                        if (isNote) noteField = calculated else valueField = calculated
                         if (diagnostics?.recording == true) {
                             val resultText = if (isNote) result.note else result.input
                             diagnostics.calculationResult(target, source, true,
@@ -629,6 +642,8 @@ internal fun DimensionValueDialog(
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
                         onInkPosition = { origin, bounds -> valueInkOrigin = origin; valueInkBounds = bounds },
                         onValueChange = { applyInput(DimensionField.VALUE, it, CalculationInputSource.FIELD) },
+                        onNativeValueChange = { applyInput(DimensionField.VALUE, it, CalculationInputSource.NATIVE_FIELD) },
+                        onPublished = valueEcho::published,
                         onDone = hideKeyboard,
                         isError = showError || valueCalculationError,
                         compactLabel = !portrait,
@@ -760,6 +775,8 @@ internal fun DimensionValueDialog(
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
                             onInkPosition = { origin, bounds -> noteInkOrigin = origin; noteInkBounds = bounds },
                             onValueChange = { applyInput(DimensionField.NOTE, it, CalculationInputSource.FIELD) },
+                            onNativeValueChange = { applyInput(DimensionField.NOTE, it, CalculationInputSource.NATIVE_FIELD) },
+                            onPublished = noteEcho::published,
                             onDone = hideKeyboard,
                             isNote = true,
                             isError = noteCalculationError,
@@ -1057,6 +1074,8 @@ private fun DimensionInputField(
     inkCallbacks: InkFieldCallbacks,
     onInkPosition: (Offset, Rect) -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
+    onNativeValueChange: (TextFieldValue) -> Unit,
+    onPublished: (TextFieldValue) -> Unit,
     onDone: () -> Unit,
     isNote: Boolean = false,
     isError: Boolean = false,
@@ -1170,7 +1189,7 @@ private fun DimensionInputField(
             InterceptPlatformTextInput(interceptor = platformInput) {
             BasicTextField(
                 value = value,
-                onValueChange = onValueChange,
+                onValueChange = onNativeValueChange,
                 modifier = Modifier.fillMaxWidth()
                     // Same compact visible field in both orientations. The parent owns
                     // the pen contact beyond the field; vertical gaps need not grow for ink.
@@ -1215,6 +1234,9 @@ private fun DimensionInputField(
             )
         }
         }
+        // Acknowledge only the state actually supplied to BasicTextField, after
+        // its composition applies. Subsequent genuine native edits are unrestricted.
+        SideEffect { onPublished(value) }
         // One text menu for both input devices. Back dismisses the menu first.
         DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false }) {
             val selected = value.text.substring(value.selection.min, value.selection.max)

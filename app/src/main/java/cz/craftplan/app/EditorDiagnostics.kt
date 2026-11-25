@@ -8,8 +8,8 @@ internal enum class DiagnosticAction {
     CLEAR_BATCH, TOOLBAR, ORIENTATION, SCENE, PREPARATION, DRAW, HIT_TEST, FRAME,
 }
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
-internal enum class CalculationInputSource { FIELD, KEYPAD, INK }
-internal enum class CalculationInputDecision { CALCULATE, EDIT, UNCHANGED, INK_BLOCKED, LIMIT_BLOCKED }
+internal enum class CalculationInputSource { FIELD, NATIVE_FIELD, KEYPAD, INK }
+internal enum class CalculationInputDecision { CALCULATE, EDIT, UNCHANGED, INK_BLOCKED, LIMIT_BLOCKED, ECHO_IGNORED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
 internal enum class PenWindowEvent { DOWN, MOVE, UP, CANCEL, POINTER_DOWN, POINTER_UP, HOVER_ENTER, HOVER_MOVE, HOVER_EXIT }
 internal enum class PenDiagnosticStage {
@@ -417,7 +417,7 @@ internal class EditorDiagnostics(
         appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
         appendLine("pen_window: dialog Window.Callback touch/generic motion before delegation; tool=Android tool type, event/down times=Android uptime, MOVE/HOVER_MOVE sampled at 100 ms; hover or touch intercepted by OS/IME may be absent. pen_gesture: Compose route, classification, dispatch; displacement/path are aggregate dp, no coordinates or text; NA=unavailable.")
         appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character/non-space class, no raw text; join by sample_end_uptime_ms (last retained point, not necessarily UP) and field, strokes is batch size.")
-        appendLine("calculation_input: FIELD=editor callback (including IME, selection and clipboard), KEYPAD=custom keys, INK=recognized handwriting; system_input=system input permitted for that field. Tail is an allowlisted category after trimming ASCII spaces; lengths/counts only, no text. calculation_result records the actual draft calculation and field update; subsequent inputs may show a shorter prefix or other replacement, not proof of IME intent.")
+        appendLine("calculation_input: NATIVE_FIELD=BasicTextField callback (not proof of IME origin), FIELD=explicit field menu/pen action, KEYPAD=custom keys, INK=recognized handwriting; ECHO_IGNORED=exact duplicate before calculated state publication; system_input=system input permitted for that field. Tail is an allowlisted category after trimming ASCII spaces; lengths/counts only, no text. calculation_result records the actual draft calculation and field update; subsequent inputs may show a shorter prefix or other replacement, not proof of IME intent.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }
