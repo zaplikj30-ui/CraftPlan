@@ -39,9 +39,7 @@ class DimensionValueDraftTest {
         assertSame(original.measurement, micrometers.confirm(original)!!.measurement)
         assertEquals("966505,6", micrometers.selectUnit(LengthUnit.CM).input)
         assertEquals("9665056 mm", original.measurement!!.originalInput)
-        for (invalid in listOf("12 m²", "12 m³", "12°", "12 × 2", "12 ÷ 2", "12 = 2")) {
-            assertNull(invalid, DimensionValueDraft(dimension).type(invalid).confirm(dimension))
-        }
+
     }
 
     @Test
@@ -83,7 +81,7 @@ class DimensionValueDraftTest {
     fun rejectsInvalidAndStaleConfirmation() {
         val original = dimension.withManualLength("850 mm")
         val draft = DimensionValueDraft(original).type("950")
-        for (input in listOf("1/0 in", "1.2,3", "85 + zz", "1000000001", "1".repeat(97))) {
+        for (input in listOf("1/0 in", "1.2,3", "1000000001", "1".repeat(97))) {
             assertNull(input, draft.type(input).confirm(original))
         }
         assertNull(draft.confirm(original.copy(id = UUID.randomUUID())))
@@ -116,12 +114,13 @@ class DimensionValueDraftTest {
     }
 
     @Test
-    fun keepingNumberRejectsConflictingUnitsAndOutOfRangeLengths() {
+    fun keepingNumberHonorsExplicitUnitsAndRejectsOutOfRangeLengths() {
         val original = dimension.withManualLength("850 mm")
         val draft = DimensionValueDraft(original).type("850 mm")
             .selectUnit(LengthUnit.CM, keepNumber = true)
         assertEquals("850 mm", draft.input)
-        assertNull(draft.confirm(original))
+        assertEquals("850 mm", draft.confirm(original)!!.displayLabel())
+        assertEquals(LengthUnit.MM, draft.confirm(original)!!.displayUnit)
         assertNull(draft.type("100000001").confirm(original))
         assertEquals(LengthMmEncoding.Decimal("8500"), draft.type("850").confirm(original)?.measurement?.length?.encoding)
     }
@@ -161,9 +160,7 @@ class DimensionValueDraftTest {
             .selectUnit(LengthUnit.IN, keepNumber = true).confirm(dimension)!!
         assertEquals("26.9875", original.measurement!!.length.displayNumber(LengthUnit.MM))
         assertEquals("1,0625 in převýšení", original.displayLabel())
-        for (bad in listOf("12%", "12 + 2", "12−3", "1/0 poznámka")) {
-            assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))
-        }
+        assertNull(DimensionValueDraft(dimension).type("1/0 poznámka").confirm(dimension))
         assertNull(DimensionValueDraft(original).withNote("změna").confirm(original.copy(note = "jinde")))
     }
 
@@ -196,7 +193,7 @@ class DimensionValueDraftTest {
         val mixed = DimensionValueDraft(dimension).type("1 1/2 in").selectUnit(LengthUnit.MM)
         assertEquals("38,1", mixed.input)
         assertEquals("38.1", mixed.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
-        for (bad in listOf("1 3/2 in", "1 1/0 in", "1 234 mm", "12 x 2")) {
+        for (bad in listOf("1 3/2 in", "1 1/0 in", "1 234 mm")) {
             assertNull(bad, DimensionValueDraft(dimension).type(bad).confirm(dimension))
         }
     }
@@ -236,13 +233,51 @@ class DimensionValueDraftTest {
     fun invalidUnitOrExpressionCannotBeReclassifiedAsVisibleSuffix() {
         val original = dimension.withManualLength("850 mm").copy(note = "Ponechat")
         val draft = DimensionValueDraft(original).selectUnit(LengthUnit.CM, keepNumber = true)
-        for (bad in listOf("850 mm popis", "3 ft 1/0 in", "12 x 2", "12 MM", " ".repeat(96) + "9")) {
+        assertEquals("850 mm popis", draft.type("850 mm popis").confirm(original)!!.displayLabel())
+        for (bad in listOf("3 ft 1/0 in", "12 MM", " ".repeat(96) + "9")) {
             assertNull(bad, draft.type(bad).confirm(original))
         }
         val edited = DimensionValueDraft(original).withNote("Nová poznámka").confirm(original)!!
         assertSame(original.measurement, edited.measurement)
         assertEquals("850 mm", edited.displayLabel())
         assertNull(DimensionValueDraft(original).withNote("a".repeat(MAX_DIMENSION_NOTE_LENGTH + 1)).confirm(original))
+    }
+
+    @Test
+    fun symbolsAndExpressionsStayTextWithoutImplicitLengthOrConversion() {
+        for (label in listOf("4649%", "4649 %", "25 %", "15 m²", "15m²", "8 m³",
+            "45°", "100 + 50", "12−3", "12 x 2", "12 × 2", "12 ÷ 2", "12 = 2",
+            "12Ø", "12 +", "85 + zz", "12 kg", "R")) {
+            val draft = DimensionValueDraft(dimension).type(label)
+            assertTrue(label, draft.isTextOnly())
+            for (converted in listOf(draft, draft.selectUnit(LengthUnit.M), draft.selectUnit(LengthUnit.CM, true))) {
+                val confirmed = requireNotNull(converted.confirm(dimension))
+                assertNull(label, confirmed.measurement)
+                assertEquals(label, confirmed.displayLabel())
+                assertEquals(label, DimensionValueDraft(confirmed).input)
+                assertEquals(MeasurementState.UNMEASURED, confirmed.measurementState)
+            }
+        }
+    }
+
+    @Test
+    fun explicitlyTypedLengthWinsAndDiameterMarkerSurvivesConversion() {
+        val cm = DimensionValueDraft(dimension).type("125 cm")
+        assertEquals(LengthUnit.CM, cm.effectiveDisplayUnit())
+        assertEquals("125 cm", cm.confirm(dimension)!!.displayLabel())
+        assertEquals("1250", cm.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals("1250 mm", cm.selectUnit(LengthUnit.MM).confirm(dimension)!!.displayLabel())
+        assertEquals("2,5 m", DimensionValueDraft(dimension).type("2,5 m").confirm(dimension)!!.displayLabel())
+        val diameter = DimensionValueDraft(dimension).type("Ø 50 mm").confirm(dimension)!!
+        assertEquals("Ø 50 mm", diameter.displayLabel())
+        assertEquals("Ø 50", DimensionValueDraft(diameter).input)
+        val converted = DimensionValueDraft(diameter).selectUnit(LengthUnit.CM).confirm(diameter)!!
+        assertSame(diameter.measurement, converted.measurement)
+        assertEquals("Ø 5 cm", converted.displayLabel())
+        val textual = DimensionValueDraft(diameter).type("25 %").confirm(diameter)!!
+        assertNull(textual.measurement)
+        assertEquals("", textual.labelPrefix)
+        assertEquals("25 %", textual.displayLabel())
     }
 
     @Test

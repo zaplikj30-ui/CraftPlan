@@ -44,7 +44,7 @@ private fun isNonLengthTail(text: String): Boolean {
     val tail = text.trimStart()
     return tail.isNotEmpty() && (
         nonLengthUnit.containsMatchIn(tail) ||
-        tail.first() in "%‰°+−-×÷=±*<>≤≥!?:;()[]{}" ||
+        tail.first() in "%‰°+−-×÷=±*<>≤≥!?:;()[]{}Ø" ||
         Regex("""^[xX](?=\s*[0-9])""").containsMatchIn(tail)
     )
 }
@@ -150,12 +150,12 @@ internal class DimensionValueDraft private constructor(
         if (newUnit == unit && showUnit && (keepNumber || unchangedEntry != null)) return this
         if (newUnit == unit && !showUnit) return withUnitVisibility(true)
         val parsed = entry()
-        if (input.isNotBlank() && parsed == null) return this
         if (parsed is DimensionEntry.TextOnly) return this // No length to convert or reinterpret.
         if (keepNumber) {
             // Keep the raw input. An explicitly typed length unit still wins.
             return DimensionValueDraft(target, input, newUnit, null, note, true)
         }
+        if (input.isNotBlank() && parsed == null) return this
         val measured = (parsed as? DimensionEntry.Measured)?.copy(displayUnit = newUnit)
         return DimensionValueDraft(
             target, measured?.inputText(newUnit) ?: input, newUnit, measured, note, true,
@@ -166,6 +166,8 @@ internal class DimensionValueDraft private constructor(
         unchangedEntry?.value?.length?.displayNumberForUi(unit)?.approximate == true
 
     fun isTextOnly(): Boolean = entry() is DimensionEntry.TextOnly
+
+    fun effectiveDisplayUnit(): LengthUnit = (entry() as? DimensionEntry.Measured)?.displayUnit ?: unit
 
     private fun entry(): DimensionEntry? = unchangedEntry ?: parseDimensionEntry(input, unit)
 

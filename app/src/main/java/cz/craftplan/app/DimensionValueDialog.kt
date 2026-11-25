@@ -422,7 +422,7 @@ internal fun DimensionValueDialog(
                     )
                 }
                 val unitControl: @Composable () -> Unit = {
-                    val unitText = if (draft.showUnit) draft.unit.symbol else stringResource(R.string.dimension_no_unit)
+                    val unitText = if (draft.showUnit && !draft.isTextOnly()) draft.effectiveDisplayUnit().symbol else stringResource(R.string.dimension_no_unit)
                     val unitLabel = stringResource(R.string.dimension_unit, unitText)
                     Box(Modifier.padding(horizontal = if (portrait) 4.dp else 0.dp)) {
                         OutlinedButton(
@@ -450,7 +450,7 @@ internal fun DimensionValueDialog(
                                     onClick = {
                                         onChange {
                                             val next = it.selectUnit(unit, keepNumber)
-                                            if (next === it && unit != it.unit && !keepNumber) {
+                                            if (next === it && unit != it.unit && !keepNumber && !it.isTextOnly()) {
                                                 showError = true
                                             } else {
                                                 if (valueField.text != next.input) valueField = editableText(next.input)
@@ -556,15 +556,20 @@ internal fun DimensionValueDialog(
                     }
                 }
                 val errorMessage: @Composable () -> Unit = {
-                    if (showError || draft.hasApproximateDisplay()) {
+                    if (showError || draft.hasApproximateDisplay() || draft.isTextOnly()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val color = if (showError) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
+                            if (showError || draft.hasApproximateDisplay()) {
                             Text(if (showError) "⚠ " else "≈ ", color = color)
+                        }
                             Text(
                                 stringResource(
-                                    if (showError) R.string.dimension_value_invalid
-                                    else R.string.dimension_approximate_display,
+                                    when {
+                                        showError -> R.string.dimension_value_invalid
+                                        draft.isTextOnly() -> R.string.dimension_text_only
+                                        else -> R.string.dimension_approximate_display
+                                    },
                                 ),
                                 color = color,
                                 style = MaterialTheme.typography.bodySmall,
