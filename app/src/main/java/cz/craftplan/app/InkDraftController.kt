@@ -35,6 +35,7 @@ internal class InkDraftController(
         val current: (DimensionField) -> InkDraftTarget?,
         val apply: (DimensionField, TextFieldValue) -> Unit,
         val failed: () -> Unit,
+        val diagnostics: EditorDiagnostics?,
     )
     private var binding: Binding? = null
     private var work: Job? = null
@@ -64,8 +65,9 @@ internal class InkDraftController(
         current: (DimensionField) -> InkDraftTarget?,
         apply: (DimensionField, TextFieldValue) -> Unit,
         failed: () -> Unit,
+        diagnostics: EditorDiagnostics? = null,
     ) {
-        binding = Binding(owner, current, apply, failed)
+        binding = Binding(owner, current, apply, failed, diagnostics)
         deliver()
     }
 
@@ -142,8 +144,13 @@ internal class InkDraftController(
         work?.cancel()
         work = scope.launch {
             delay(settleDelayMs)
+            val observer = binding?.diagnostics?.inkCandidateObserver(
+                captured.field, request.size, request.lastOrNull()?.lastOrNull()?.timeMs, hints.preContext)
             val result = try {
-                withTimeoutOrNull(5_000) { recognize(captured.language, request, hints) }
+                withTimeoutOrNull(5_000) {
+                    recognize(captured.language, request, if (observer == null) hints
+                        else hints.copy(diagnosticCandidates = observer))
+                }
             } catch (_: CancellationException) {
                 currentCoroutineContext().ensureActive()
                 null

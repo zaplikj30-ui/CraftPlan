@@ -296,9 +296,9 @@ internal fun DimensionValueDialog(
         }
         applyInput(field, edited)
     })
-    DisposableEffect(ink, inkOwner) {
+    DisposableEffect(ink, inkOwner, diagnostics) {
         ink.attach(inkOwner, { liveInkCurrent(it) }, { field, edited -> liveInkApply(field, edited) },
-            { Toast.makeText(context, R.string.ink_recognition_failed, Toast.LENGTH_SHORT).show() })
+            { Toast.makeText(context, R.string.ink_recognition_failed, Toast.LENGTH_SHORT).show() }, diagnostics)
         onDispose { ink.detach(inkOwner) }
     }
     fun inkOrigin(field: DimensionField): Offset? =

@@ -102,6 +102,8 @@ internal fun Modifier.inkFieldInput(
                         kind = kind, durationMs = duration, displacementDp = maximum / density,
                         pathDp = travel / density, rawAction = raw.actionMasked)
                     if (!canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
+                    if (ticket != null && actions.diagnostics?.recording == true)
+                        actions.diagnostics.penShape(actions.field, kind, points.snapshot(), density)
                     when (kind) {
                         PenContactKind.INK -> if (ticket != null) {
                             // A single point is a legitimate dot, not a canceled stroke.
@@ -272,6 +274,8 @@ internal fun Modifier.inkDialogInput(
                         rawAction = raw.actionMasked, consumed = owned, continuing = routed.continuing)
                     if (!owned || !canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
                     val activeTicket = ticket
+                    if (activeTicket != null && diagnostics?.recording == true)
+                        diagnostics.penShape(actions.field, kind, points.snapshot(), density)
                     if (kind == PenContactKind.INK) {
                         if (activeTicket != null) {
                             actions.finish(activeTicket, points.snapshot())

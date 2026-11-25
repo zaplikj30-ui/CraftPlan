@@ -24,7 +24,10 @@ import kotlinx.coroutines.withContext
 internal data class PenPoint(val x: Float, val y: Float, val timeMs: Long)
 
 internal data class InkWritingArea(val width: Float, val height: Float)
-internal data class InkRecognitionHints(val preContext: String, val area: InkWritingArea? = null)
+internal data class InkRecognitionHints(
+    val preContext: String, val area: InkWritingArea? = null,
+    val diagnosticCandidates: ((List<String>) -> Unit)? = null,
+)
 
 internal fun isTextInkLanguage(tag: String): Boolean {
     val locale = Locale.forLanguageTag(tag)
@@ -149,7 +152,9 @@ internal object InkModels {
                 it.width > 0f && it.height > 0f }?.let {
                 context.setWritingArea(WritingArea(it.width, it.height))
             }
-            recognizer.recognize(ink.build(), context.build()).awaitInkTask().candidates.firstOrNull()?.text
+            val candidates = recognizer.recognize(ink.build(), context.build()).awaitInkTask().candidates
+            hints.diagnosticCandidates?.invoke(candidates.map { it.text })
+            candidates.firstOrNull()?.text
         } finally {
             recognizer.close()
         }

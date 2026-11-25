@@ -8,6 +8,28 @@ import org.junit.Test
 
 class EditorDiagnosticsTest {
     @Test
+    fun inkShapeAndCandidateDiagnosticsAreBoundedAndDoNotExportText() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        assertEquals(null, recorder.inkCandidateObserver(DimensionField.VALUE, 1, 20, "secret"))
+        recorder.start()
+        recorder.penShape(DimensionField.VALUE, PenContactKind.INK,
+            listOf(PenPoint(10f, 20f, 10), PenPoint(12f, 26f, 15), PenPoint(6f, 30f, 20)), 2f)
+        val observer = requireNotNull(recorder.inkCandidateObserver(DimensionField.VALUE, 1, 20, "private123l"))
+        observer(listOf("l", " /", " ,", "secret customer 98765", "1", "L"))
+        val report = recorder.export("local", null, "test", 36)
+        assertTrue(report.contains("width_dp=3.0 height_dp=5.0 dx_dp=-2.0 dy_dp=5.0"))
+        assertTrue(report.contains("context_length=11 context_last=LOWER_L"))
+        assertTrue(report.contains("count=6 top=LOWER_L ranks=COMMA:3,SLASH:2,LOWER_L:1,UPPER_L:6,ONE:5"))
+        assertFalse(report.contains("secret customer"))
+        assertFalse(report.contains("private123"))
+        recorder.stop()
+        recorder.start()
+        observer(listOf(","))
+        assertFalse(recorder.export("local", null, "test", 36).contains("ink_candidates field="))
+    }
+
+
+    @Test
     fun penDiagnosticsRecordWindowAndClassificationOnlyWithinSessionAndSampleMoves() {
         var now = 0L
         val recorder = EditorDiagnostics(now = { now })

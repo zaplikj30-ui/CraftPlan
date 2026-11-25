@@ -44,6 +44,7 @@ internal class EditorDiagnostics(
     private val events = ArrayDeque<Event>()
     private val targetNumbers = HashMap<UUID, Int>()
     private var started: Long? = null
+    private var sessionIdentity = Any()
     private var ended: Long? = null
     private var nextMove = Long.MIN_VALUE
     private var nextPenHover = Long.MIN_VALUE
@@ -99,6 +100,7 @@ internal class EditorDiagnostics(
     }
 
     fun reset() {
+        sessionIdentity = Any()
         started = null
         ended = null
         events.clear()
@@ -259,6 +261,58 @@ internal class EditorDiagnostics(
             " consumed=${consumed ?: "NA"} selection=${selection ?: "NA"} continuing=${continuing ?: "NA"}")
     }
 
+    // Only aggregate, translation-independent shape measurements, never raw points.
+    fun penShape(field: DimensionField?, kind: PenContactKind, points: List<PenPoint>, density: Float) {
+        val time = recordingTime() ?: return
+        if (points.isEmpty() || !density.isFinite() || density <= 0f ||
+            points.any { !it.x.isFinite() || !it.y.isFinite() }) return
+        val first = points.first()
+        val last = points.last()
+        val dx = (last.x - first.x) / density
+        val dy = (last.y - first.y) / density
+        val chord = kotlin.math.hypot(dx.toDouble(), dy.toDouble())
+        var path = 0.0
+        var bend = 0.0
+        var previous = first
+        for (point in points) {
+            path += kotlin.math.hypot((point.x - previous.x).toDouble() / density,
+                (point.y - previous.y).toDouble() / density)
+            if (chord > 0.0) {
+                val x = (point.x - first.x).toDouble() / density
+                val y = (point.y - first.y).toDouble() / density
+                bend = maxOf(bend, kotlin.math.abs(dx * y - dy * x) / chord)
+            }
+            previous = point
+        }
+        val width = (points.maxOf { it.x } - points.minOf { it.x }) / density
+        val height = (points.maxOf { it.y } - points.minOf { it.y }) / density
+        val angle = if (chord > 0.0) Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())) else null
+        append(time, "pen_shape field=${field?.name ?: "NA"} kind=${kind.name}" +
+            " end_uptime_ms=${last.timeMs} samples=${points.size} width_dp=$width height_dp=$height" +
+            " dx_dp=$dx dy_dp=$dy angle_deg=${angle ?: "NA"} chord_dp=$chord path_dp=$path" +
+            " bend_dp=${if (chord > 0.0) bend else "NA"}")
+    }
+
+    // The callback is session-bound, cannot log arbitrary candidate strings,
+    // and is called on the controller coroutine's existing main-thread context.
+    fun inkCandidateObserver(field: DimensionField, strokeCount: Int, endMs: Long?,
+        preContext: String): ((List<String>) -> Unit)? {
+        if (recordingTime() == null) return null
+        val session = sessionIdentity
+        val contextClass = preContext.lastOrNull()?.let { diagnosticInkToken(it.toString()) } ?: "EMPTY"
+        val contextLength = preContext.length
+        return observe@{ candidates ->
+            if (sessionIdentity !== session) return@observe
+            val time = recordingTime() ?: return@observe
+            val tokens = candidates.map(::diagnosticInkToken)
+            val ranks = listOf("COMMA", "SLASH", "LOWER_L", "UPPER_L", "ONE", "LOWER_I", "UPPER_I", "DOT")
+                .joinToString(",") { token -> "$token:${tokens.indexOf(token).let { if (it < 0) "NA" else (it + 1).toString() }}" }
+            append(time, "ink_candidates field=${field.name} end_uptime_ms=${endMs ?: "NA"}" +
+                " strokes=$strokeCount context_length=$contextLength context_last=$contextClass" +
+                " count=${tokens.size} top=${tokens.firstOrNull() ?: "NONE"} ranks=$ranks")
+        }
+    }
+
     fun keypadHeight(heightPx: Int) {
         val time = recordingTime() ?: return
         append(time, "keypad_height px=$heightPx")
@@ -327,6 +381,7 @@ internal class EditorDiagnostics(
         appendLine("keypad_frame=separate dimension dialog window FrameMetrics, time=callback receipt, vsync_ms=intended frame start relative to recording; negative metrics unavailable; first_draw is SDK flag; excludes native IME. keypad_height=measured clipped height px; keypad_stage=stage markers, REVEAL_REQUEST detail 1=open/0=close, other timing details ns. No field contents.")
         appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
         appendLine("pen_window: dialog Window.Callback touch/generic motion before delegation; tool=Android tool type, event/down times=Android uptime, MOVE/HOVER_MOVE sampled at 100 ms; hover or touch intercepted by OS/IME may be absent. pen_gesture: Compose route, classification, dispatch; displacement/path are aggregate dp, no coordinates or text; NA=unavailable.")
+        appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character class, no raw text; join by end_uptime_ms and field, strokes is batch size.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }
@@ -363,4 +418,23 @@ internal class EditorDiagnostics(
     }
 
     private data class Event(val ms: Long, val body: String)
+}
+
+/** No arbitrary words, numbers or strings can enter the diagnostic report. */
+internal fun diagnosticInkToken(text: String): String = when (val token = text.trim(' ')) {
+    "," -> "COMMA"
+    "/" -> "SLASH"
+    "l" -> "LOWER_L"
+    "L" -> "UPPER_L"
+    "1" -> "ONE"
+    "i" -> "LOWER_I"
+    "I" -> "UPPER_I"
+    "." -> "DOT"
+    "" -> "SPACE_OR_EMPTY"
+    else -> when {
+        token.length != 1 -> "MULTI"
+        token[0].isDigit() -> "OTHER_DIGIT"
+        token[0].isLetter() -> "OTHER_LETTER"
+        else -> "OTHER_SYMBOL"
+    }
 }
