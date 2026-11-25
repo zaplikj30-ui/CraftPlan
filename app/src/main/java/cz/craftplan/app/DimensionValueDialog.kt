@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.res.Configuration
+import android.os.Build
 import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
 import androidx.compose.animation.core.Animatable
@@ -529,12 +530,26 @@ internal fun DimensionValueDialog(
                         focus.requestFocus()
                         withFrameNanos { }
                         if (!isCurrent()) return@LaunchedEffect
-                        ime?.show()
-                        if (it > 0) view.windowInsetsController?.show(AndroidWindowInsets.Type.ime())
+                        // Explicit keyboard visibility request, not a request
+                        // to begin handwriting. Prefer the window insets API;
+                        // retain Compose as the bounded fallback.
+                        val controller = view.windowInsetsController
+                        val useInsets = it == 0 && controller != null
+                        if (useInsets) controller?.show(AndroidWindowInsets.Type.ime())
+                        else if (ime != null) ime.show()
+                        else controller?.show(AndroidWindowInsets.Type.ime())
                         shown = withTimeoutOrNull(800L) {
                             awaitStableImeVisibility(visibility, true, stableMs = 180L)
                             true
                         } ?: false
+                        // Visibility without bottom occupancy may be a floating
+                        // IME; never invent an inset or repeatedly force it open.
+                        diagnostics?.nativeImeOpen(
+                            requested.field, it + 1, useInsets || ime == null, shown,
+                            latestImeVisible, imeInsets.getBottom(density),
+                            view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()),
+                            view.rootWindowInsets?.getInsets(AndroidWindowInsets.Type.ime())?.bottom,
+                        )
                     }
                 }
                 if (!isCurrent()) return@LaunchedEffect
@@ -1267,6 +1282,12 @@ private fun DimensionInputField(
                     next.startInputMethod(PlatformTextInputMethodRequest { attributes ->
                         val connection = request.createInputConnection(attributes)
                         EditorInfoCompat.setStylusHandwritingEnabled(attributes, false)
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            // Do not advertise platform handwriting editing or
+                            // previews for fields whose pen input we own.
+                            attributes.setSupportedHandwritingGestures(emptyList())
+                            attributes.setSupportedHandwritingGesturePreviews(emptySet())
+                        }
                         connection
                     })
                 } else awaitCancellation()

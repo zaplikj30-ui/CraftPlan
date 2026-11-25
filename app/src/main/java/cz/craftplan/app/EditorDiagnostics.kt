@@ -258,6 +258,17 @@ internal class EditorDiagnostics(
         append(time, "keypad_stage ${stage.name}" + (detail?.let { " detail=$it" } ?: ""))
     }
 
+    fun nativeImeOpen(field: DimensionField, attempt: Int, insetsRequest: Boolean,
+        acknowledged: Boolean, composeVisible: Boolean, composeBottomPx: Int,
+        nativeVisible: Boolean?, nativeBottomPx: Int?,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "native_ime_open field=${field.name} attempt=$attempt" +
+            " request=${if (insetsRequest) "INSETS" else "COMPOSE"} acknowledged=$acknowledged" +
+            " compose_visible=$composeVisible compose_bottom_px=$composeBottomPx" +
+            " native_visible=${nativeVisible ?: "NA"} native_bottom_px=${nativeBottomPx ?: "NA"}")
+    }
+
     // No positions, recognized text, strokes, pressure, or measurement values.
     fun penWindow(kind: PenWindowEvent, tool: Int, pointers: Int, eventMs: Long,
         downMs: Long, canceled: Boolean, history: Int,
@@ -414,6 +425,7 @@ internal class EditorDiagnostics(
         appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip/in_shared=measured bounds only; toolbar_grip: local px, dedicated/shared zone, release, yield or cancellation reason; OS-intercepted touches may be absent")
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
         appendLine("keypad_frame=separate dimension dialog window FrameMetrics, time=callback receipt, vsync_ms=intended frame start relative to recording; negative metrics unavailable; first_draw is SDK flag; excludes native IME. keypad_height=measured clipped height px; keypad_stage=stage markers, REVEAL_REQUEST detail 1=open/0=close, other timing details ns. No field contents.")
+        appendLine("native_ime_open: bounded explicit show attempts and visibility acknowledgment, Compose/native bottom insets in px; zero inset may be a floating keyboard or handwriting panel, not proof of IME mode. No text or IME identity.")
         appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
         appendLine("pen_window: dialog Window.Callback touch/generic motion before delegation; tool=Android tool type, event/down times=Android uptime, MOVE/HOVER_MOVE sampled at 100 ms; hover or touch intercepted by OS/IME may be absent. pen_gesture: Compose route, classification, dispatch; displacement/path are aggregate dp, no coordinates or text; NA=unavailable.")
         appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character/non-space class, no raw text; join by sample_end_uptime_ms (last retained point, not necessarily UP) and field, strokes is batch size.")

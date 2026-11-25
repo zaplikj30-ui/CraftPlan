@@ -8,6 +8,22 @@ import org.junit.Test
 
 class EditorDiagnosticsTest {
     @Test
+    fun nativeImeOpenRecordsActualInsetsOnlyDuringRecording() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        recorder.nativeImeOpen(DimensionField.VALUE, 1, true, false, false, 0, null, null)
+        recorder.start()
+        recorder.nativeImeOpen(DimensionField.VALUE, 1, true, true, true, 0, true, 0)
+        recorder.nativeImeOpen(DimensionField.NOTE, 2, false, false, false, 0, null, null)
+        recorder.stop()
+        recorder.nativeImeOpen(DimensionField.VALUE, 2, false, true, true, 300, true, 300)
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(2, report.lineSequence().count { it.contains("\tnative_ime_open ") })
+        assertTrue(report.contains("field=VALUE attempt=1 request=INSETS acknowledged=true compose_visible=true compose_bottom_px=0 native_visible=true native_bottom_px=0"))
+        assertTrue(report.contains("field=NOTE attempt=2 request=COMPOSE acknowledged=false compose_visible=false compose_bottom_px=0 native_visible=NA native_bottom_px=NA"))
+        assertFalse(report.contains("native_bottom_px=300"))
+    }
+
+    @Test
     fun calculatorDiagnosticsShowDecisionsAndPossibleReplacementWithoutText() {
         val recorder = EditorDiagnostics(now = { 0L })
         fun input(previous: String, next: String, decision: CalculationInputDecision,
