@@ -25,9 +25,9 @@ internal data class DimensionKeyboard(
     }
     fun hide() = copy(visible = false)
 
-    fun switch(target: DimensionField = field): DimensionKeyboard {
+    fun switch(): DimensionKeyboard {
         val next = if (mode == DimensionKeyboardMode.NUMERIC) DimensionKeyboardMode.SYSTEM else DimensionKeyboardMode.NUMERIC
-        return copy(field = target, mode = next, visible = true)
+        return copy(mode = next, visible = true)
     }
 }
 

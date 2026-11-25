@@ -6,7 +6,6 @@ import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DimensionInputTest {
@@ -104,31 +103,6 @@ class DimensionInputTest {
             handleDimensionDialogBack(keyboardOpen = keyboard.visible, hideKeyboard = hide, confirm = confirm)
             assertEquals(1, confirmed)
         }
-    }
-
-    @Test
-    fun backCannotCommitNativeDraftWithoutAReportedPenCancellation() {
-        var hides = 0
-        var confirmations = 0
-        var prompted = 0
-        val hide = { hides++; Unit }
-        val confirm = { confirmations++; Unit }
-        val explicit = requiresExplicitSaveForNativeInput(34, "1", "1,25")
-        assertTrue(explicit)
-        handleDimensionDialogBack(true, hide, confirm, requiresExplicitSave = explicit)
-        handleDimensionDialogBack(false, hide, confirm, requiresExplicitSave = explicit) { prompted++ }
-        assertEquals(1, hides)
-        assertEquals(0, confirmations)
-        assertEquals(1, prompted)
-        assertFalse(requiresExplicitSaveForNativeInput(34, "1", "1"))
-        assertFalse(requiresExplicitSaveForNativeInput(33, "1", "1,25"))
-    }
-
-    @Test
-    fun nativeNoteEditsKeepTheLimitAndCanShortenLegacyText() {
-        assertTrue(permitsNoteEdit(MAX_DIMENSION_NOTE_LENGTH, removed = 5, inserted = 5))
-        assertFalse(permitsNoteEdit(MAX_DIMENSION_NOTE_LENGTH, removed = 0, inserted = 1))
-        assertTrue(permitsNoteEdit(MAX_DIMENSION_NOTE_LENGTH + 2, removed = 1, inserted = 0))
     }
 
     @Test

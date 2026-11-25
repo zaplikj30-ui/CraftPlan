@@ -13,16 +13,6 @@ import org.junit.Test
 
 class DimensionKeyboardTest {
     @Test
-    fun keyboardSwitchTargetsTheFieldFocusedByAndroidHandwriting() {
-        val initial = DimensionKeyboard()
-        val notesWithSystem = initial.switch(DimensionField.NOTE)
-        assertEquals(DimensionField.NOTE, notesWithSystem.field)
-        assertTrue(notesWithSystem.systemOpen)
-        val valueWithKeypad = notesWithSystem.switch(DimensionField.VALUE)
-        assertEquals(initial, valueWithKeypad)
-    }
-
-    @Test
     fun valueReturnsToNumericAfterEditingNote() {
         val valueSystem = DimensionKeyboard().switch()
         assertTrue(valueSystem.systemOpen)
