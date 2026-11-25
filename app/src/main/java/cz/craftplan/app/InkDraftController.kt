@@ -261,12 +261,21 @@ internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candi
     // Never insert spaces between digits, into decimals/fractions or selections.
     val append = start == end && end == value.text.length
     val previous = value.text.lastOrNull()
-    val first = candidate.first()
+    // Pre-context can make the SDK infer a leading space. Keep the existing
+    // append rules for numeric fragments and punctuation; never change
+    // whitespace inside a result or a replacement of selected text.
+    val trimmed = candidate.trimStart(' ')
+    val firstTrimmed = trimmed.firstOrNull()
+    val adjusted = if (append && previous != null && firstTrimmed != null &&
+        (previous == ' ' || (previous.isDigit() && firstTrimmed.isDigit()) ||
+            firstTrimmed in ".,"))
+        trimmed else candidate
+    val first = adjusted.first()
     val separateWords = append && previous?.isLetterOrDigit() == true && first.isLetterOrDigit() &&
         (if (field == DimensionField.NOTE) previous.isLetter() || first.isLetter()
         else previous.isDigit() && first.isLetter() &&
-            !(first in "xX" && (candidate.length == 1 || candidate.drop(1).trimStart().firstOrNull()?.isDigit() == true)))
-    val insertion = if (separateWords) " $candidate" else candidate
+            !(first in "xX" && (adjusted.length == 1 || adjusted.drop(1).trimStart().firstOrNull()?.isDigit() == true)))
+    val insertion = if (separateWords) " $adjusted" else adjusted
     if (insertion.length > limit - (value.text.length - (end - start))) return null
     val text = value.text.replaceRange(start, end, insertion)
     return TextFieldValue(text, TextRange(start + insertion.length))
