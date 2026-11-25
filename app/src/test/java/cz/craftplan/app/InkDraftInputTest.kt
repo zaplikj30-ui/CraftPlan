@@ -134,6 +134,55 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun stationaryDotIsLimitedToFreshFieldReleaseAndDoesNotChangeTapsOrHolds() {
+        fun kind(duration: Long, displacement: Float = 0.5f, path: Float = 0.7f,
+                 pending: Boolean = false, writing: Boolean = false, enabled: Boolean = true) =
+            classifyFieldPenRelease(pending, writing, enabled, duration, displacement, path)
+        assertEquals(PenContactKind.TAP, kind(120))
+        assertEquals(PenContactKind.TAP, kind(199))
+        assertEquals(PenContactKind.DOT, kind(200))
+        assertEquals(PenContactKind.DOT, kind(400))
+        assertEquals(PenContactKind.TAP, kind(401))
+        assertEquals(PenContactKind.HOLD, kind(800))
+        assertEquals(PenContactKind.INK, kind(250, displacement = 2f, path = 2f))
+        assertEquals(PenContactKind.INK, kind(250, pending = true))
+        assertEquals(PenContactKind.INK, kind(250, writing = true))
+        assertEquals(PenContactKind.TAP, kind(250, enabled = false))
+        assertEquals(PenContactKind.TAP, classifyPenContact(false, 250, 0.5f, 0.7f))
+    }
+
+    @Test
+    fun explicitDotInsertsAtCapturedSelectionWithoutCallingRecognizer() = runBlocking {
+        val initial = TextFieldValue("Text A", TextRange(4))
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs", initial)
+        val controller = InkDraftController(this, recognize = { _, _ -> error("Unexpected recognition") })
+        var result: TextFieldValue? = null
+        controller.attach(Any(), { target }, { _, edited -> result = edited }, { error("Unexpected failure") })
+        controller.finishDot(controller.start(target)!!, listOf(PenPoint(1f, 1f, 250)))
+        assertEquals(TextFieldValue("Text. A", TextRange(5)), result)
+        assertFalse(controller.hasPendingInput)
+    }
+
+    @Test
+    fun staleExplicitDotRemainsPendingUntilRetryOrDiscard() = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs",
+            TextFieldValue("12", TextRange(2)))
+        var live = target.copy(input = TextFieldValue("34", TextRange(2)))
+        var result: TextFieldValue? = null
+        val controller = InkDraftController(this, recognize = { _, _ -> error("Unexpected recognition") })
+        controller.attach(Any(), { live }, { _, edited -> result = edited }, {})
+        controller.finishDot(controller.start(target)!!, listOf(PenPoint(1f, 1f, 250)))
+        assertTrue(controller.failed)
+        assertTrue(controller.hasPendingInput)
+        assertNull(controller.start(live))
+        assertNull(result)
+        live = target
+        controller.retry()
+        assertEquals(TextFieldValue("12.", TextRange(3)), result)
+        assertFalse(controller.hasPendingInput)
+    }
+
+    @Test
     fun shortInitialTapTolerancePreservesDeliberateInkAndActiveDots() {
         for ((duration, displacement, path) in listOf(
             Triple(33L, 2.7318637f, 3.1303012f),

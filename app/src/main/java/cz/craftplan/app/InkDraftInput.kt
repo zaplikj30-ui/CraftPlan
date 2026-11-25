@@ -95,7 +95,10 @@ internal fun Modifier.inkFieldInput(
                 // Once a new stroke is shown as ink it cannot open the keyboard
                 // or selection menu even if the user pauses before lifting.
                 if (!pending && classified == PenContactKind.INK) writing = true
-                val kind = if (writing) PenContactKind.INK else classified
+                val kind = if (!change.pressed)
+                    classifyFieldPenRelease(pending, writing, ticket != null, duration,
+                        maximum / density, travel / density)
+                    else if (writing) PenContactKind.INK else classified
                 if (!change.pressed) {
                     actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_RELEASE, actions.field,
                         eventMs = change.uptimeMillis, pending = pending, enabled = enabled, ticket = ticket != null,
@@ -108,6 +111,10 @@ internal fun Modifier.inkFieldInput(
                             actions.finish(ticket, points.snapshot())
                             delivered = true
                         } else if (!enabled) actions.missingModel() else actions.blocked()
+                        PenContactKind.DOT -> if (ticket != null) {
+                            actions.finishDot(ticket, points.snapshot())
+                            delivered = true
+                        }
                         PenContactKind.HOLD -> {
                             if (ticket != null) actions.cancel(ticket)
                             delivered = true
@@ -298,6 +305,7 @@ internal data class InkFieldCallbacks(
     val begin: () -> Long?,
     val preview: (Long, List<PenPoint>) -> Unit,
     val finish: (Long, List<PenPoint>) -> Unit,
+    val finishDot: (Long, List<PenPoint>) -> Unit,
     val cancel: (Long) -> Unit,
     val tap: () -> Unit,
     val penTap: (Offset, Long) -> Unit = { _, _ -> },

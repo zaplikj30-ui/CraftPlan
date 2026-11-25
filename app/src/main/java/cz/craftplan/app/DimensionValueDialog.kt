@@ -326,6 +326,7 @@ internal fun DimensionValueDialog(
             },
             preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(points)) },
             finish = { ticket, points -> ink.finish(ticket, routedPoints(points)) },
+            finishDot = { ticket, points -> ink.finishDot(ticket, routedPoints(points)) },
             cancel = ink::cancel,
             tap = tap,
             pending = { ink.hasPendingInput },

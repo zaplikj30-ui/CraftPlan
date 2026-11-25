@@ -43,6 +43,7 @@ internal class InkDraftController(
     private var completedStrokes = emptyList<List<PenPoint>>()
     private var contact: Long? = null
     private var candidate: String? = null
+    private var literalDot = false
     var preview by mutableStateOf<List<List<PenPoint>>>(emptyList())
         private set
     var failed by mutableStateOf(false)
@@ -74,7 +75,7 @@ internal class InkDraftController(
     fun start(next: InkDraftTarget): Long? {
         // Do not replace another target, an incomplete contact or a full batch.
         // The UI will offer waiting/retry instead of discarding old handwriting.
-        if (contact != null || (target != null && target != next) ||
+        if (literalDot || contact != null || (target != null && target != next) ||
             completedStrokes.size >= MAX_STROKES) return null
         revision++
         work?.cancel()
@@ -101,6 +102,18 @@ internal class InkDraftController(
         if (completedStrokes.isEmpty()) clearInk() else schedule()
     }
 
+    /** Explicit stationary dot in a field. Keep the same captured target,
+     * selection, limit and failure/retry contract as recognized handwriting. */
+    fun finishDot(ticket: Long, points: List<PenPoint>) {
+        if (contact != ticket || completedStrokes.isNotEmpty() || points.isEmpty()) return
+        contact = null
+        completedStrokes = listOf(points)
+        preview = completedStrokes
+        literalDot = true
+        candidate = "."
+        deliver()
+    }
+
     // Only the unfinished contact is canceled (palm/system cancellation or a tap).
     fun cancel(ticket: Long) {
         if (contact != ticket) return
@@ -111,8 +124,10 @@ internal class InkDraftController(
 
     fun retry() {
         if (contact == null && completedStrokes.isNotEmpty()) {
-            candidate = null
-            schedule()
+            if (literalDot) deliver() else {
+                candidate = null
+                schedule()
+            }
         }
     }
 
@@ -178,6 +193,7 @@ internal class InkDraftController(
         pendingField = null
         contact = null
         candidate = null
+        literalDot = false
         completedStrokes = emptyList()
         preview = emptyList()
         failed = false
@@ -192,7 +208,7 @@ internal class InkDraftController(
     }
 }
 
-internal enum class PenContactKind { TAP, HOLD, INK, WAIT }
+internal enum class PenContactKind { TAP, HOLD, INK, WAIT, DOT }
 
 /** Stationary holds tolerate jitter; tiny marks in an active batch are ink. */
 internal fun classifyPenContact(
@@ -208,6 +224,19 @@ internal fun classifyPenContact(
         PenContactKind.INK else PenContactKind.TAP
     displacementDp >= 1.5f || pathDp >= 3f -> PenContactKind.INK
     else -> PenContactKind.TAP
+}
+
+/** Only a real release inside a field may turn a stationary first contact
+ * into a literal dot. A tap on any other dialog control stays a tap. */
+internal fun classifyFieldPenRelease(
+    pending: Boolean, writing: Boolean, canWrite: Boolean,
+    durationMs: Long, displacementDp: Float, pathDp: Float,
+): PenContactKind {
+    if (writing) return PenContactKind.INK
+    val kind = classifyPenContact(pending, durationMs, displacementDp, pathDp)
+    return if (!pending && canWrite && kind == PenContactKind.TAP &&
+        durationMs in 200L..400L && displacementDp < 1.5f && pathDp < 3f)
+        PenContactKind.DOT else kind
 }
 
 internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candidate: String): TextFieldValue? {
