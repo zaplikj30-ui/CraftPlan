@@ -47,6 +47,7 @@ internal fun Modifier.inkFieldInput(
         var travel = 0f
         val points = PenStrokeBuffer(PenPoint(origin.x, origin.y, down.uptimeMillis))
         var delivered = false
+        var writing = false
         try {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -89,8 +90,12 @@ internal fun Modifier.inkFieldInput(
                 }
                 change.consume()
                 if (ticket != null) points.append(PenPoint(position.x, position.y, change.uptimeMillis))
-                val kind = classifyPenContact(pending, duration,
+                val classified = classifyPenContact(pending, duration,
                     maximum / density, travel / density)
+                // Once a new stroke is shown as ink it cannot open the keyboard
+                // or selection menu even if the user pauses before lifting.
+                if (!pending && classified == PenContactKind.INK) writing = true
+                val kind = if (writing) PenContactKind.INK else classified
                 if (!change.pressed) {
                     actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_RELEASE, actions.field,
                         eventMs = change.uptimeMillis, pending = pending, enabled = enabled, ticket = ticket != null,

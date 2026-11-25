@@ -202,6 +202,10 @@ internal fun classifyPenContact(
     pending && durationMs >= PEN_HOLD_MS && displacementDp < 1.5f && pathDp < 3f -> PenContactKind.WAIT
     pending -> PenContactKind.INK
     durationMs >= PEN_HOLD_MS -> PenContactKind.HOLD
+    // A brief first contact tolerates small slips and digitizer jitter.
+    // Existing ink and strong motion above retain their original sensitivity.
+    durationMs <= 120L -> if (displacementDp >= 6f || pathDp >= 12f)
+        PenContactKind.INK else PenContactKind.TAP
     displacementDp >= 1.5f || pathDp >= 3f -> PenContactKind.INK
     else -> PenContactKind.TAP
 }

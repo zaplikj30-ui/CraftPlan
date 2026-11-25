@@ -138,6 +138,28 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun shortInitialTapTolerancePreservesDeliberateInkAndActiveDots() {
+        for ((duration, displacement, path) in listOf(
+            Triple(33L, 2.7318637f, 3.1303012f),
+            Triple(43L, 2.3653305f, 4.8653708f),
+            Triple(40L, 5.054732f, 5.180271f),
+            Triple(35L, 2.1118329f, 2.677018f),
+            Triple(48L, 2.0519884f, 4.2577314f),
+            Triple(27L, 3.0922985f, 3.09603f),
+        )) {
+            assertEquals(PenContactKind.TAP, classifyPenContact(false, duration, displacement, path))
+            assertEquals(PenContactKind.INK, classifyPenContact(true, duration, displacement, path))
+        }
+        assertEquals(PenContactKind.TAP, classifyPenContact(false, 120, 5.99f, 11.99f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 120, 6f, 6f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 40, 4f, 12f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 121, 2f, 2f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 20, 9f, 9f))
+        assertEquals(PenContactKind.HOLD, classifyPenContact(false, 800, 0.5f, 1f))
+        assertEquals(PenContactKind.INK, classifyPenContact(true, 20, 0f, 0f))
+    }
+
+    @Test
     fun penClassificationAllowsJitterAndDotsWithoutTreatingWritingAsHold() {
         assertEquals(PenContactKind.HOLD, classifyPenContact(false, 900, 5f, 10f))
         assertEquals(PenContactKind.TAP, classifyPenContact(false, 80, 0.5f, 0.6f))
