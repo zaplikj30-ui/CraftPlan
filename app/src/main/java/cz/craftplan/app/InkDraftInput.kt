@@ -44,7 +44,23 @@ internal fun Modifier.inkFieldInput(
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 val raw = event.motionEvent
                 if (raw == null || raw.actionMasked == MotionEvent.ACTION_CANCEL ||
-                    raw.flags and MotionEvent.FLAG_CANCELED != 0 || event.changes.size != 1) break
+                    raw.flags and MotionEvent.FLAG_CANCELED != 0) break
+                if (event.changes.size != 1) {
+                    // Preserve the previously completed batch and consume the rest
+                    // of this rejected stylus contact, so native IME cannot take over.
+                    if (ticket != null) actions.cancel(ticket)
+                    delivered = true
+                    if (stylus) {
+                        change.consume()
+                        while (change.pressed) {
+                            val rejected = awaitPointerEvent(PointerEventPass.Initial)
+                            val next = rejected.changes.firstOrNull { it.id == down.id } ?: break
+                            next.consume()
+                            if (!next.pressed) break
+                        }
+                    }
+                    break
+                }
                 val position = change.position
                 if (!position.x.isFinite() || !position.y.isFinite()) break
                 maximum = maxOf(maximum, (position - origin).getDistance())
