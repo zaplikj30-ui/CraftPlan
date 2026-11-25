@@ -309,7 +309,7 @@ internal class EditorDiagnostics(
             val tokens = candidates.map(::diagnosticInkToken)
             val ranks = listOf("COMMA", "SLASH", "LOWER_L", "UPPER_L", "ONE", "LOWER_I", "UPPER_I", "DOT")
                 .joinToString(",") { token -> "$token:${tokens.indexOf(token).let { if (it < 0) "NA" else (it + 1).toString() }}" }
-            append(time, "ink_candidates field=${field.name} end_uptime_ms=${endMs ?: "NA"}" +
+            append(time, "ink_candidates field=${field.name} sample_end_uptime_ms=${endMs ?: "NA"}" +
                 " strokes=$strokeCount context_length=$contextLength context_last=$contextClass context_last_nonspace=$previousNonSpace" +
                 " count=${tokens.size} top=${tokens.firstOrNull() ?: "NONE"} ranks=$ranks")
         }
