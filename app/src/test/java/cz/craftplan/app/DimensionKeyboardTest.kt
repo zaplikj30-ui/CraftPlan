@@ -47,6 +47,36 @@ class DimensionKeyboardTest {
     }
 
     @Test
+    fun onlyActiveVisibleFieldIsEditableAndNumericModeBlocksNativeIme() {
+        for (field in DimensionField.entries) {
+            val other = DimensionField.entries.first { it != field }
+            val numeric = DimensionKeyboard(field, DimensionKeyboardMode.NUMERIC)
+            assertTrue(numeric.edits(field))
+            assertFalse(numeric.edits(other))
+            assertFalse(numeric.allowsSystemInput(field))
+            assertFalse(numeric.allowsSystemInput(other))
+            val system = numeric.switch()
+            assertTrue(system.edits(field))
+            assertTrue(system.allowsSystemInput(field))
+            assertFalse(system.edits(other))
+            assertFalse(system.allowsSystemInput(other))
+            for (keyboard in listOf(numeric.hide(), system.hide())) {
+                assertFalse(keyboard.edits(field))
+                assertFalse(keyboard.allowsSystemInput(field))
+            }
+        }
+    }
+
+    @Test
+    fun numericKeypadRespectsCursorAndSelectionInBothFields() {
+        val value = TextFieldValue("1234", TextRange(2))
+        assertEquals(TextFieldValue("12934", TextRange(3)), editDimensionInput(value, '9'))
+        assertEquals(TextFieldValue("134", TextRange(1)), editDimensionInput(value, '\b'))
+        val note = TextFieldValue("ABCD", TextRange(1, 3))
+        assertEquals(TextFieldValue("A7D", TextRange(2)), editDimensionInput(note, '7', MAX_DIMENSION_NOTE_LENGTH))
+    }
+
+    @Test
     fun modeChangesKeepDraftTextAndAllowEditingAtPreviousSelections() {
         val value = TextFieldValue("12,30", TextRange(0, 2))
         val note = TextFieldValue("Kóta A", TextRange(5))

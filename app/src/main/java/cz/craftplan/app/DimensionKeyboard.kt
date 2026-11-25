@@ -17,6 +17,10 @@ internal data class DimensionKeyboard(
 ) {
     val systemOpen: Boolean get() = visible && mode == DimensionKeyboardMode.SYSTEM
 
+    fun edits(target: DimensionField): Boolean = visible && field == target
+
+    fun allowsSystemInput(target: DimensionField): Boolean = systemOpen && field == target
+
     fun open(field: DimensionField): DimensionKeyboard {
         val nextMode = when {
             field == this.field -> mode

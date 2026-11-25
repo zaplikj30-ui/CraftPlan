@@ -72,6 +72,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -83,6 +84,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import androidx.compose.ui.platform.PlatformTextInputInterceptor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -109,6 +112,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withTimeoutOrNull
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
@@ -326,7 +330,14 @@ internal fun DimensionValueDialog(
                 imeHidePending = true
                 if (ime != null) ime.hide()
                 else view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
-                focusManager.clearFocus(force = true)
+                if (requested.visible) {
+                    // Our keypad edits the focused field, but its platform input
+                    // session is blocked below, so focus does not show the IME.
+                    val focus = if (requested.field == DimensionField.VALUE) valueFocus else noteFocus
+                    if (isCurrent()) focus.requestFocus()
+                } else {
+                    focusManager.clearFocus(force = true)
+                }
                 delay(120)
                 // If the previous show reaches Android late, retry via native
                 // insets while this request is current, never after a newer switch.
@@ -397,7 +408,8 @@ internal fun DimensionValueDialog(
                         modifier = modifier.bringIntoViewRequester(valueBounds),
                         value = valueField,
                         label = stringResource(R.string.dimension_value),
-                        editable = keys.systemOpen && keys.field == DimensionField.VALUE,
+                        editable = keys.edits(DimensionField.VALUE),
+                        allowSystemInput = keys.allowsSystemInput(DimensionField.VALUE),
                         active = keys.field == DimensionField.VALUE,
                         focus = valueFocus,
                         handwritingEnabled = inkSettings.readyLanguage != null,
@@ -514,7 +526,8 @@ internal fun DimensionValueDialog(
                             modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
                             value = noteField,
                             label = stringResource(R.string.dimension_note),
-                            editable = keys.systemOpen && keys.field == DimensionField.NOTE,
+                            editable = keys.edits(DimensionField.NOTE),
+                            allowSystemInput = keys.allowsSystemInput(DimensionField.NOTE),
                             active = keys.field == DimensionField.NOTE,
                             focus = noteFocus,
                             handwritingEnabled = inkSettings.readyLanguage != null,
@@ -684,12 +697,14 @@ internal fun DimensionValueDialog(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun DimensionInputField(
     modifier: Modifier,
     value: TextFieldValue,
     label: String,
     editable: Boolean,
+    allowSystemInput: Boolean,
     active: Boolean,
     focus: FocusRequester,
     handwritingEnabled: Boolean,
@@ -717,44 +732,54 @@ private fun DimensionInputField(
         val colors = OutlinedTextFieldDefaults.colors(
             unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
         )
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth()
-                // Allocate non-overlapping capture margins inside each field's parent.
-                .padding(horizontal = 5.dp, vertical = if (compactLabel) 4.dp else 6.dp)
-                .heightIn(min = if (compactLabel) 54.dp else 58.dp).focusRequester(focus)
-                .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
-            singleLine = true,
-            readOnly = !editable,
-            // Keep the Material floating label and border with tighter internal padding.
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
-            cursorBrush = SolidColor(if (isError) scheme.error else scheme.primary),
-            interactionSource = interaction,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Text,
-                autoCorrectEnabled = isNote,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(onDone = { onDone() }),
-            decorationBox = { inner ->
-                OutlinedTextFieldDefaults.DecorationBox(
-                    value = value.text,
-                    innerTextField = inner,
-                    enabled = true,
-                    singleLine = true,
-                    visualTransformation = VisualTransformation.None,
-                    interactionSource = interaction,
-                    isError = isError,
-                    label = {
-                        if (compactLabel) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        else Text(label)
-                    },
-                    colors = colors,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
-                )
-            },
-        )
+        // Keep the actual text field editable for cursor/selection in numeric
+        // mode. Block only the native IME connection, not Compose editing.
+        val platformInput = remember(allowSystemInput) {
+            PlatformTextInputInterceptor { request, next ->
+                if (allowSystemInput) next.startInputMethod(request)
+                else awaitCancellation()
+            }
+        }
+        InterceptPlatformTextInput(interceptor = platformInput) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth()
+                    // Allocate non-overlapping capture margins inside each field's parent.
+                    .padding(horizontal = 5.dp, vertical = if (compactLabel) 4.dp else 6.dp)
+                    .heightIn(min = if (compactLabel) 54.dp else 58.dp).focusRequester(focus)
+                    .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
+                singleLine = true,
+                readOnly = !editable,
+                // Keep the Material floating label and border with tighter internal padding.
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
+                cursorBrush = SolidColor(if (isError) scheme.error else scheme.primary),
+                interactionSource = interaction,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    autoCorrectEnabled = isNote,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { onDone() }),
+                decorationBox = { inner ->
+                    OutlinedTextFieldDefaults.DecorationBox(
+                        value = value.text,
+                        innerTextField = inner,
+                        enabled = true,
+                        singleLine = true,
+                        visualTransformation = VisualTransformation.None,
+                        interactionSource = interaction,
+                        isError = isError,
+                        label = {
+                            if (compactLabel) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            else Text(label)
+                        },
+                        colors = colors,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                    )
+                },
+            )
+        }
     }
 }
 
