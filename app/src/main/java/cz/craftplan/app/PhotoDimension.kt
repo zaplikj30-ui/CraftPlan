@@ -35,6 +35,8 @@ internal data class PhotoDimension(
     val showUnit: Boolean = true,
     /** Relative displacement from the midpoint along the rendered dimension. */
     val labelT: Float = 0f,
+    /** A visible diameter marker, independent of the exact length. */
+    val labelPrefix: String = "",
 ) {
     val measurementState: MeasurementState
         get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED
@@ -46,6 +48,7 @@ internal data class PhotoDimension(
         if (measured == null) return textLabel?.takeIf { it.isNotBlank() }
         val shown = measured.length.displayNumberForUi(displayUnit)
         return listOfNotNull(
+            labelPrefix.takeIf { it.isNotBlank() },
             if (shown.approximate) "≈" + shown.text else shown.text,
             displayUnit.symbol.takeIf { showUnit },
             labelSuffix.takeIf { it.isNotBlank() },
@@ -54,7 +57,7 @@ internal data class PhotoDimension(
 
     fun withManualLength(input: String, selectedUnit: LengthUnit? = null): PhotoDimension {
         val validated = ManualLengthMeasurement.parse(input, selectedUnit) ?: return this
-        return copy(measurement = validated, labelSuffix = "", textLabel = null)
+        return copy(measurement = validated, labelPrefix = "", labelSuffix = "", textLabel = null)
     }
 
     init {

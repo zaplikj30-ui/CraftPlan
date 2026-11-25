@@ -2,7 +2,15 @@ package cz.craftplan.app
 
 /** A parsed label has either an exact measurement with optional visible text, or only text. */
 internal sealed interface DimensionEntry {
-    data class Measured(val value: ManualLengthMeasurement, val suffix: String) : DimensionEntry
+    data class Measured(
+        val value: ManualLengthMeasurement,
+        val suffix: String,
+        val displayUnit: LengthUnit,
+        val prefix: String = "",
+    ) : DimensionEntry {
+        fun inputText(unit: LengthUnit): String = listOf(prefix, value.length.displayNumberForUi(unit).text, suffix)
+            .filter(String::isNotBlank).joinToString(" ")
+    }
     data class TextOnly(val text: String) : DimensionEntry
 }
 
@@ -26,31 +34,68 @@ private fun isLabelSuffix(text: String): Boolean {
             .firstOrNull()?.isDigit() == true)
 }
 
-/**
- * A numerical prefix must be a valid exact length. Free text follows it after whitespace.
- * Invalid expressions beginning with a number must never silently become measured values.
- */
-internal fun parseDimensionEntry(
-    input: String,
-    unit: LengthUnit,
-    requireSelectedUnit: Boolean = false,
-): DimensionEntry? {
-    if (input.isBlank() || input.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
-    val parseNumber: (String) -> ManualLengthMeasurement? = { number ->
-        if (requireSelectedUnit) ManualLengthMeasurement.parse(number, unit)
-        else ManualLengthMeasurement.parse(number) ?: ManualLengthMeasurement.parse(number, unit)
+// These are display annotations, not length units or calculations. The exact
+// length parser is deliberately unchanged.
+private val nonLengthUnit = Regex(
+    """(?i)^(?:[µμmcdk]?m[²³23]|%|‰|°|kg|g|mg|l|ml|cl|dl|pa|bar|w|kw|v|a|hz)(?=$|[\s.,;:])""",
+)
+private val annotationNumber = Regex("""^[0-9]+(?:[.,][0-9]+)?""")
+private fun isNonLengthTail(text: String): Boolean {
+    val tail = text.trimStart()
+    return tail.isNotEmpty() && (
+        nonLengthUnit.containsMatchIn(tail) ||
+        tail.first() in "%‰°+−-×÷=±*<>≤≥!?:;()[]{}" ||
+        Regex("""^[xX](?=\s*[0-9])""").containsMatchIn(tail)
+    )
+}
+
+private fun isExplicitTextLabel(text: String): Boolean {
+    if (!text.first().isDigit()) return true
+    val number = annotationNumber.find(text)?.value ?: return false
+    val tail = text.drop(number.length)
+    // Do not turn a malformed number, fraction, or overflowing bare length
+    // into a successful length (or silently rescue it as a label).
+    if (isNonLengthTail(tail)) return true
+    if (tail.isNotEmpty() && !tail.first().isWhitespace() && tail.first().isLetter()) {
+        // Attached descriptive text is a label, but an actual length unit
+        // remains subject to exact validation.
+        return LengthUnit.entries.none { tail.equals(it.symbol, ignoreCase = true) }
     }
-    parseNumber(input)?.let { return DimensionEntry.Measured(it, "") }
-    // Try the longest numerical prefix first, so imperial compound fractions remain intact.
-    for (i in input.indices.reversed()) {
-        if (!input[i].isWhitespace()) continue
-        val prefix = input.substring(0, i).trimEnd()
-        val suffix = input.substring(i).trim()
-        if (suffix.isEmpty()) continue
-        parseNumber(prefix)?.let { return if (isLabelSuffix(suffix)) DimensionEntry.Measured(it, suffix) else null }
-    }
+    return false
+}
+
+/** Only an unambiguous exact length becomes a measurement. */
+internal fun parseDimensionEntry(input: String, unit: LengthUnit): DimensionEntry? {
+    if (input.isBlank() || input.length > ManualLengthMeasurement.MAX_INPUT_LENGTH ||
+        input.any { it == '\r' || it == '\n' || it == '\u0000' }) return null
     val trimmed = input.trim()
-    return if (trimmed.first().isLetter()) DimensionEntry.TextOnly(trimmed) else null
+    val prefix = if (trimmed.startsWith("Ø")) "Ø" else ""
+    val body = if (prefix.isEmpty()) trimmed else trimmed.drop(1).trimStart()
+    if (body.isEmpty()) return DimensionEntry.TextOnly(trimmed)
+
+    fun parseNumber(number: String): DimensionEntry.Measured? {
+        val explicit = ManualLengthMeasurement.parse(number)
+        if (explicit != null) {
+            val display = (explicit.originalUnit as? OriginalLengthUnit.Single)?.unit ?: unit
+            return DimensionEntry.Measured(explicit, "", display, prefix)
+        }
+        val implicit = ManualLengthMeasurement.parse(number, unit) ?: return null
+        return DimensionEntry.Measured(implicit, "", unit, prefix)
+    }
+
+    parseNumber(body)?.let { return it }
+    // Longest prefix first, including explicit units and compound imperial lengths.
+    for (i in body.indices.reversed()) {
+        if (!body[i].isWhitespace()) continue
+        val number = body.substring(0, i).trimEnd()
+        val suffix = body.substring(i).trim()
+        if (suffix.isEmpty()) continue
+        parseNumber(number)?.let {
+            if (isNonLengthTail(suffix)) return DimensionEntry.TextOnly(trimmed)
+            return if (isLabelSuffix(suffix)) it.copy(suffix = suffix) else null
+        }
+    }
+    return if (isExplicitTextLabel(body)) DimensionEntry.TextOnly(trimmed) else null
 }
 
 /** A pending edit. Only confirmation changes the dimension or its note. */
@@ -59,7 +104,6 @@ internal class DimensionValueDraft private constructor(
     val input: String,
     val unit: LengthUnit,
     private val unchangedEntry: DimensionEntry.Measured?,
-    private val requireSelectedUnit: Boolean = false,
     val note: String = "",
     val showUnit: Boolean = true,
 ) {
@@ -68,10 +112,10 @@ internal class DimensionValueDraft private constructor(
     constructor(dimension: PhotoDimension) : this(
         dimension,
         dimension.textLabel ?: dimension.measurement?.length?.displayNumberForUi(dimension.displayUnit)?.text
-            ?.let { number -> listOf(number, dimension.labelSuffix).filter { it.isNotBlank() }.joinToString(" ") }
+            ?.let { number -> listOf(dimension.labelPrefix, number, dimension.labelSuffix).filter { it.isNotBlank() }.joinToString(" ") }
             .orEmpty(),
         dimension.displayUnit,
-        dimension.measurement?.let { DimensionEntry.Measured(it, dimension.labelSuffix) },
+        dimension.measurement?.let { DimensionEntry.Measured(it, dimension.labelSuffix, dimension.displayUnit, dimension.labelPrefix) },
         note = dimension.note,
         showUnit = dimension.showUnit,
     )
@@ -79,73 +123,71 @@ internal class DimensionValueDraft private constructor(
     fun type(text: String): DimensionValueDraft {
         if (text == input) return this
         val preserved = unchangedEntry?.let { entry ->
-            val number = entry.value.length.displayNumberForUi(unit).text
+            val number = listOf(entry.prefix, entry.value.length.displayNumberForUi(unit).text)
+                .filter(String::isNotBlank).joinToString(" ")
             val trimmed = text.trim()
             if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) null
             else if (trimmed == number) entry.copy(suffix = "")
             else if (trimmed.startsWith(number) && trimmed.getOrNull(number.length)?.isWhitespace() == true) {
                 val suffix = trimmed.drop(number.length).trimStart()
-                entry.copy(suffix = suffix)
+                entry.copy(suffix = suffix).takeIf { isLabelSuffix(suffix) && !isNonLengthTail(suffix) }
             } else null
         }
-        return DimensionValueDraft(target, text, unit, preserved, requireSelectedUnit, note, showUnit)
+        return DimensionValueDraft(target, text, unit, preserved, note, showUnit)
     }
 
     fun withNote(text: String): DimensionValueDraft =
         if (text == note) this else DimensionValueDraft(
-            target, input, unit, unchangedEntry, requireSelectedUnit, text, showUnit,
+            target, input, unit, unchangedEntry, text, showUnit,
         )
 
     fun withUnitVisibility(visible: Boolean): DimensionValueDraft =
         if (visible == showUnit) this else DimensionValueDraft(
-            target, input, unit, unchangedEntry, requireSelectedUnit, note, visible,
+            target, input, unit, unchangedEntry, note, visible,
         )
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
         if (newUnit == unit && showUnit && (keepNumber || unchangedEntry != null)) return this
         if (newUnit == unit && !showUnit) return withUnitVisibility(true)
-        // Selecting the already visible unit still converts a newly typed explicit unit.
-        if (keepNumber) {
-            // Conflicting explicit suffixes must be fixed by the user.
-            return DimensionValueDraft(target, input, newUnit, null, true, note, true)
-        }
         val parsed = entry()
-        if (input.isNotBlank() && parsed == null) return this // Reject silently broken conversion.
-        val entry = parsed as? DimensionEntry.Measured
-        val converted = entry?.value?.length?.displayNumberForUi(newUnit)?.text?.let {
-            listOf(it, entry.suffix).filter(String::isNotBlank).joinToString(" ")
-        } ?: input
+        if (input.isNotBlank() && parsed == null) return this
+        if (parsed is DimensionEntry.TextOnly) return this // No length to convert or reinterpret.
+        if (keepNumber) {
+            // Keep the raw input. An explicitly typed length unit still wins.
+            return DimensionValueDraft(target, input, newUnit, null, note, true)
+        }
+        val measured = (parsed as? DimensionEntry.Measured)?.copy(displayUnit = newUnit)
         return DimensionValueDraft(
-            target, converted, newUnit, entry,
-            requireSelectedUnit && entry == null, note, true,
+            target, measured?.inputText(newUnit) ?: input, newUnit, measured, note, true,
         )
     }
 
     fun hasApproximateDisplay(): Boolean =
         unchangedEntry?.value?.length?.displayNumberForUi(unit)?.approximate == true
 
-    private fun entry(): DimensionEntry? = unchangedEntry?.let {
-        if (it.suffix.isEmpty() || isLabelSuffix(it.suffix)) it else return null
-    } ?: parseDimensionEntry(input, unit, requireSelectedUnit)
+    fun isTextOnly(): Boolean = entry() is DimensionEntry.TextOnly
+
+    private fun entry(): DimensionEntry? = unchangedEntry ?: parseDimensionEntry(input, unit)
 
     fun confirm(current: PhotoDimension): PhotoDimension? {
         if (target.id != current.id || target.photoId != current.photoId ||
             target.measurement != current.measurement || target.displayUnit != current.displayUnit ||
-            target.labelSuffix != current.labelSuffix || target.textLabel != current.textLabel ||
+            target.labelSuffix != current.labelSuffix || target.labelPrefix != current.labelPrefix ||
+            target.textLabel != current.textLabel ||
             target.note != current.note || target.showUnit != current.showUnit
         ) return null
         if (note.length > MAX_DIMENSION_NOTE_LENGTH) return null
         return when (val entry = entry()) {
             is DimensionEntry.Measured -> current.copy(
-                measurement = entry.value, displayUnit = unit,
-                labelSuffix = entry.suffix, textLabel = null, note = note, showUnit = showUnit,
+                measurement = entry.value, displayUnit = entry.displayUnit,
+                labelPrefix = entry.prefix, labelSuffix = entry.suffix, textLabel = null, note = note, showUnit = showUnit,
             )
             is DimensionEntry.TextOnly -> current.copy(
-                measurement = null, displayUnit = unit, labelSuffix = "",
+                measurement = null, displayUnit = unit, labelPrefix = "", labelSuffix = "",
                 textLabel = entry.text, note = note, showUnit = showUnit,
             )
             null -> if (input.isBlank()) current.copy(
-                measurement = null, displayUnit = unit, labelSuffix = "",
+                measurement = null, displayUnit = unit, labelPrefix = "", labelSuffix = "",
                 textLabel = null, note = note, showUnit = showUnit,
             ) else null
         }
