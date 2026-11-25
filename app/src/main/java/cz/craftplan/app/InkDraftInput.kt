@@ -137,8 +137,12 @@ internal fun Modifier.inkFieldInput(
     }
 }
 
-// 32 dp is approximately 5 mm at nominal Android density, not a physical calibration.
-internal const val INK_START_MARGIN_DP = 32f
+// The outer field already includes 5 dp horizontal and 6 dp top padding.
+// Relative to its visible border: nominal 32 dp above, 6 dp to each
+// side and 6 dp below. These are not physically calibrated millimeters.
+internal const val INK_START_TOP_DP = 26f
+internal const val INK_START_SIDE_DP = 1f
+internal const val INK_START_BOTTOM_DP = 6f
 
 internal data class DialogInkStart(val field: DimensionField, val continuing: Boolean)
 
@@ -151,7 +155,9 @@ internal fun dialogInkStart(
     preferred: DimensionField,
     valueBounds: Rect?,
     noteBounds: Rect?,
-    marginPx: Float,
+    topMarginPx: Float,
+    sideMarginPx: Float,
+    bottomMarginPx: Float,
     visibleKeypadBounds: Rect? = null,
 ): DialogInkStart? {
     if (!position.x.isFinite() || !position.y.isFinite()) return null
@@ -167,12 +173,16 @@ internal fun dialogInkStart(
         bounds?.takeIf { it.width > 0f && it.height > 0f }?.let { field to it }
     }
     if (fields.any { (_, bounds) -> bounds.contains(position) }) return null
-    val nearest = fields.map { (field, bounds) ->
+    val nearest = fields.filter { (_, bounds) ->
+        position.x >= bounds.left - sideMarginPx &&
+            position.x < bounds.right + sideMarginPx &&
+            position.y >= bounds.top - topMarginPx &&
+            position.y < bounds.bottom + bottomMarginPx
+    }.map { (field, bounds) ->
         val dx = maxOf(bounds.left - position.x, 0f, position.x - bounds.right)
         val dy = maxOf(bounds.top - position.y, 0f, position.y - bounds.bottom)
         field to (dx * dx + dy * dy)
-    }.filter { (_, squared) -> squared <= marginPx * marginPx }
-        .minWithOrNull(compareBy<Pair<DimensionField, Float>> { it.second }
+    }.minWithOrNull(compareBy<Pair<DimensionField, Float>> { it.second }
             .thenBy { if (it.first == preferred) 0 else 1 })
     return nearest?.let { DialogInkStart(it.first, continuing = false) }
 }

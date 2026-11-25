@@ -560,7 +560,9 @@ internal fun DimensionValueDialog(
             val origin = dialogInkOrigin
             val start = origin?.let {
                 dialogInkStart(local + it, ink.pendingField, keys.field, valueInkBounds, noteInkBounds,
-                    with(density) { INK_START_MARGIN_DP.dp.toPx() },
+                    topMarginPx = with(density) { INK_START_TOP_DP.dp.toPx() },
+                    sideMarginPx = with(density) { INK_START_SIDE_DP.dp.toPx() },
+                    bottomMarginPx = with(density) { INK_START_BOTTOM_DP.dp.toPx() },
                     visibleKeypadBounds = if (numericRequested || revealContent) keypadInkBounds else null)
             }
             start?.let {

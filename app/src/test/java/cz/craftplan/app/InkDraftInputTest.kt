@@ -23,56 +23,52 @@ class InkDraftInputTest {
     fun dialogInkRoutesPendingBatchEverywhereAndOnlyNewWritingNearFields() {
         val value = Rect(10f, 10f, 110f, 30f)
         val note = Rect(10f, 50f, 110f, 70f)
-        fun route(x: Float, y: Float, pending: DimensionField? = null,
-                  preferred: DimensionField = DimensionField.VALUE) =
-            dialogInkStart(Offset(x, y), pending, preferred, value, note, 20f)
-        // Existing field-local tap/hold/ink stays in charge when no batch exists.
+        fun route(x: Float, y: Float, pending: DimensionField? = null) =
+            dialogInkStart(Offset(x, y), pending, DimensionField.VALUE, value, note, 26f, 1f, 6f)
         assertNull(route(40f, 20f))
         assertNull(route(40f, 60f))
         assertEquals(DialogInkStart(DimensionField.VALUE, false), route(40f, 0f))
-        assertEquals(DialogInkStart(DimensionField.NOTE, false), route(120f, 65f))
-        assertEquals(DialogInkStart(DimensionField.NOTE, false),
-            route(40f, 40f, preferred = DimensionField.NOTE))
-        assertNull(route(130f, 90f)) // Outside the radial margin.
+        assertEquals(DialogInkStart(DimensionField.NOTE, false), route(110.5f, 65f))
+        assertNull(route(112f, 65f))
+        assertEquals(DialogInkStart(DimensionField.NOTE, false), route(40f, 40f))
+        assertNull(route(130f, 90f))
         assertNull(route(40f, 150f))
         for (point in listOf(Offset(40f, 60f), Offset(40f, 150f), Offset(300f, 2f))) {
             assertEquals(DialogInkStart(DimensionField.VALUE, true),
                 route(point.x, point.y, pending = DimensionField.VALUE))
         }
         assertNull(dialogInkStart(Offset(40f, 20f), null, DimensionField.VALUE,
-            Rect.Zero, null, 20f))
+            Rect.Zero, null, 26f, 1f, 6f))
         assertNull(dialogInkStart(Offset(Float.NaN, 20f), DimensionField.NOTE,
-            DimensionField.VALUE, value, note, 20f))
+            DimensionField.VALUE, value, note, 26f, 1f, 6f))
     }
 
     @Test
-    fun keypadTopLimitsNewInkButNeverAnActiveBatch() {
-        val value = Rect(10f, 10f, 110f, 30f)
-        val note = Rect(10f, 40f, 110f, 60f)
-        val portrait = Rect(0f, 64f, 120f, 200f)
-        val landscape = Rect(35f, 64f, 90f, 160f)
-        fun route(x: Float, y: Float, keypad: Rect?, pending: DimensionField? = null) =
-            dialogInkStart(Offset(x, y), pending, DimensionField.VALUE,
-                value, note, 32f, visibleKeypadBounds = keypad)
-        for (keypad in listOf(portrait, landscape)) {
-            assertEquals(DialogInkStart(DimensionField.VALUE, false), route(40f, 0f, keypad))
-            assertEquals(DialogInkStart(DimensionField.NOTE, false), route(40f, 63.9f, keypad))
-            assertNull(route(40f, 64f, keypad))
-            assertNull(route(40f, 65f, keypad))
-            assertNull(route(15f, 65f, keypad)) // Same boundary on narrow landscape keypad.
-            for (field in DimensionField.entries) {
-                assertEquals(DialogInkStart(field, true), route(40f, 65f, keypad, field))
-                assertEquals(DialogInkStart(field, true), route(40f, 150f, keypad, field))
+    fun keypadAndFieldEdgesLimitNewInkInPortraitAndLandscapeButNeverActiveBatch() {
+        val value = Rect(10f, 40f, 110f, 60f)
+        for (note in listOf(Rect(10f, 90f, 110f, 110f), Rect(130f, 40f, 230f, 60f))) {
+            val top = note.bottom + 3f
+            val keypad = Rect(0f, top, 250f, 200f)
+            fun route(x: Float, y: Float, panel: Rect? = keypad, pending: DimensionField? = null) =
+                dialogInkStart(Offset(x, y), pending, DimensionField.VALUE,
+                    value, note, 26f, 1f, 6f, visibleKeypadBounds = panel)
+            for ((field, bounds) in listOf(DimensionField.VALUE to value, DimensionField.NOTE to note)) {
+                val x = bounds.center.x
+                assertEquals(DialogInkStart(field, false), route(x, bounds.top - 10f))
+                assertEquals(DialogInkStart(field, false), route(bounds.right + .5f, bounds.center.y))
+                assertNull(route(bounds.right + 2f, bounds.center.y))
+                assertNull(route(bounds.left - 2f, bounds.center.y))
+                assertEquals(DialogInkStart(field, true), route(x, top + 10f, pending = field))
+                assertEquals(DialogInkStart(field, false), route(x, bounds.bottom + 2f))
+            }
+            val x = note.center.x
+            assertNull(route(x, top))
+            assertNull(route(x, top + 1f))
+            assertNull(route(x, top + 12f, panel = null))
+            for (panel in listOf(null, Rect.Zero, Rect(0f, top, 250f, top))) {
+                assertEquals(DialogInkStart(DimensionField.NOTE, false), route(x, top + 1f, panel))
             }
         }
-        // Hidden or fully clipped keypad does not restrict the original margin.
-        for (keypad in listOf(null, Rect.Zero, Rect(0f, 64f, 120f, 64f))) {
-            assertEquals(DialogInkStart(DimensionField.NOTE, false), route(40f, 65f, keypad))
-        }
-        // Boundary follows actual layout, rather than a fixed distance from the note.
-        assertEquals(DialogInkStart(DimensionField.NOTE, false),
-            route(40f, 65f, Rect(0f, 70f, 120f, 200f)))
-        assertNull(route(40f, 65f, Rect(0f, 62f, 120f, 200f)))
     }
 
     @Test
