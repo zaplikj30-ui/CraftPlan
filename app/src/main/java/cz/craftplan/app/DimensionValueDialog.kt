@@ -850,9 +850,10 @@ private fun DimensionInputField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth()
-                    // Allocate non-overlapping capture margins inside each field's parent.
-                    .padding(horizontal = 5.dp, vertical = if (compactLabel) 4.dp else 6.dp)
-                    .heightIn(min = if (compactLabel) 54.dp else 58.dp).focusRequester(focus)
+                    // Same compact visible field in both orientations. The parent owns
+                    // the pen contact beyond the field; vertical gaps need not grow for ink.
+                    .padding(horizontal = 5.dp)
+                    .heightIn(min = 54.dp).focusRequester(focus)
                     .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
                 singleLine = true,
                 readOnly = !editable,
