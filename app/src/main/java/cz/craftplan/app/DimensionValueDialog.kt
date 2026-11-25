@@ -2,8 +2,8 @@ package cz.craftplan.app
 
 import android.content.Context
 import android.content.res.Configuration
+import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -48,12 +48,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,6 +66,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +78,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -132,8 +138,20 @@ internal fun DimensionValueDialog(
     var valueField by remember { mutableStateOf(editableText(draft.input)) }
     var noteField by remember { mutableStateOf(editableText(draft.note)) }
     var unitsOpen by remember { mutableStateOf(false) }
+    val inkSettings = rememberInkLanguageSettings()
+    val scope = rememberCoroutineScope()
+    val ink = remember(draft.targetId, scope) { InkDraftController(scope) }
+    DisposableEffect(ink) { onDispose { ink.interrupt() } }
+    val currentDraftId by rememberUpdatedState(draft.targetId)
+    var inkNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    fun currentInkTarget(field: DimensionField): InkDraftTarget? {
+        val language = inkSettings.readyLanguage ?: return null
+        val input = if (field == DimensionField.VALUE) valueField else noteField
+        return InkDraftTarget(currentDraftId, field, language, input)
+    }
     val applyInput: (DimensionField, TextFieldValue) -> Unit = { target, edited ->
         val previous = if (target == DimensionField.VALUE) valueField else noteField
+        if (previous != edited) ink.interrupt()
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
             edited.text.length < previous.text.length
         ) {
@@ -144,7 +162,33 @@ internal fun DimensionValueDialog(
             }
         }
     }
-    val confirm: () -> Unit = { if (!onConfirm()) showError = true }
+    fun inkCallbacks(field: DimensionField, tap: () -> Unit) = InkFieldCallbacks(
+        begin = { currentInkTarget(field)?.let(ink::start) },
+        preview = ink::previewStroke,
+        finish = { ticket, points ->
+            ink.finish(
+                ticket, points, { currentInkTarget(field) },
+                apply = { edited ->
+                    inkNeedsSave = true
+                    if (keys.field != field) showSymbols = false
+                    keys = keys.copy(field = field)
+                    applyInput(field, edited)
+                },
+                failed = { Toast.makeText(context, R.string.ink_recognition_failed, Toast.LENGTH_SHORT).show() },
+            )
+        },
+        cancel = ink::cancel,
+        tap = tap,
+        otherContact = ink::interrupt,
+    )
+    val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
+    val confirm: () -> Unit = {
+        if (ink.hasPendingInput) waitForInk()
+        else {
+            ink.interrupt()
+            if (!onConfirm()) showError = true
+        }
+    }
     var handleBack by remember { mutableStateOf<() -> Unit>({}) }
     Dialog(
         onDismissRequest = { handleBack() },
@@ -210,12 +254,18 @@ internal fun DimensionValueDialog(
         }
         val latestBack by rememberUpdatedState<() -> Unit> {
             val nativeIme = view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) ?: imeVisible
-            handleDimensionDialogBack(keys.visible || nativeIme, hideKeyboard, confirm)
+            val keyboardOpen = keys.visible || nativeIme
+            when {
+                ink.hasPendingInput -> waitForInk()
+                !keyboardOpen && inkNeedsSave -> Toast.makeText(context, R.string.ink_explicit_save, Toast.LENGTH_SHORT).show()
+                else -> handleDimensionDialogBack(keyboardOpen, hideKeyboard, confirm)
+            }
         }
         val dispatchBack = remember { { latestBack() } }
         SideEffect { handleBack = dispatchBack }
         val outsideTap by rememberUpdatedState(hideKeyboard)
         val openField: (DimensionField) -> Unit = { target ->
+            ink.interrupt()
             if (keys.field != target) showSymbols = false
             keys = keys.open(target)
         }
@@ -242,7 +292,9 @@ internal fun DimensionValueDialog(
                         editable = keys.systemOpen && keys.field == DimensionField.VALUE,
                         active = keys.field == DimensionField.VALUE,
                         focus = valueFocus,
-                        onActivate = { openField(DimensionField.VALUE) },
+                        handwritingEnabled = inkSettings.readyLanguage != null,
+                        inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
+                        inkPreview = { ink.previewFor(DimensionField.VALUE) },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
                         isError = showError,
@@ -254,7 +306,7 @@ internal fun DimensionValueDialog(
                     val unitLabel = stringResource(R.string.dimension_unit, unitText)
                     Box(Modifier.padding(horizontal = if (portrait) 4.dp else 0.dp)) {
                         OutlinedButton(
-                            onClick = { unitsOpen = true },
+                            onClick = { ink.interrupt(); unitsOpen = true },
                             modifier = Modifier.semantics { contentDescription = unitLabel },
                             contentPadding = PaddingValues(horizontal = 8.dp),
                         ) { Text(unitText) }
@@ -290,6 +342,13 @@ internal fun DimensionValueDialog(
                                     },
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.ink_language)) },
+                                onClick = {
+                                    unitsOpen = false
+                                    inkSettings.chooserOpen = true
+                                },
+                            )
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
                             )
@@ -329,7 +388,7 @@ internal fun DimensionValueDialog(
                         else R.string.use_system_keyboard,
                     )
                     IconButton(
-                        onClick = { keys = keys.switch(); showSymbols = false },
+                        onClick = { ink.interrupt(); keys = keys.switch(); showSymbols = false },
                         modifier = Modifier.semantics { contentDescription = switchLabel },
                     ) {
                         Icon(
@@ -351,7 +410,9 @@ internal fun DimensionValueDialog(
                             editable = keys.systemOpen && keys.field == DimensionField.NOTE,
                             active = keys.field == DimensionField.NOTE,
                             focus = noteFocus,
-                            onActivate = { openField(DimensionField.NOTE) },
+                            handwritingEnabled = inkSettings.readyLanguage != null,
+                            inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
+                            inkPreview = { ink.previewFor(DimensionField.NOTE) },
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
                             isNote = true,
@@ -410,7 +471,7 @@ internal fun DimensionValueDialog(
                 }
                 val actions: @Composable () -> Unit = {
                     TextButton(
-                        onClick = onCancel,
+                        onClick = { ink.interrupt(); onCancel() },
                         modifier = Modifier.heightIn(min = 48.dp),
                         contentPadding = PaddingValues(horizontal = if (portrait) 20.dp else 16.dp),
                     ) { Text(stringResource(R.string.cancel_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
@@ -484,6 +545,7 @@ internal fun DimensionValueDialog(
                 }
             }
         }
+        InkLanguageDialogs(inkSettings)
     }
 }
 
@@ -495,16 +557,40 @@ private fun DimensionInputField(
     editable: Boolean,
     active: Boolean,
     focus: FocusRequester,
-    onActivate: () -> Unit,
+    handwritingEnabled: Boolean,
+    inkCallbacks: InkFieldCallbacks,
+    inkPreview: () -> List<List<PenPoint>>,
     onValueChange: (TextFieldValue) -> Unit,
     onDone: () -> Unit,
     isNote: Boolean = false,
     isError: Boolean = false,
     compactLabel: Boolean = false,
 ) {
-    Box(modifier) {
+    val currentCallbacks by rememberUpdatedState(inkCallbacks)
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier.inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
+            .semantics {
+                if (!editable) onClick(label) {
+                    currentCallbacks.tap()
+                    true
+                }
+            }
+            .drawWithContent {
+                drawContent()
+                for (stroke in inkPreview()) {
+                    for (index in 1 until stroke.size) {
+                        val start = stroke[index - 1]
+                        val end = stroke[index]
+                        drawLine(
+                            scheme.primary, Offset(start.x, start.y), Offset(end.x, end.y),
+                            strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round,
+                        )
+                    }
+                }
+            },
+    ) {
         val interaction = remember { MutableInteractionSource() }
-        val scheme = MaterialTheme.colorScheme
         val colors = OutlinedTextFieldDefaults.colors(
             unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
         )
@@ -543,9 +629,6 @@ private fun DimensionInputField(
                 )
             },
         )
-        if (!editable) {
-            Box(Modifier.matchParentSize().clickable(onClickLabel = label, onClick = onActivate))
-        }
     }
 }
 

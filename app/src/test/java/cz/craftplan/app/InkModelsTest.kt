@@ -8,6 +8,13 @@ import org.junit.Test
 
 class InkModelsTest {
     @Test
+    fun bundledSdkExposesTextModelsBeforeInitialization() {
+        assertTrue("cs" in InkModels.languages)
+        assertTrue("en" in InkModels.languages)
+        assertTrue(InkModels.languages.size > 100)
+    }
+
+    @Test
     fun applicationLocaleUsesBcp47WithLanguageFallback() {
         val available = setOf("cs", "en", "pt-BR", "pt-PT", "zh-Hant", "zh-Hans")
         assertEquals("cs", defaultInkLanguage(Locale.forLanguageTag("cs-CZ"), available))

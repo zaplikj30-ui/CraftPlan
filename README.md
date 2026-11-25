@@ -65,3 +65,13 @@ Numerická klávesnice 4 × 4 zachová hlavní čísla uprostřed, malé alterna
 Poslední numerické tlačítko je zpočátku volné. Krátké klepnutí vloží nastavený symbol (u prázdného otevře výběr), dlouhý stisk otevře nabídku všech 15 vkládaných symbolů a vyprázdnění. Alternativně lze symbol podržet a přetáhnout na zvýrazněné pravé spodní políčko druhé klávesnice; při platném puštění se přiřadí a zobrazí numerická klávesnice. Výběr/přetažení samo nic nevkládá, neplatné puštění nic nemění. Preference je lokální a společná pro kóty. Historie laseru zůstává vyhrazená, bez nové funkce.
 
 Fyzické ověření nových gest lišty, překryvů, posunu popisků a Undo/Redo vyžaduje následné samostatné GO pro APK a praktický test. Trvalé ukládání dokumentů, plochy a úhly jsou mimo tento rozsah.
+
+### Vícejazyčný rukopis pera v dialogu kóty
+
+Po pádu dialogu v sestavení 56 je obnoveno textové pole Compose ze sestavení 55. V menu jednotek otevřete **Jazyk rukopisu**, vyberte dostupný model a potvrďte jeho stažení. Výchozí kód BCP‑47 odpovídá jazyku prostředků aplikace. Volba modelu se ukládá samostatně a nemění jazyk aplikace ani klávesnice. Po stažení funguje rozpoznávání na zařízení i bez sítě. Bez modelu zůstává běžné zadávání dostupné.
+
+Pište aktivním perem přímo do hodnoty nebo poznámky. Hover ani klepnutí nespustí rozpoznávání. Po krátké pauze se výsledek vloží do aktuálního výběru jako upravitelný text. Modelový výsledek nepotvrzuje hodnotu ani nezmění jednotku. Ruční změna vstupu či cíle zneplatní čekající výsledek. Během rozpoznávání dialog vyčká a rozpoznanou úpravu lze potvrdit tlačítkem **Uložit** nebo odmítnout tlačítkem **Zrušit**.
+
+SDK Digital Ink Recognition 19.0.0 se používá podle podmínek Google ML Kit. Google uvádí, že se tahy a výsledný text zpracovávají na zařízení a neposílají Googlu. Provozní telemetrie SDK může obsahovat například jazyk modelu, technické parametry zařízení a aplikace, velikosti vstupů a výstupů nebo dobu zpracování. Aplikace inicializuje ML Kit při použití výslovně schváleného modelu. Stažení se vyžádá až po potvrzení. Sloučený manifest přebírá od závislostí oprávnění pro internet a stav sítě a pro práci na pozadí přes WorkManager. Přenos při běhu aplikace na zařízení je **NOT RUN**. [Návod Google ML Kit](https://developers.google.com/ml-kit/vision/digital-ink-recognition/android) · [Podmínky SDK](https://developers.google.com/ml-kit/terms) · [Přehled telemetrie](https://developers.google.com/ml-kit/android-data-disclosure)
+
+Fyzicky ověřit model stažený po potvrzení, letový režim, SwiftKey, pero s hoverem i bez něj, klepnutí a dlaň, střídání polí, tečku/čárku a zlomek, otočení, zrušení a Undo/Redo. Pro tento krok jsou povolena pouze syntetická data.

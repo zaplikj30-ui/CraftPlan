@@ -30,9 +30,15 @@ internal fun defaultInkLanguage(appLocale: Locale, available: Set<String>): Stri
 internal object InkModels {
     private var initialized = false
     private val identifiers by lazy {
-        DigitalInkRecognitionModelIdentifier.allModelIdentifiers()
-            .filter { isTextInkLanguage(it.languageTag) }
-            .associateBy { it.languageTag }
+        try {
+            DigitalInkRecognitionModelIdentifier.allModelIdentifiers()
+                .filter { isTextInkLanguage(it.languageTag) }
+                .associateBy { it.languageTag }
+        } catch (_: LinkageError) {
+            emptyMap()
+        } catch (_: RuntimeException) {
+            emptyMap()
+        }
     }
 
     val languages: Set<String> get() = identifiers.keys

@@ -84,4 +84,19 @@
     <string name="diagnostic_export">Exportovat časovou osu</string>
     <string name="diagnostic_export_done">Diagnostický soubor byl uložen.</string>
     <string name="diagnostic_export_error">Diagnostický soubor se nepodařilo uložit.</string>
+    <!-- Override this BCP-47 tag when the app gets a translated resource set. -->
+    <string name="app_language_tag">cs</string>
+    <string name="ink_language">Jazyk rukopisu</string>
+    <string name="ink_selected_language">Zvolený jazyk: %1$s</string>
+    <string name="ink_find_language">Najít jazyk nebo kód</string>
+    <string name="ink_model_needed">Pro rukopis stáhněte jazykový model. Klávesnice fungují i bez něj.</string>
+    <string name="ink_download_title">Stáhnout model pro %1$s?</string>
+    <string name="ink_download_disclosure">Rozpoznávání tahů probíhá v zařízení. Stažení vyžaduje internet. Google ML Kit může odesílat technické údaje, například jazyk modelu, verzi aplikace a dobu zpracování.</string>
+    <string name="ink_download">Stáhnout model</string>
+    <string name="ink_downloading">Stahuje se jazykový model…</string>
+    <string name="ink_ready">Model je připravený pro rozpoznávání offline.</string>
+    <string name="ink_download_failed">Model se nepodařilo stáhnout. Zkontrolujte připojení nebo vyberte jiný jazyk.</string>
+    <string name="ink_recognition_failed">Rukopis se nepodařilo rozpoznat.</string>
+    <string name="ink_pending">Počkejte na rozpoznání nebo úpravu zrušte.</string>
+    <string name="ink_explicit_save">Rozpoznaný text potvrďte tlačítkem Uložit nebo úpravu zrušte.</string>
 </resources>
