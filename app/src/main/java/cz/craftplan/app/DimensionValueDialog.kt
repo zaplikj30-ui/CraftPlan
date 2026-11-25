@@ -786,9 +786,27 @@ internal fun DimensionValueDialog(
                                     )
                                 },
                                 onClick = {
-                                    calculationPlaces = places
-                                    quickPreferences.edit().putInt("calculation_places", places).apply()
-                                    placesOpen = false
+                                    if (ink.hasPendingInput) {
+                                        waitForInk()
+                                    } else {
+                                        onChange { current ->
+                                            val next = if (automaticCalculations) current.recalculate(places) else current
+                                            if (next == null) {
+                                                Toast.makeText(context, R.string.dimension_calculation_error, Toast.LENGTH_SHORT).show()
+                                                current
+                                            } else {
+                                                if (next.input != current.input || next.note != current.note) {
+                                                    calculationNeedsSave = true
+                                                    if (next.input != current.input) valueField = editableText(next.input)
+                                                    if (next.note != current.note) noteField = editableText(next.note)
+                                                }
+                                                calculationPlaces = places
+                                                quickPreferences.edit().putInt("calculation_places", places).apply()
+                                                placesOpen = false
+                                                next
+                                            }
+                                        }
+                                    }
                                 },
                             )
                         }

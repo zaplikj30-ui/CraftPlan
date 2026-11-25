@@ -187,8 +187,18 @@ internal class DimensionValueDraft private constructor(
         // A calculation in a description must not replace a preceding measurement.
         if (segment.contextual) {
             val previous = segment.prefix.trimEnd()
+            // A prior executed equation cannot be silently replaced by a separate
+            // calculation. Keep the already established measure if unambiguous.
+            if ('=' in previous && (unchangedEntry != null || target.measurement != null)) return null
             val measuredPrefix = if ('=' !in previous) {
-                val existing = unchangedEntry?.takeIf { it.inputText(unit) == previous }
+                val existing = unchangedEntry?.let { entry ->
+                    val number = entry.copy(suffix = "").inputText(entry.displayUnit)
+                    if (previous == number) entry.copy(suffix = "")
+                    else if (previous.startsWith("$number ")) {
+                        val suffix = previous.removePrefix("$number ").trim()
+                        entry.copy(suffix = suffix).takeIf { isLabelSuffix(suffix) && !isNonLengthTail(suffix) }
+                    } else null
+                }
                 existing ?: parseDimensionEntry(previous, unit) as? DimensionEntry.Measured
             } else null
             val suffix = formatCalculatedExpression(segment.expression) + " " + result.markedNumber
