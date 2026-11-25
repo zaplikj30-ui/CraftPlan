@@ -47,9 +47,13 @@ internal class InkDraftController(
 
     fun start(next: InkDraftTarget): Long {
         val previousStrokes = completedStrokes.takeIf { target == next && it.size < 24 }.orEmpty()
-        interrupt()
+        // Invalidate the previous request before cancellation, without blanking its visible ink.
+        revision++
+        work?.cancel()
+        work = null
         target = next
         completedStrokes = previousStrokes
+        preview = previousStrokes
         return revision
     }
 
