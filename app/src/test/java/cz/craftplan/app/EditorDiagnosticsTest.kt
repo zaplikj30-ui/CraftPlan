@@ -115,6 +115,32 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun keypadFramesRemainSeparateAndIgnorePreRecordingFrames() {
+        var now = 100_000_000L
+        val recorder = EditorDiagnostics(now = { now })
+        recorder.keypadStage(KeypadDiagnosticStage.SETTINGS_START)
+        recorder.start()
+        recorder.keypadStage(KeypadDiagnosticStage.REVEAL_REQUEST, 1)
+        now = 140_000_000L
+        recorder.keypadFrame(35_000_000, 16_000_000, 8_000_000, 4_000_000,
+            2_000_000, 3_000_000, 18_000_000, 90_000_000, 2, true)
+        recorder.keypadFrame(35_000_000, 16_000_000, 8_000_000, 4_000_000,
+            2_000_000, 3_000_000, 18_000_000, 105_000_000, 1, true)
+        recorder.keypadHeight(120)
+        recorder.stop()
+        recorder.keypadStage(KeypadDiagnosticStage.ANIMATION_END)
+        val report = recorder.export("local", null, "test", 36)
+        assertTrue(report.contains("keypad_stage REVEAL_REQUEST detail=1"))
+        assertTrue(report.contains("keypad_frame vsync_ms=5 total_ns=35000000 deadline_ns=16000000"))
+        assertTrue(report.contains("dropped_callbacks=1 first_draw=true"))
+        assertTrue(report.contains("keypad_height px=120"))
+        assertTrue(report.contains("frames=0 frame_callbacks_lost=0"))
+        assertFalse(report.contains("dropped_callbacks=2"))
+        assertFalse(report.contains("keypad_stage SETTINGS_START"))
+        assertFalse(report.contains("keypad_stage ANIMATION_END"))
+    }
+
+    @Test
     fun conservativeBoundsPreserveProtrudingLabelsHandlesAndCrossingStroke() {
         assertTrue(boundsMayBeVisible(-100f, 10f, 500f, 10f, 14f, 400, 800))
         assertFalse(boundsMayBeVisible(10f, 820f, 200f, 820f, 14f, 400, 800))

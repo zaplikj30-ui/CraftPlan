@@ -399,6 +399,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     },
                     showNotes = editorState.showNotes,
                     onToggleNotes = editorState::toggleNotes,
+                    diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording },
                 )
             }
         } else {

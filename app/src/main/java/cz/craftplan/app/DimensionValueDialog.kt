@@ -89,6 +89,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.platform.PlatformTextInputInterceptor
@@ -149,6 +150,7 @@ internal fun DimensionValueDialog(
     onCancel: () -> Unit,
     showNotes: Boolean,
     onToggleNotes: () -> Unit,
+    diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
     var showError by rememberSaveable { mutableStateOf(false) }
@@ -207,7 +209,7 @@ internal fun DimensionValueDialog(
         mutableStateOf(ink.pendingInput(DimensionField.NOTE)?.takeIf { it.text == draft.note } ?: editableText(draft.note))
     }
     var unitsOpen by remember { mutableStateOf(false) }
-    val inkSettings = rememberInkLanguageSettings()
+    val inkSettings = rememberInkLanguageSettings(diagnostics)
     val inkOwner = remember { Any() }
     val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
     var discardInkOpen by rememberSaveable { mutableStateOf(false) }
@@ -341,6 +343,7 @@ internal fun DimensionValueDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
+        KeypadWindowDiagnostics(diagnostics)
         val view = LocalView.current
         val ime = LocalSoftwareKeyboardController.current
         val focusManager = LocalFocusManager.current
@@ -361,6 +364,7 @@ internal fun DimensionValueDialog(
         val revealContent by remember(keypadReveal) { derivedStateOf { keypadReveal.value > 0f } }
         val keypadVisible = numericRequested && !imeVisible
         LaunchedEffect(numericRequested, keys.systemOpen, density) {
+            diagnostics?.keypadStage(KeypadDiagnosticStage.REVEAL_REQUEST, if (numericRequested) 1 else 0)
             val baseline = maxOf(bars.getBottom(density), cutout.getBottom(density))
             if (keys.systemOpen && keypadReveal.value > 0f) {
                 // Keep the old reservation while the native inset replaces it.
@@ -378,20 +382,32 @@ internal fun DimensionValueDialog(
                 withFrameNanos { }
                 withFrameNanos { }
                 keypadPrepared = true
+                diagnostics?.keypadStage(KeypadDiagnosticStage.FIRST_PREPARED)
             }
             if (numericRequested && imeInsets.getBottom(density) > baseline) {
                 // The native keyboard is still occupying space: reveal the replacement
                 // only as that space becomes available, using the native animation.
                 keypadPrepared = true
+                diagnostics?.keypadStage(KeypadDiagnosticStage.NATIVE_HANDOFF)
                 keypadReveal.snapTo(1f)
             } else {
-                keypadReveal.animateTo(
-                    if (numericRequested) 1f else 0f,
-                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                )
+                diagnostics?.keypadStage(KeypadDiagnosticStage.ANIMATION_START)
+                var finished = false
+                try {
+                    keypadReveal.animateTo(
+                        if (numericRequested) 1f else 0f,
+                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    )
+                    finished = true
+                } finally {
+                    diagnostics?.keypadStage(if (finished) KeypadDiagnosticStage.ANIMATION_END
+                        else KeypadDiagnosticStage.ANIMATION_CANCELED)
+                }
             }
         }
-        val keypadMotion = Modifier.clipToBounds().layout { measurable, constraints ->
+        val keypadMotion = Modifier.then(
+            if (diagnostics != null) Modifier.onSizeChanged { diagnostics.keypadHeight(it.height) } else Modifier,
+        ).clipToBounds().layout { measurable, constraints ->
             val placeable = measurable.measure(constraints.copy(minHeight = 0))
             val overlap = (imeInsets.getBottom(this) -
                 maxOf(bars.getBottom(this), cutout.getBottom(this))).coerceAtLeast(0)

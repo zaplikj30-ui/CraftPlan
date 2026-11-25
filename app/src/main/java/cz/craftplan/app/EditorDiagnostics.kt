@@ -9,6 +9,11 @@ internal enum class DiagnosticAction {
 }
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
+internal enum class KeypadDiagnosticStage {
+    SETTINGS_START, SETTINGS_END, MODEL_CHECK_START, MODEL_CHECK_END,
+    MODEL_TASK_START, MODEL_TASK_CREATED, WINDOW_ATTACHED, WINDOW_UNAVAILABLE, WINDOW_DETACHED,
+    REVEAL_REQUEST, FIRST_PREPARED, ANIMATION_START, ANIMATION_END, ANIMATION_CANCELED, NATIVE_HANDOFF,
+}
 
 internal data class DiagnosticGripBounds(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     fun contains(x: Float, y: Float): Boolean = x >= left && x < right && y >= top && y < bottom
@@ -179,6 +184,31 @@ internal class EditorDiagnostics(
         }
     }
 
+    // Dialog frames must never pollute the main activity's aggregate FPS.
+    fun keypadStage(stage: KeypadDiagnosticStage, detail: Number? = null) {
+        val time = recordingTime() ?: return
+        append(time, "keypad_stage ${stage.name}" + (detail?.let { " detail=$it" } ?: ""))
+    }
+
+    fun keypadHeight(heightPx: Int) {
+        val time = recordingTime() ?: return
+        append(time, "keypad_height px=$heightPx")
+    }
+
+    fun keypadFrame(
+        totalNs: Long, deadlineNs: Long, layoutNs: Long, drawNs: Long,
+        syncNs: Long, issueNs: Long, unknownNs: Long, intendedVsyncNs: Long,
+        droppedCallbacks: Int, firstDraw: Boolean,
+    ) {
+        val time = recordingTime() ?: return
+        val start = checkNotNull(started)
+        if (intendedVsyncNs > 0 && intendedVsyncNs < start) return
+        val vsyncOffsetMs = if (intendedVsyncNs > 0) (intendedVsyncNs - start) / 1_000_000 else null
+        append(time, "keypad_frame vsync_ms=${vsyncOffsetMs ?: "NA"} total_ns=$totalNs deadline_ns=$deadlineNs" +
+            " layout_ns=$layoutNs draw_ns=$drawNs sync_ns=$syncNs issue_ns=$issueNs unknown_ns=$unknownNs" +
+            " dropped_callbacks=${droppedCallbacks.coerceAtLeast(0)} first_draw=$firstDraw")
+    }
+
     fun operation(action: DiagnosticAction, elapsedNs: Long) {
         if (elapsedNs < 32_000_000) return
         val time = recordingTime() ?: return
@@ -221,6 +251,7 @@ internal class EditorDiagnostics(
         appendLine("hit-test detail=elapsed ns; generate detail=start count or applied elapsed ns; scene/pinch detail=count; tool detail=0 select/1 single/2 repeat; notes, lock, landscape detail=0/1; toolbar detail=0-3 (bit 0 horizontal, bit 1 vertical)")
         appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip/in_shared=measured bounds only; toolbar_grip: local px, dedicated/shared zone, release, yield or cancellation reason; OS-intercepted touches may be absent")
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
+        appendLine("keypad_frame=separate dimension dialog window FrameMetrics, time=callback receipt, vsync_ms=intended frame start relative to recording; negative metrics unavailable; first_draw is SDK flag; excludes native IME. keypad_height=measured clipped height px; keypad_stage=stage markers, REVEAL_REQUEST detail 1=open/0=close, other timing details ns. No field contents.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }

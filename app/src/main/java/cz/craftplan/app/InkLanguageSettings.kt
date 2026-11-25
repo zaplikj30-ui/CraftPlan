@@ -113,20 +113,25 @@ internal class InkLanguageSettings(
 }
 
 @Composable
-internal fun rememberInkLanguageSettings(): InkLanguageSettings {
+internal fun rememberInkLanguageSettings(diagnostics: EditorDiagnostics? = null): InkLanguageSettings {
     val context = LocalContext.current.applicationContext
     val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
     val settings = remember(context, locale) {
+        diagnostics?.keypadStage(KeypadDiagnosticStage.SETTINGS_START)
+        val start = if (diagnostics != null) System.nanoTime() else 0L
         InkLanguageSettings(
             context.getSharedPreferences("ink_language", 0),
             defaultInkLanguage(locale, InkModels.languages),
-        )
+        ).also {
+            if (diagnostics != null) diagnostics.keypadStage(KeypadDiagnosticStage.SETTINGS_END, System.nanoTime() - start)
+        }
     }
     LaunchedEffect(settings, settings.language, settings.approved, settings.retry, settings.downloading) {
         val tag = settings.language ?: return@LaunchedEffect
         if (settings.downloading || tag !in settings.approved) return@LaunchedEffect
+        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_CHECK_START)
         val downloaded = try {
-            InkModels.isDownloaded(context, tag)
+            InkModels.isDownloaded(context, tag, diagnostics)
         } catch (canceled: CancellationException) {
             throw canceled
         } catch (_: Exception) {
@@ -134,6 +139,7 @@ internal fun rememberInkLanguageSettings(): InkLanguageSettings {
         } catch (_: LinkageError) {
             false
         }
+        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_CHECK_END)
         settings.modelChecked(tag, downloaded)
     }
     return settings

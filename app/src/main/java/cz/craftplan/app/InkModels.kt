@@ -62,8 +62,16 @@ internal object InkModels {
     private fun model(tag: String): DigitalInkRecognitionModel =
         DigitalInkRecognitionModel.builder(identifiers.getValue(tag)).build()
 
-    suspend fun isDownloaded(context: Context, tag: String): Boolean =
-        manager(context).isModelDownloaded(model(tag)).awaitInkTask()
+    suspend fun isDownloaded(context: Context, tag: String, diagnostics: EditorDiagnostics? = null): Boolean {
+        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_START)
+        val start = if (diagnostics != null) System.nanoTime() else 0L
+        val task = try {
+            manager(context).isModelDownloaded(model(tag))
+        } finally {
+            if (diagnostics != null) diagnostics.keypadStage(KeypadDiagnosticStage.MODEL_TASK_CREATED, System.nanoTime() - start)
+        }
+        return task.awaitInkTask()
+    }
 
     /** Only called from the explicit model-download confirmation. */
     suspend fun download(context: Context, tag: String) {
