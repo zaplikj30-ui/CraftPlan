@@ -84,6 +84,7 @@ class InkDraftInputTest {
         assertEquals(PenContactKind.HOLD, classifyPenContact(false, 900, 5f, 10f))
         assertEquals(PenContactKind.TAP, classifyPenContact(false, 80, 0.5f, 0.6f))
         assertEquals(PenContactKind.INK, classifyPenContact(true, 50, 0f, 0f))
+        assertEquals(PenContactKind.WAIT, classifyPenContact(true, 900, 0f, 0f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 9f, 12f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 5f, 20f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 200, 2f, 2f))

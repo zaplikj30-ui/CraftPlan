@@ -210,7 +210,7 @@ internal fun requestsCalculationFromEdit(
     previous: String, next: String, selectionStart: Int, selectionEnd: Int,
     enabled: Boolean, note: Boolean = false,
 ): Boolean = selectionStart == selectionEnd && selectionEnd == next.length &&
-    requestsDimensionCalculation(previous, next, enabled, note)
+    requestsDimensionCalculation(previous, next.trimEnd(' '), enabled, note)
 
 /** Preserve an earlier approximation while the user extends its visible result.
  * Only an edit to the actual rounded number removes its marker. */

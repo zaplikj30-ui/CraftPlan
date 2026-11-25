@@ -119,7 +119,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
@@ -234,15 +233,21 @@ internal fun DimensionValueDialog(
             if (isNote) noteField = edited else valueField = edited
             // SwiftKey may retain composition when inserting punctuation.
             // A newly inserted final '=' with the caret after it is the explicit action.
+            val calculationText = edited.text.trimEnd(' ')
+            // Some IMEs first insert the symbol with a composing selection and
+            // only later commit it with a collapsed caret.
+            val previousText = if (previous.composition != null && edited.composition == null &&
+                previous.text == edited.text && calculationText.endsWith('='))
+                calculationText.dropLast(1) else previous.text
             val calculate = requestsCalculationFromEdit(
-                previous.text, edited.text, edited.selection.start, edited.selection.end,
+                previousText, edited.text, edited.selection.start, edited.selection.end,
                 automaticCalculations, note = isNote,
             )
             if (calculate) {
                 calculationNeedsSave = true
                 onChange { current ->
-                    val result = if (isNote) current.calculateNote(edited.text, calculationPlaces)
-                        else current.calculate(edited.text, calculationPlaces)
+                    val result = if (isNote) current.calculateNote(calculationText, calculationPlaces)
+                        else current.calculate(calculationText, calculationPlaces)
                     if (isNote) noteCalculationError = result == null else valueCalculationError = result == null
                     showError = false
                     if (result != null) {
@@ -288,27 +293,36 @@ internal fun DimensionValueDialog(
     }
     fun inkOrigin(field: DimensionField): Offset? =
         if (field == DimensionField.VALUE) valueInkOrigin else noteInkOrigin
-    fun routedPoints(field: DimensionField, points: List<PenPoint>, sourceOrigin: () -> Offset?): List<PenPoint> {
-        val target = ink.pendingField ?: field
-        val from = sourceOrigin() ?: return points
-        val to = inkOrigin(target) ?: return points
-        val delta = from - to
-        return points.map { it.copy(x = it.x + delta.x, y = it.y + delta.y) }
-    }
     fun inkCallbacks(
         field: DimensionField,
         sourceOrigin: () -> Offset? = { inkOrigin(field) },
         tap: () -> Unit,
-    ) = InkFieldCallbacks(
-        begin = { currentInkTarget(ink.pendingField ?: field)?.let(ink::start) },
-        preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(field, points, sourceOrigin)) },
-        finish = { ticket, points -> ink.finish(ticket, routedPoints(field, points, sourceOrigin)) },
-        cancel = ink::cancel,
-        tap = tap,
-        pending = { ink.hasPendingInput },
-        blocked = waitForInk,
-        missingModel = inkSettings::requestModelForWriting,
-    )
+    ): InkFieldCallbacks {
+        // Freeze the coordinate transform at DOWN. Layout/IME movement must
+        // not bend the current stroke or move it into another field.
+        var translation = Offset.Zero
+        fun routedPoints(points: List<PenPoint>): List<PenPoint> =
+            if (translation == Offset.Zero) points
+            else points.map { it.copy(x = it.x + translation.x, y = it.y + translation.y) }
+        return InkFieldCallbacks(
+            begin = {
+                val target = ink.pendingField ?: field
+                val from = sourceOrigin()
+                val to = inkOrigin(target)
+                if (from == null || to == null) null else {
+                    translation = from - to
+                    currentInkTarget(target)?.let(ink::start)
+                }
+            },
+            preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(points)) },
+            finish = { ticket, points -> ink.finish(ticket, routedPoints(points)) },
+            cancel = ink::cancel,
+            tap = tap,
+            pending = { ink.hasPendingInput },
+            blocked = waitForInk,
+            missingModel = inkSettings::requestModelForWriting,
+        )
+    }
     val confirm: () -> Unit = {
         if (ink.hasPendingInput) waitForInk()
         else if (calculationError) {
@@ -1107,9 +1121,8 @@ private fun DimensionInputField(
             )
         }
         }
-        // One text menu for both input devices. Keep focus/selection while open.
-        DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false },
-            properties = PopupProperties(focusable = false)) {
+        // One text menu for both input devices. Back dismisses the menu first.
+        DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false }) {
             val selected = value.text.substring(value.selection.min, value.selection.max)
             fun replaceSelection(insertion: String) {
                 val limit = if (isNote) MAX_DIMENSION_NOTE_LENGTH else ManualLengthMeasurement.MAX_INPUT_LENGTH

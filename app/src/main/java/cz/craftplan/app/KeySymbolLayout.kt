@@ -31,10 +31,11 @@ internal data class KeySymbolLayout private constructor(val symbols: List<String
     companion object {
         fun default() = KeySymbolLayout(dimensionQuickSymbolOptions.toList())
         fun decode(encoded: String?): KeySymbolLayout {
-            val indices = encoded?.split(',')?.mapNotNull { it.toIntOrNull() } ?: return default()
+            val parts = encoded?.split(',') ?: return default()
+            val indices = parts.mapNotNull { it.toIntOrNull() }
             if (indices.size != dimensionQuickSymbolOptions.size ||
                 indices.toSet() != dimensionQuickSymbolOptions.indices.toSet() ||
-                encoded.split(',').size != indices.size) return default()
+                parts.size != indices.size) return default()
             return KeySymbolLayout(indices.map { dimensionQuickSymbolOptions[it] })
         }
     }

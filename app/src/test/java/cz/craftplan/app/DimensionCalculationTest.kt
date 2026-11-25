@@ -133,6 +133,7 @@ class DimensionCalculationTest {
         val before = "kuchyň 40x50"
         val after = "$before="
         assertTrue(requestsCalculationFromEdit(before, after, after.length, after.length, true, true))
+        assertTrue(requestsCalculationFromEdit(before, "$after ", after.length + 1, after.length + 1, true, true))
         assertFalse(requestsCalculationFromEdit(after, after, after.length, after.length, true, true))
         assertFalse(requestsCalculationFromEdit(before, after, 1, after.length, true, true))
         assertFalse(requestsCalculationFromEdit(before, after, after.length, after.length, false, true))

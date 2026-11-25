@@ -106,18 +106,20 @@ internal fun DimensionKeypad(
     onKey: (String) -> Unit,
 ) {
     var chooserOpen by remember { mutableStateOf(false) }
-    val dropBounds = remember(symbolLayout, showSymbols) { mutableMapOf<String, Rect>() }
+    val dropBounds = remember(showSymbols) { mutableMapOf<Int, Rect>() }
     var dragging by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
     var dragOverTarget by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
     var selectedForSwap by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
+    val rows = if (showSymbols) symbolLayout.rows() else dimensionKeyRows
     fun targetAt(point: Offset?): String? = point?.let { p ->
         dropBounds.entries.firstOrNull { it.value.contains(p) }?.key
+            ?.let { rows[it / 4][it % 4] }
     }
     val colors = MaterialTheme.colorScheme
 
-    for (row in if (showSymbols) symbolLayout.rows() else dimensionKeyRows) {
+    for ((rowIndex, row) in rows.withIndex()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (key in row) {
+            for ((columnIndex, key) in row.withIndex()) {
                 val quick = key == QUICK_KEY
                 val target = showSymbols && key in dimensionQuickSymbolOptions
                 val alternate = if (showSymbols) null else symbolLayout.alternate(key)
@@ -180,7 +182,7 @@ internal fun DimensionKeypad(
                             KeyGesture.TAP -> null
                         },
                         modifier = Modifier.fillMaxSize().then(
-                            if (target) Modifier.onGloballyPositioned { dropBounds[key] = it.boundsInRoot() }
+                            if (target) Modifier.onGloballyPositioned { dropBounds[rowIndex * 4 + columnIndex] = it.boundsInRoot() }
                             else Modifier,
                         ),
                         activeTarget = activeTarget,
