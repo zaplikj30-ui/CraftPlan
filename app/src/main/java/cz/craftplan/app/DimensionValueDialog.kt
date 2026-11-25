@@ -87,6 +87,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -220,6 +221,8 @@ internal fun DimensionValueDialog(
     var discardInkOpen by rememberSaveable { mutableStateOf(false) }
     var valueInkOrigin by remember { mutableStateOf<Offset?>(null) }
     var noteInkOrigin by remember { mutableStateOf<Offset?>(null) }
+    var valueInkBounds by remember { mutableStateOf<Rect?>(null) }
+    var noteInkBounds by remember { mutableStateOf<Rect?>(null) }
     val currentDraftId by rememberUpdatedState(draft.targetId)
     var inkNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     fun currentInkTarget(field: DimensionField): InkDraftTarget? {
@@ -543,24 +546,32 @@ internal fun DimensionValueDialog(
         }
 
         var previewOrigin by remember { mutableStateOf<Offset?>(null) }
-        var backdropOrigin by remember { mutableStateOf<Offset?>(null) }
-        val backdropField = ink.pendingField
-        val backdropCallbacks by rememberUpdatedState(
-            inkCallbacks(backdropField ?: keys.field, sourceOrigin = { backdropOrigin }) { outsideTap() },
-        )
+        var dialogInkOrigin by remember { mutableStateOf<Offset?>(null) }
+        val routeInk by rememberUpdatedState<(Offset) -> DialogInkContact?>({ local ->
+            val origin = dialogInkOrigin
+            val start = origin?.let {
+                dialogInkStart(local + it, ink.pendingField, keys.field, valueInkBounds, noteInkBounds,
+                    with(density) { INK_START_MARGIN_DP.dp.toPx() })
+            }
+            start?.let {
+                DialogInkContact(it.continuing,
+                    ink.pendingLanguage != null || inkSettings.readyLanguage != null,
+                    inkCallbacks(it.field, sourceOrigin = { origin }) { })
+            }
+        })
         val inkColor = MaterialTheme.colorScheme.primary
 
         // This root does not read its constraints; avoid an unnecessary subcomposition.
         Box(
-            Modifier.fillMaxSize().safeDrawingPadding(),
+            Modifier.fillMaxSize()
+                .onGloballyPositioned { dialogInkOrigin = it.positionInRoot() }
+                .inkDialogInput { routeInk(it) }
+                .safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(Modifier.matchParentSize().onGloballyPositioned { backdropOrigin = it.positionInRoot() }
-                .then(if (backdropField != null) {
-                    Modifier.inkFieldInput(enabled = true, editable = false) { backdropCallbacks }
-                } else Modifier.pointerInput(Unit) {
-                    detectTapGestures { outsideTap() }
-                }))
+            Box(Modifier.matchParentSize().pointerInput(Unit) {
+                detectTapGestures { outsideTap() }
+            })
             Surface(
                 modifier = Modifier.padding(horizontal = 4.dp)
                     .then(if (portrait) Modifier.widthIn(max = 480.dp) else Modifier)
@@ -579,7 +590,7 @@ internal fun DimensionValueDialog(
                         focus = valueFocus,
                         handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
-                        onInkPosition = { valueInkOrigin = it },
+                        onInkPosition = { origin, bounds -> valueInkOrigin = origin; valueInkBounds = bounds },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
                         isError = showError || valueCalculationError,
@@ -710,7 +721,7 @@ internal fun DimensionValueDialog(
                             focus = noteFocus,
                             handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
-                            onInkPosition = { noteInkOrigin = it },
+                            onInkPosition = { origin, bounds -> noteInkOrigin = origin; noteInkBounds = bounds },
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
                             isNote = true,
@@ -789,7 +800,10 @@ internal fun DimensionValueDialog(
                 }
                 val actions: @Composable () -> Unit = {
                     TextButton(
-                        onClick = { ink.interrupt(); onCancel() },
+                        onClick = {
+                            if (ink.hasPendingInput) discardInkOpen = true
+                            else { ink.interrupt(); onCancel() }
+                        },
                         modifier = Modifier.heightIn(min = 48.dp),
                         contentPadding = PaddingValues(horizontal = if (portrait) 20.dp else 16.dp),
                     ) { Text(stringResource(R.string.cancel_value), maxLines = if (portrait) Int.MAX_VALUE else 1) }
@@ -1004,7 +1018,7 @@ private fun DimensionInputField(
     focus: FocusRequester,
     handwritingEnabled: Boolean,
     inkCallbacks: InkFieldCallbacks,
-    onInkPosition: (Offset) -> Unit,
+    onInkPosition: (Offset, Rect) -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
     onDone: () -> Unit,
     isNote: Boolean = false,
@@ -1064,7 +1078,7 @@ private fun DimensionInputField(
     Box(
         modifier.onGloballyPositioned {
             fieldOrigin = it.positionInRoot()
-            onInkPosition(fieldOrigin)
+            onInkPosition(fieldOrigin, it.boundsInRoot())
         }.inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
             .semantics {
                 if (!editable) onClick(label) {

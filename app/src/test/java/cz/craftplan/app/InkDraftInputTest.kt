@@ -1,6 +1,8 @@
 package cz.craftplan.app
 
 import android.view.MotionEvent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import java.util.UUID
@@ -16,6 +18,32 @@ import org.junit.Test
 
 class InkDraftInputTest {
     private val stroke = listOf(PenPoint(1f, 1f, 10), PenPoint(10f, 15f, 20))
+
+    @Test
+    fun dialogInkRoutesPendingBatchEverywhereAndOnlyNewWritingNearFields() {
+        val value = Rect(10f, 10f, 110f, 30f)
+        val note = Rect(10f, 50f, 110f, 70f)
+        fun route(x: Float, y: Float, pending: DimensionField? = null,
+                  preferred: DimensionField = DimensionField.VALUE) =
+            dialogInkStart(Offset(x, y), pending, preferred, value, note, 20f)
+        // Existing field-local tap/hold/ink stays in charge when no batch exists.
+        assertNull(route(40f, 20f))
+        assertNull(route(40f, 60f))
+        assertEquals(DialogInkStart(DimensionField.VALUE, false), route(40f, 0f))
+        assertEquals(DialogInkStart(DimensionField.NOTE, false), route(120f, 65f))
+        assertEquals(DialogInkStart(DimensionField.NOTE, false),
+            route(40f, 40f, preferred = DimensionField.NOTE))
+        assertNull(route(130f, 90f)) // Outside the radial margin.
+        assertNull(route(40f, 150f))
+        for (point in listOf(Offset(40f, 60f), Offset(40f, 150f), Offset(300f, 2f))) {
+            assertEquals(DialogInkStart(DimensionField.VALUE, true),
+                route(point.x, point.y, pending = DimensionField.VALUE))
+        }
+        assertNull(dialogInkStart(Offset(40f, 20f), null, DimensionField.VALUE,
+            Rect.Zero, null, 20f))
+        assertNull(dialogInkStart(Offset(Float.NaN, 20f), DimensionField.NOTE,
+            DimensionField.VALUE, value, note, 20f))
+    }
 
     @Test
     fun insertsUnmodifiedTextInSelectionAndRejectsOversizeOrMultiline() {
@@ -85,6 +113,9 @@ class InkDraftInputTest {
         assertEquals(PenContactKind.TAP, classifyPenContact(false, 80, 0.5f, 0.6f))
         assertEquals(PenContactKind.INK, classifyPenContact(true, 50, 0f, 0f))
         assertEquals(PenContactKind.WAIT, classifyPenContact(true, 900, 0f, 0f))
+        // A claimed near-field stroke stays ink through a subsequent slow pause.
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 200, 2f, 2f))
+        assertEquals(PenContactKind.INK, classifyPenContact(true, 1200, 2f, 2f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 9f, 12f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 5f, 20f))
         assertEquals(PenContactKind.INK, classifyPenContact(false, 200, 2f, 2f))

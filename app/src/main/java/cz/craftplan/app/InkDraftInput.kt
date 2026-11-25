@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -26,8 +27,10 @@ internal fun Modifier.inkFieldInput(
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         if (down.position.x !in 0f..size.width.toFloat() || down.position.y !in 0f..size.height.toFloat()) return@awaitEachGesture
-        val actions = callbacks()
         val stylus = down.type == PointerType.Stylus
+        // The dialog's Initial-pass owner already claimed this continuation.
+        if (stylus && down.isConsumed) return@awaitEachGesture
+        val actions = callbacks()
         val pending = actions.pending()
         if (stylus) down.consume()
         val ticket = if (enabled && stylus) actions.begin() else null
@@ -112,6 +115,132 @@ internal fun Modifier.inkFieldInput(
             }
         } finally {
             if (!delivered && ticket != null) actions.cancel(ticket)
+        }
+    }
+}
+
+// 32 dp is approximately 5 mm at nominal Android density, not a physical calibration.
+internal const val INK_START_MARGIN_DP = 32f
+
+internal data class DialogInkStart(val field: DimensionField, val continuing: Boolean)
+
+/** Actual field hits keep their existing cursor/hold/ink handler. A new contact
+ * in the margin belongs to the nearest visible field (active field breaks ties).
+ * Once a batch exists, its captured field wins everywhere in the dialog. */
+internal fun dialogInkStart(
+    position: Offset,
+    pending: DimensionField?,
+    preferred: DimensionField,
+    valueBounds: Rect?,
+    noteBounds: Rect?,
+    marginPx: Float,
+): DialogInkStart? {
+    if (!position.x.isFinite() || !position.y.isFinite()) return null
+    if (pending != null) return DialogInkStart(pending, continuing = true)
+    val fields = listOf(
+        DimensionField.VALUE to valueBounds,
+        DimensionField.NOTE to noteBounds,
+    ).mapNotNull { (field, bounds) ->
+        bounds?.takeIf { it.width > 0f && it.height > 0f }?.let { field to it }
+    }
+    if (fields.any { (_, bounds) -> bounds.contains(position) }) return null
+    val nearest = fields.map { (field, bounds) ->
+        val dx = maxOf(bounds.left - position.x, 0f, position.x - bounds.right)
+        val dy = maxOf(bounds.top - position.y, 0f, position.y - bounds.bottom)
+        field to (dx * dx + dy * dy)
+    }.filter { (_, squared) -> squared <= marginPx * marginPx }
+        .minWithOrNull(compareBy<Pair<DimensionField, Float>> { it.second }
+            .thenBy { if (it.first == preferred) 0 else 1 })
+    return nearest?.let { DialogInkStart(it.first, continuing = false) }
+}
+
+internal data class DialogInkContact(
+    val continuing: Boolean,
+    val enabled: Boolean,
+    val actions: InkFieldCallbacks,
+)
+
+/** Ancestor of every dialog control. Active-batch stylus DOWN is consumed in
+ * Initial before children, for the entire contact, even if the batch is full.
+ * Near-field starts claim only actual writing movement, not ordinary button
+ * taps/holds. The handler is stable across recognition and recomposition. */
+internal fun Modifier.inkDialogInput(
+    route: (Offset) -> DialogInkContact?,
+): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        if (down.type != PointerType.Stylus || down.isConsumed) return@awaitEachGesture
+        val routed = route(down.position) ?: return@awaitEachGesture
+        val actions = routed.actions
+        var owned = routed.continuing
+        var ticket: Long? = null
+        var delivered = false
+        var rejected = false
+        val origin = down.position
+        var last = origin
+        var maximum = 0f
+        var travel = 0f
+        val points = PenStrokeBuffer(PenPoint(origin.x, origin.y, down.uptimeMillis))
+        try {
+            if (owned) {
+                down.consume()
+                ticket = actions.begin()
+                if (ticket == null) actions.blocked()
+            }
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                if (owned) change.consume()
+                val raw = event.motionEvent
+                if (raw == null || raw.actionMasked == MotionEvent.ACTION_CANCEL ||
+                    raw.flags and MotionEvent.FLAG_CANCELED != 0) break
+                if (event.changes.size != 1) {
+                    // A rejected continuation cannot fall through to a control.
+                    if (!owned) break
+                    ticket?.let(actions.cancel)
+                    ticket = null
+                    rejected = true
+                }
+                if (rejected) {
+                    if (!change.pressed) break
+                    continue
+                }
+                val position = change.position
+                if (!position.x.isFinite() || !position.y.isFinite()) break
+                maximum = maxOf(maximum, (position - origin).getDistance())
+                travel += (position - last).getDistance()
+                last = position
+                points.append(PenPoint(position.x, position.y, change.uptimeMillis))
+                // A near-field stroke, once claimed, cannot turn into a hold.
+                val kind = classifyPenContact(owned,
+                    change.uptimeMillis - down.uptimeMillis, maximum / density, travel / density)
+                if (!owned && kind == PenContactKind.INK) {
+                    owned = true
+                    change.consume()
+                    if (routed.enabled) {
+                        ticket = actions.begin()
+                        if (ticket == null) actions.blocked()
+                    }
+                }
+                if (!change.pressed) {
+                    if (!owned || !canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
+                    val activeTicket = ticket
+                    if (kind == PenContactKind.INK) {
+                        if (activeTicket != null) {
+                            actions.finish(activeTicket, points.snapshot())
+                            delivered = true
+                        } else if (!routed.enabled) actions.missingModel()
+                    } else if (kind == PenContactKind.WAIT) {
+                        actions.blocked()
+                    }
+                    break
+                }
+                val activeTicket = ticket
+                if (owned && activeTicket != null && kind == PenContactKind.INK)
+                    actions.preview(activeTicket, points.snapshot())
+            }
+        } finally {
+            if (!delivered) ticket?.let(actions.cancel)
         }
     }
 }
