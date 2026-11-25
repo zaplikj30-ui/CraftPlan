@@ -158,7 +158,7 @@ internal fun findCalculationSegment(input: String): CalculationSegment {
         // for salvaging a valid suffix from a malformed expression. A textual
         // label such as "Výpočet:" remains a valid contextual prefix.
         if (preceding.last() == ':' &&
-            preceding.dropLast(1).trimEnd().lastOrNull()?.isDigit() == true) continue
+            preceding.dropLast(1).trimEnd().lastOrNull()?.isLetter() != true) continue
         if (preceding.last() in "xX" && preceding.dropLast(1).trimEnd().lastOrNull()?.isDigit() == true) continue
         val candidate = input.substring(i)
         if (contextualSyntax.matches(candidate)) {

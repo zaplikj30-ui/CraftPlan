@@ -28,8 +28,10 @@ class DimensionCalculationTest {
         assertFalse(requestsDimensionCalculation("1200:3", "1200:3=", false))
         assertEquals("Výpočet: 1200 ÷ 3 = 400",
             DimensionValueDraft(dimension).calculateNote("Výpočet: 1200:3=")!!.note)
-        assertEquals("Výpočet: 1200 ÷ 3 = 400",
-            DimensionValueDraft(dimension).calculateNote("Výpočet:1200:3=")!!.note.replace("Výpočet:1200", "Výpočet: 1200"))
+        assertEquals("Výpočet:1200 ÷ 3 = 400",
+            DimensionValueDraft(dimension).calculateNote("Výpočet:1200:3=")!!.note)
+        assertNull(DimensionValueDraft(dimension).calculateNote("Text 1::2+3="))
+        assertNull(DimensionValueDraft(dimension).calculateNote("Text 1:0+2="))
         assertEquals("100 ÷ 3 = ≈33:2", editedApproximation("100 ÷ 3 = ≈33", "100 ÷ 3 = ≈33:2"))
         assertEquals("1/16 in", ManualLengthMeasurement.parse("1/16 in")!!.originalInput)
         assertNull(ManualLengthMeasurement.parse("1:16", LengthUnit.IN))
