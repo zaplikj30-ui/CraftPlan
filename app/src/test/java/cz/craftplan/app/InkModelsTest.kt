@@ -43,6 +43,35 @@ class InkModelsTest {
     }
 
     @Test
+    fun missingModelOfferIsOncePerLanguageAndDoesNotPinIt() {
+        val prefs = testInkPreferences(mutableMapOf())
+        val settings = InkLanguageSettings(prefs, "cs")
+        settings.requestModelForWriting()
+        assertEquals(InkDownloadRequest("cs"), settings.downloadConfirmation)
+        settings.downloadConfirmation = null
+        settings.requestModelForWriting()
+        assertEquals(null, settings.downloadConfirmation)
+        assertEquals(null, settings.manualLanguage)
+        assertTrue(settings.approved.isEmpty())
+    }
+
+    @Test
+    fun existingModelCheckPreventsUnnecessaryDownloadOffer() {
+        val prefs = testInkPreferences(mutableMapOf())
+        InkLanguageSettings(prefs, "cs").approve(InkDownloadRequest("cs"))
+        val ready = InkLanguageSettings(prefs, "cs")
+        ready.requestModelForWriting()
+        assertEquals(null, ready.downloadConfirmation)
+        ready.modelChecked("cs", true)
+        assertEquals("cs", ready.readyLanguage)
+        assertEquals(null, ready.downloadConfirmation)
+        val missing = InkLanguageSettings(prefs, "cs")
+        missing.requestModelForWriting()
+        missing.modelChecked("cs", false)
+        assertEquals(InkDownloadRequest("cs"), missing.downloadConfirmation)
+    }
+
+    @Test
     fun excludesNonLanguageModelTags() {
         assertTrue(isTextInkLanguage("zh-Hant"))
         assertFalse(isTextInkLanguage("zxx-Zsym-x-autodraw"))

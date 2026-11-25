@@ -148,7 +148,8 @@ internal fun Modifier.inkFieldInput(
         val ticket = if (enabled && down.type == PointerType.Stylus) actions.begin() else null
         if (ticket == null) actions.otherContact()
         val pen = down.type == PointerType.Stylus || down.type == PointerType.Eraser
-        val ownsPenMotion = ticket != null || (pen && editable)
+        val missingModel = !enabled && down.type == PointerType.Stylus
+        val ownsPenMotion = ticket != null || missingModel || (pen && editable)
         val origin = down.position
         // Claim in-field pen writing before the editable Compose field can start IME handwriting.
         val slop = if (ownsPenMotion) minOf(3.dp.toPx(), viewConfiguration.handwritingSlop)
@@ -181,7 +182,7 @@ internal fun Modifier.inkFieldInput(
                 val contactTime = change.uptimeMillis - down.uptimeMillis
                 if (!moved && contactTime >= viewConfiguration.longPressTimeoutMillis) break
                 if (distance > slop) moved = true
-                if (ticket != null && (position.x !in 0f..size.width.toFloat() ||
+                if ((ticket != null || missingModel) && (position.x !in 0f..size.width.toFloat() ||
                         position.y !in 0f..size.height.toFloat())
                 ) {
                     if (moved) change.consume()
@@ -193,6 +194,9 @@ internal fun Modifier.inkFieldInput(
                         change.consume()
                         actions.finish(ticket, points.toList())
                         delivered = true
+                    } else if (validUp && moved && missingModel) {
+                        change.consume()
+                        actions.missingModel()
                     } else if (validUp && !moved && !editable) {
                         actions.tap()
                     } else if (moved && ownsPenMotion) {
@@ -227,4 +231,5 @@ internal data class InkFieldCallbacks(
     val cancel: (Long) -> Unit,
     val tap: () -> Unit,
     val otherContact: () -> Unit,
+    val missingModel: () -> Unit,
 )

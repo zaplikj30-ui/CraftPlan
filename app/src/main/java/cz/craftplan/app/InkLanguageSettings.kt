@@ -39,6 +39,10 @@ internal class InkLanguageSettings(
     var approved by mutableStateOf(preferences.getStringSet("approved_models", emptySet()).orEmpty().toSet())
         private set
     var downloadedLanguage by mutableStateOf<String?>(null)
+        private set
+    private var checkedLanguage: String? = null
+    private var requestedLanguage: String? = null
+    private val offeredLanguages = mutableSetOf<String>()
     var chooserOpen by mutableStateOf(false)
     var downloadConfirmation by mutableStateOf<InkDownloadRequest?>(null)
     var downloading by mutableStateOf(false)
@@ -46,6 +50,29 @@ internal class InkLanguageSettings(
     var retry by mutableStateOf(0)
         private set
     val readyLanguage: String? get() = downloadedLanguage?.takeIf { it == language }
+
+    /** Called only after a valid, completed writing gesture, never on hover or tap. */
+    fun requestModelForWriting() {
+        val tag = language ?: return
+        if (readyLanguage != null || downloading || downloadConfirmation != null || chooserOpen) return
+        if (tag in offeredLanguages) return
+        if (tag in approved && checkedLanguage != tag) {
+            requestedLanguage = tag // Wait for the existing-model check, including offline.
+            return
+        }
+        offeredLanguages += tag
+        downloadConfirmation = InkDownloadRequest(tag)
+    }
+
+    fun modelChecked(tag: String, downloaded: Boolean) {
+        if (tag != language || downloading) return
+        downloadedLanguage = tag.takeIf { downloaded }
+        checkedLanguage = tag
+        if (requestedLanguage == tag) {
+            requestedLanguage = null
+            requestModelForWriting()
+        }
+    }
 
     fun select(tag: String) {
         if (tag !in InkModels.languages || downloading) return
@@ -62,7 +89,11 @@ internal class InkLanguageSettings(
 
     private fun choose(tag: String?) {
         failed = false
-        if (language != (tag ?: default)) downloadedLanguage = null
+        if (language != (tag ?: default)) {
+            downloadedLanguage = null
+            checkedLanguage = null
+            requestedLanguage = null
+        }
         manualLanguage = tag
         preferences.edit().apply {
             if (tag == null) remove("language") else putString("language", tag)
@@ -75,7 +106,11 @@ internal class InkLanguageSettings(
         preferences.edit().putStringSet("approved_models", approved).apply()
     }
 
-    fun refresh() { retry++ }
+    fun refresh() {
+        checkedLanguage = null
+        requestedLanguage = null
+        retry++
+    }
 }
 
 @Composable
@@ -91,15 +126,16 @@ internal fun rememberInkLanguageSettings(): InkLanguageSettings {
     LaunchedEffect(settings, settings.language, settings.approved, settings.retry, settings.downloading) {
         val tag = settings.language ?: return@LaunchedEffect
         if (settings.downloading || tag !in settings.approved) return@LaunchedEffect
-        settings.downloadedLanguage = try {
-            tag.takeIf { InkModels.isDownloaded(context, tag) }
+        val downloaded = try {
+            InkModels.isDownloaded(context, tag)
         } catch (canceled: CancellationException) {
             throw canceled
         } catch (_: Exception) {
-            null
+            false
         } catch (_: LinkageError) {
-            null
+            false
         }
+        settings.modelChecked(tag, downloaded)
     }
     return settings
 }

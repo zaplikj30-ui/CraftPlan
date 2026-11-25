@@ -180,6 +180,7 @@ internal fun DimensionValueDialog(
         cancel = ink::cancel,
         tap = tap,
         otherContact = ink::interrupt,
+        missingModel = inkSettings::requestModelForWriting,
     )
     val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
     val confirm: () -> Unit = {
