@@ -82,6 +82,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clipToBounds
@@ -422,7 +423,9 @@ internal fun DimensionValueDialog(
                     awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
                 }
             }
-        })
+        }).graphicsLayer()
+        // The inner layer follows the full measured keypad, not the animated clip height.
+        // Reuse its drawing while the outer layout reveals it; real content changes still invalidate it.
         var keyboardRequest by remember { mutableStateOf(0L) }
         var imeHidePending by remember { mutableStateOf(false) }
         fun requestKeyboard(next: DimensionKeyboard) {
@@ -542,7 +545,8 @@ internal fun DimensionValueDialog(
         )
         val inkColor = MaterialTheme.colorScheme.primary
 
-        BoxWithConstraints(
+        // This root does not read its constraints; avoid an unnecessary subcomposition.
+        Box(
             Modifier.fillMaxSize().safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
