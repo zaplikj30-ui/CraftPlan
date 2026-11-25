@@ -506,7 +506,8 @@ internal fun DimensionValueDialog(
                             }
                             if (keypadVisible) keypad(62.dp)
                         }
-                        if (keypadVisible || keys.systemOpen || imeVisible) Spacer(Modifier.height(4.dp))
+                        // Reserve the gap throughout keyboard show/hide, including the closed state.
+                        Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
@@ -534,7 +535,7 @@ internal fun DimensionValueDialog(
                                     keyboardControl()
                                 }
                             }
-                            if (keys.systemOpen || imeVisible) Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(4.dp))
                             actions()
                         }
                         errorMessage()
