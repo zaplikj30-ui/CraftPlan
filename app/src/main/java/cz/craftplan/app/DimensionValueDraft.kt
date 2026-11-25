@@ -113,6 +113,8 @@ internal class DimensionValueDraft private constructor(
     val showUnit: Boolean = true,
     private val resultPrefix: String? = null,
     private val computedTextLabel: String? = null,
+    private val lastValueExpression: String? = null,
+    private val lastNoteExpression: String? = null,
 ) {
     val targetId get() = target.id
 
@@ -130,6 +132,14 @@ internal class DimensionValueDraft private constructor(
         showUnit = dimension.showUnit,
         resultPrefix = dimension.equationPrefix,
         computedTextLabel = dimension.textLabel.takeIf { dimension.equationPrefix != null },
+        // Only replay a directly calculated, unconverted measured equation.
+        lastValueExpression = dimension.equationPrefix?.takeIf { prefix ->
+            dimension.measurement?.let { m ->
+                m.source == LengthSource.CALCULATED &&
+                    m.originalUnit == OriginalLengthUnit.Single(dimension.displayUnit) &&
+                    prefix.endsWith(formatCalculatedExpression(m.originalInput))
+            } == true
+        },
     )
 
     fun type(text: String): DimensionValueDraft {
@@ -145,7 +155,8 @@ internal class DimensionValueDraft private constructor(
                 removeResultApproximation(text) else text
             val explicit = (parseDimensionEntry(cleaned.substring(nextPrefix.length).trim(), unit)
                 as? DimensionEntry.Measured)?.explicitlyTypedUnit == true
-            return DimensionValueDraft(target, cleaned, unit, null, note, showUnit || explicit, nextPrefix)
+            return DimensionValueDraft(target, cleaned, unit, null, note, showUnit || explicit, nextPrefix,
+                lastNoteExpression = lastNoteExpression)
         }
         val preserved = if (prefix != null) null else unchangedEntry?.let { entry ->
             val number = if (entry.suffix.isEmpty()) input.trim()
@@ -161,33 +172,58 @@ internal class DimensionValueDraft private constructor(
         }
         val explicit = preserved == null &&
             (parseDimensionEntry(text, unit) as? DimensionEntry.Measured)?.explicitlyTypedUnit == true
-        return DimensionValueDraft(target, text, unit, preserved, note, showUnit || explicit)
+        return DimensionValueDraft(target, text, unit, preserved, note, showUnit || explicit,
+            lastNoteExpression = lastNoteExpression)
     }
 
     /** A new equals appends a rounded result; no live evaluation during edits. */
     fun calculate(expression: String, places: Int = DEFAULT_CALCULATION_PLACES): DimensionValueDraft? {
         if (!expression.endsWith('=')) return null
-        val (_, segment) = calculationSegment(expression)
-        val result = roundedCalculation(segment, places) ?: return null
-        val prefix = expression.trimEnd()
+        val segment = findCalculationSegment(expression)
+        val result = roundedCalculation(segment.expression, places) ?: return null
+        val prefix = segment.prefix + formatCalculatedExpression(segment.expression)
         val text = prefix + " " + result.markedNumber
         if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
-        val measured = ManualLengthMeasurement.calculate(segment, unit, places)
+        // A calculation in a description must not replace a preceding measurement.
+        if (segment.contextual) {
+            val previous = segment.prefix.trimEnd()
+            val measuredPrefix = if ('=' !in previous) {
+                val existing = unchangedEntry?.takeIf { it.inputText(unit) == previous }
+                existing ?: parseDimensionEntry(previous, unit) as? DimensionEntry.Measured
+            } else null
+            val suffix = formatCalculatedExpression(segment.expression) + " " + result.markedNumber
+            val entry = measuredPrefix?.copy(suffix =
+                listOf(measuredPrefix.suffix, suffix).filter(String::isNotBlank).joinToString(" "))
+            return DimensionValueDraft(target, text, unit, entry, note, showUnit,
+                computedTextLabel = if (entry == null) text else null,
+                lastValueExpression = prefix, lastNoteExpression = lastNoteExpression)
+        }
+        val measured = ManualLengthMeasurement.calculate(segment.expression, unit, places)
         if (measured == null) {
             if (!result.number.startsWith('-') && !(result.approximate && result.number == "0")) return null
-            return DimensionValueDraft(target, text, unit, null, note, showUnit, prefix, result.markedNumber)
+            return DimensionValueDraft(target, text, unit, null, note, showUnit, prefix, result.markedNumber,
+                prefix, lastNoteExpression)
         }
         return DimensionValueDraft(target, text, unit, DimensionEntry.Measured(measured, "", unit),
-            note, showUnit, prefix)
+            note, showUnit, prefix, lastValueExpression = prefix, lastNoteExpression = lastNoteExpression)
     }
 
     fun calculateNote(expression: String, places: Int = DEFAULT_CALCULATION_PLACES): DimensionValueDraft? {
         if (!expression.endsWith('=')) return null
-        val (_, segment) = calculationSegment(expression, note = true)
-        val result = roundedCalculation(segment, places) ?: return null
-        val text = expression + " " + result.markedNumber
+        val segment = findCalculationSegment(expression)
+        val result = roundedCalculation(segment.expression, places) ?: return null
+        val prefix = segment.prefix + formatCalculatedExpression(segment.expression)
+        val text = prefix + " " + result.markedNumber
         if (text.length > MAX_DIMENSION_NOTE_LENGTH) return null
-        return withNote(text)
+        return DimensionValueDraft(target, input, unit, unchangedEntry, text, showUnit, resultPrefix,
+            computedTextLabel, lastValueExpression, prefix)
+    }
+
+    /** Replay only results that were automatically generated and not manually edited.
+     * No other saved dimension is affected. Both fields change together or not at all. */
+    fun recalculate(places: Int): DimensionValueDraft? {
+        val value = lastValueExpression?.let { calculate(it, places) ?: return null } ?: this
+        return lastNoteExpression?.let { value.calculateNote(it, places) ?: return null } ?: value
     }
 
     fun editNote(text: String): DimensionValueDraft {
@@ -203,11 +239,13 @@ internal class DimensionValueDraft private constructor(
     fun withNote(text: String): DimensionValueDraft =
         if (text == note) this else DimensionValueDraft(
             target, input, unit, unchangedEntry, text, showUnit, resultPrefix, computedTextLabel,
+            lastValueExpression = lastValueExpression,
         )
 
     fun withUnitVisibility(visible: Boolean): DimensionValueDraft =
         if (visible == showUnit) this else DimensionValueDraft(
             target, input, unit, unchangedEntry, note, visible, resultPrefix, computedTextLabel,
+            lastValueExpression, lastNoteExpression,
         )
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
@@ -219,7 +257,8 @@ internal class DimensionValueDraft private constructor(
             // Keep the raw input. An explicitly typed length unit still wins.
             val number = resultPrefix?.let { input.removePrefix(it).trimStart().removePrefix("≈") } ?: input
             val text = resultPrefix?.let { "$it $number" } ?: number
-            return DimensionValueDraft(target, text, newUnit, null, note, true, resultPrefix)
+            return DimensionValueDraft(target, text, newUnit, null, note, true, resultPrefix,
+                lastNoteExpression = lastNoteExpression)
         }
         if (input.isNotBlank() && parsed == null) return this
         val measured = (parsed as? DimensionEntry.Measured)?.copy(displayUnit = newUnit, explicitlyTypedUnit = false)
@@ -237,7 +276,8 @@ internal class DimensionValueDraft private constructor(
             measured.value.length.displayNumberForUi(newUnit).approximate)) "≈" else ""
         val text = if (prefix != null && converted != null) "$prefix $marker$converted" else converted ?: input
         if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return this
-        return DimensionValueDraft(target, text, newUnit, measured, note, true, prefix)
+        return DimensionValueDraft(target, text, newUnit, measured, note, true, prefix,
+            lastNoteExpression = lastNoteExpression)
     }
 
     fun hasApproximateDisplay(): Boolean =

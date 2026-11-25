@@ -124,18 +124,76 @@ internal fun isLiteralCalculationLabel(input: String): Boolean =
 
 internal const val DEFAULT_CALCULATION_PLACES = 3
 
-/** The last segment after an earlier equals is the next calculation.
- * A note can also start an expression after a colon or semicolon. */
-internal fun calculationSegment(input: String, note: Boolean = false): Pair<String, String> {
-    val beforeEquals = input.dropLast(1)
-    val previousEquals = beforeEquals.lastIndexOf('=')
-    val separator = if (note) maxOf(previousEquals, beforeEquals.lastIndexOf(':'), beforeEquals.lastIndexOf(';'))
-        else previousEquals
-    val start = separator + 1
+// A contextual suffix needs at least one binary operator. Do not reinterpret
+// incomplete arithmetic or a fragment of an attached word/number as an expression.
+private val contextualSyntax = Regex(
+    """[ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?(?:[ ]*[+−×xX*÷/-][ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?)+[ ]*=""",
+)
+
+internal data class CalculationSegment(val prefix: String, val expression: String, val contextual: Boolean)
+
+internal fun findCalculationSegment(input: String): CalculationSegment {
+    if (!input.endsWith('=')) return CalculationSegment("", input, false)
+    val before = input.dropLast(1)
+    val previousEquals = before.lastIndexOf('=')
+    var start = previousEquals + 1
+    while (input.getOrNull(start) == ' ') start++
+    if (input.getOrNull(start) == '≈') start++
     val raw = input.substring(start)
-    val leading = raw.takeWhile { it == ' ' }
-    val marker = if (raw.drop(leading.length).startsWith('≈')) 1 else 0
-    return input.substring(0, start) + leading to raw.drop(leading.length + marker)
+    // A whole expression or a chain uses the entire operand, including malformed
+    // expressions (which must report an error, not silently evaluate a suffix).
+    if (contextualSyntax.matches(raw) || (isLiteralCalculationLabel(raw) &&
+            !Regex("""[0-9] +[0-9]""").containsMatchIn(raw))) {
+        return CalculationSegment(input.substring(0, start), raw, false)
+    }
+    // Longest valid suffix, only at a clear separator. Limit search to the
+    // existing arithmetic budget, even in a long note.
+    val first = maxOf(start + 1, input.length - ManualLengthMeasurement.MAX_INPUT_LENGTH)
+    for (i in first until input.lastIndex) {
+        if (!input[i].isDigit() && input[i] !in "+−-") continue
+        if (input[i - 1] !in " :;") continue
+        val preceding = input.substring(start, i).trimEnd()
+        if (preceding.isEmpty() || preceding.last() in "+−-×*÷/.,=") continue
+        if (preceding.last() in "xX" && preceding.dropLast(1).trimEnd().lastOrNull()?.isDigit() == true) continue
+        val candidate = input.substring(i)
+        if (contextualSyntax.matches(candidate)) {
+            return CalculationSegment(input.substring(0, i), candidate, true)
+        }
+    }
+    return CalculationSegment(input.substring(0, start), raw, false)
+}
+
+@Suppress("UNUSED_PARAMETER")
+internal fun calculationSegment(input: String, note: Boolean = false): Pair<String, String> =
+    findCalculationSegment(input).let { it.prefix to it.expression }
+
+/** Canonicalize only a successfully evaluated expression, never surrounding text.
+ * Unary signs remain attached to their number. */
+internal fun formatCalculatedExpression(expression: String): String {
+    val tokens = Regex("""[0-9]+(?:[.,][0-9]+)?|[+−×xX*÷/=-]""").findAll(expression)
+    val out = StringBuilder()
+    var expectsNumber = true
+    for (token in tokens) {
+        val raw = token.value
+        if (raw.first().isDigit()) {
+            out.append(raw)
+            expectsNumber = false
+        } else {
+            val symbol = when (raw) {
+                "-", "−" -> "−"
+                "x", "X", "*" -> "×"
+                "/" -> "÷"
+                else -> raw
+            }
+            if (expectsNumber && symbol in listOf("+", "−")) out.append(symbol)
+            else {
+                out.append(' ').append(symbol)
+                if (symbol != "=") out.append(' ')
+            }
+            expectsNumber = true
+        }
+    }
+    return out.toString()
 }
 
 /** An insertion of a final equals, not backspace, selection or cursor movement. */

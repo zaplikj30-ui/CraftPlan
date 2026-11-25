@@ -77,14 +77,49 @@ class DimensionCalculationTest {
         assertEquals("100 + 50 = 150 mm = 15", cm.input)
         assertEquals("100 + 50 = 150 mm = 15 cm", cm.confirm(dimension)!!.displayLabel())
         val note = draft.calculateNote("Výpočet: 100 / 3 =", 2)!!
-        assertEquals("Výpočet: 100 / 3 = ≈33,33", note.note)
-        assertEquals("Výpočet: 100 / 3 = 34", note.editNote("Výpočet: 100 / 3 = ≈34").note)
+        assertEquals("Výpočet: 100 ÷ 3 = ≈33,33", note.note)
+        assertEquals("Výpočet: 100 ÷ 3 = 34", note.editNote("Výpočet: 100 ÷ 3 = ≈34").note)
         assertEquals(draft.input, note.input)
         assertFalse(requestsDimensionCalculation("100+50= 150", "100+50=", true))
         assertTrue(requestsDimensionCalculation("100+50", "100+50=", true))
         assertTrue(requestsDimensionCalculation("Výpočet: 100/3", "Výpočet: 100/3=", true, note = true))
         assertEquals("≈0", roundedCalculation("1/3=", 0)!!.markedNumber)
         assertNull(ManualLengthMeasurement.calculate("1/3=", LengthUnit.MM, 0))
+    }
+
+    @Test
+    fun contextualExpressionsNormalizeOnlyMathAndPreservePriorMeasurement() {
+        val draft = DimensionValueDraft(dimension)
+        val label = draft.calculate("Kuchyň 40x50=", 3)!!
+        assertEquals("Kuchyň 40 × 50 = 2000", label.input)
+        assertNull(label.confirm(dimension)!!.measurement)
+        val measured = draft.calculate("46641 text 40x50=", 3)!!
+        assertEquals("46641 text 40 × 50 = 2000", measured.input)
+        assertEquals("46641", measured.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        assertEquals("Kuchyň 100 ÷ 5 = 20", draft.calculateNote("Kuchyň 100/5=")!!.note)
+        assertEquals("123 40 × 50 = 2000", draft.calculateNote("123 40X50=")!!.note)
+        assertTrue(requestsDimensionCalculation("Text 10/0", "Text 10/0=", true))
+        assertNull(draft.calculateNote("Text 10/0="))
+        assertFalse(requestsDimensionCalculation("12 mm", "12 mm=", true))
+        assertNull(draft.calculateNote("1+ 2/0="))
+        assertEquals("2 × −3 + 7 =", formatCalculatedExpression("2*-3+7="))
+    }
+
+    @Test
+    fun precisionReplaysOnlyUneditedCalculatedResults() {
+        val draft = DimensionValueDraft(dimension).calculate("100/3=", 2)!!
+            .calculateNote("Text 40/3=", 2)!!
+        val changed = draft.recalculate(4)!!
+        assertEquals("100 ÷ 3 = ≈33,3333", changed.input)
+        assertEquals("Text 40 ÷ 3 = ≈13,3333", changed.note)
+        val manual = draft.type("100 ÷ 3 = 34").editNote("Text 40 ÷ 3 = 14")
+        assertEquals(manual.input, manual.recalculate(4)!!.input)
+        assertEquals(manual.note, manual.recalculate(4)!!.note)
+        val chain = draft.calculate(draft.input + " × 3 =", 2)!!
+        assertEquals("100 ÷ 3 = ≈33,33 × 3 = 99,99", chain.recalculate(4)!!.input)
+        val context = DimensionValueDraft(dimension).calculate("46641 text 100/3=", 2)!!
+        assertEquals("46641 text 100 ÷ 3 = ≈33,3333", context.recalculate(4)!!.input)
+        assertEquals("46641", context.recalculate(4)!!.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
     }
 
     @Test
@@ -97,9 +132,9 @@ class DimensionCalculationTest {
         assertNull(draft.calculate("1000000001+0="))
         assertNull(draft.calculate("1/10000000000000=", 13))
         val negative = draft.calculate("1-2=")!!.confirm(original)!!
-        assertEquals("1-2= -1", negative.displayLabel())
+        assertEquals("1 − 2 = -1", negative.displayLabel())
         assertNull(negative.measurement)
         val zero = draft.calculate("1-1=")!!.confirm(original)!!
-        assertEquals("1-1= 0 mm", zero.displayLabel())
+        assertEquals("1 − 1 = 0 mm", zero.displayLabel())
     }
 }
