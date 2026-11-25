@@ -46,6 +46,18 @@ Když zařízení neposílá jednotku, modelový profil musí mít **vědomě po
 
 Ochrana: při skenování a spojení použít oficiální Android oprávnění pro příslušné verze (Android 12+ **BLUETOOTH_SCAN / BLUETOOTH_CONNECT**), odmítnuté oprávnění nesmí poškodit práci; žádné odesílání zákaznických fotografií či kót výrobcům zařízení. Vynechat skenování na pozadí bez potřeby, omezit počet pokusů a odpojovat bezpečně. Citlivé surové BT pakety neshromažďovat trvale; cílený dočasný diagnostický záznam jen na výslovné zapnutí a po anonymizaci.
 
+### 3.1 Fronta kót pro postupné měření laserem (25. 11. 2026)
+
+**SCHVÁLENÝ FUNKČNÍ POŽADAVEK VLASTNÍKA – F03, etapa M5; dosud NEIMPLEMENTOVÁNO.** Inspirace: ukázka postupného měření více prvků v ImageMeteru předložená vlastníkem; vlastní UX a implementace CraftPlanu, nikoli kopie grafiky či kódu.
+
+- Uživatel nakreslí potřebné kóty, vybere je v požadovaném pořadí a spustí režim postupného měření. Každá zařazená kóta má viditelné pořadové číslo v kroužku; právě měřená kóta je výrazně odlišena.
+- Uživatel postupně měří na kompatibilním připojeném laseru, bez návratu k telefonu po každé délce. Každá platná jednoznačně přiřaditelná hodnota se doplní do aktuální kóty a fronta přejde na další. Ruční měření tlačítkem na laseru postačuje; vzdálené spuštění z telefonu zůstává samostatnou možností pouze u ověřených modelů.
+- Umožnit přeskočení a opravu posledního měření, zachovat ruční zadání i běžné měření jediné kóty. Podrobné ovládání přeskočení, opravy, změny pořadí a opuštění fronty doladit s vlastníkem před implementací.
+- Bezpečnostní podmínky: cíl vázat na stabilní ID fotografie/kóty a aktuální revizi, ne pouze na pořadí v seznamu. Přijímat pouze jednoznačné platné měření očekávané veličiny a jednotky. Neplatný, duplicitní, opožděný nebo nejistě přiřaditelný výsledek, výpadek spojení či selhání zápisu nesmí posunout frontu ani přepsat jinou kótu. Pokud protokol nedovolí spolehlivé přiřazení, zastavit automatické pokračování a vyžádat vědomé potvrzení. Změna výběru, smazání cíle nebo konflikt revizí nesmí tichým způsobem přesměrovat měření.
+- Každé platně aplikované měření zachová přesnou hodnotu, jednotku, původ a samostatnou editaci Undo/Redo. Stav fronty a potvrzené revize nesmějí předstírat trvalé uložení před jeho skutečným potvrzením; při obnově/odpojení zachovat bezpečné přiřazení, při nejistotě vyžádat potvrzení.
+
+**Akceptace později:** tři předem seřazené syntetické kóty, tři různé známé hodnoty, správná pořadová čísla a zvýraznění, bez opakovaného výběru na telefonu; přeskočení, oprava, Undo/Redo, duplicitní/pozdní pakety, změna cíle, odpojení a obnovení spojení, chyba zápisu, dokončení fronty. Ověřit s konkrétním laserem až po úspěšném pilotu F03. Testy NOT RUN; nejde o GO k implementaci, buildům nebo Actions.
+
 ## 4. Konkrétní kandidáti pro pozdější etapy (nejde o podporu naší aplikací)
 
 | Kandidát | Co je externě doloženo | Co ještě nemáme |
