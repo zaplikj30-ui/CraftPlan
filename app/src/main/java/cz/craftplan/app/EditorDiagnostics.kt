@@ -9,6 +9,13 @@ internal enum class DiagnosticAction {
 }
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
+internal enum class PenWindowEvent { DOWN, MOVE, UP, CANCEL, POINTER_DOWN, POINTER_UP, HOVER_ENTER, HOVER_MOVE, HOVER_EXIT }
+internal enum class PenDiagnosticStage {
+    WINDOW_ATTACHED, WINDOW_UNAVAILABLE, WINDOW_DETACHED,
+    ROOT_DOWN, ROOT_ROUTE, ROOT_RELEASE, ROOT_ABORT,
+    FIELD_DOWN, FIELD_ALREADY_OWNED, FIELD_RELEASE, FIELD_ABORT,
+    TAP, DOUBLE_TAP, HOLD, OPEN_FIELD, OPEN_BLOCKED,
+}
 internal const val COLD_START_DIAGNOSTICS_KEY = "diagnostics_next_cold_start"
 
 // Clear before recording so an Activity recreation cannot re-arm a one-shot request.
@@ -39,6 +46,8 @@ internal class EditorDiagnostics(
     private var started: Long? = null
     private var ended: Long? = null
     private var nextMove = Long.MIN_VALUE
+    private var nextPenHover = Long.MIN_VALUE
+    private var nextPenMove = Long.MIN_VALUE
     private var dropped = 0
     private var touches = 0L
     private var skippedMoves = 0L
@@ -97,6 +106,8 @@ internal class EditorDiagnostics(
         targetNumbers.clear()
         metrics.reset()
         nextMove = Long.MIN_VALUE
+        nextPenHover = Long.MIN_VALUE
+        nextPenMove = Long.MIN_VALUE
         dropped = 0
         touches = 0
         skippedMoves = 0
@@ -212,6 +223,42 @@ internal class EditorDiagnostics(
         append(time, "keypad_stage ${stage.name}" + (detail?.let { " detail=$it" } ?: ""))
     }
 
+    // No positions, recognized text, strokes, pressure, or measurement values.
+    fun penWindow(kind: PenWindowEvent, tool: Int, pointers: Int, eventMs: Long,
+        downMs: Long, canceled: Boolean, history: Int,
+    ) {
+        val time = recordingTime() ?: return
+        when (kind) {
+            PenWindowEvent.HOVER_MOVE -> {
+                if (time < nextPenHover) return
+                nextPenHover = time + 100
+            }
+            PenWindowEvent.MOVE -> {
+                if (time < nextPenMove) return
+                nextPenMove = time + 100
+            }
+            PenWindowEvent.DOWN -> nextPenMove = Long.MIN_VALUE
+            PenWindowEvent.HOVER_ENTER -> nextPenHover = Long.MIN_VALUE
+            else -> Unit
+        }
+        append(time, "pen_window ${kind.name} tool=$tool pointers=$pointers event_uptime_ms=$eventMs" +
+            " down_uptime_ms=$downMs canceled=$canceled history=$history")
+    }
+
+    fun penGesture(stage: PenDiagnosticStage, field: DimensionField? = null,
+        eventMs: Long? = null, pending: Boolean? = null, enabled: Boolean? = null,
+        ticket: Boolean? = null, kind: PenContactKind? = null, durationMs: Long? = null,
+        displacementDp: Float? = null, pathDp: Float? = null, rawAction: Int? = null,
+        consumed: Boolean? = null, selection: Boolean? = null, continuing: Boolean? = null,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "pen_gesture ${stage.name} field=${field?.name ?: "NA"}" +
+            " event_uptime_ms=${eventMs ?: "NA"} pending=${pending ?: "NA"} enabled=${enabled ?: "NA"}" +
+            " ticket=${ticket ?: "NA"} kind=${kind?.name ?: "NA"} duration_ms=${durationMs ?: "NA"}" +
+            " displacement_dp=${displacementDp ?: "NA"} path_dp=${pathDp ?: "NA"} raw_action=${rawAction ?: "NA"}" +
+            " consumed=${consumed ?: "NA"} selection=${selection ?: "NA"} continuing=${continuing ?: "NA"}")
+    }
+
     fun keypadHeight(heightPx: Int) {
         val time = recordingTime() ?: return
         append(time, "keypad_height px=$heightPx")
@@ -279,6 +326,7 @@ internal class EditorDiagnostics(
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
         appendLine("keypad_frame=separate dimension dialog window FrameMetrics, time=callback receipt, vsync_ms=intended frame start relative to recording; negative metrics unavailable; first_draw is SDK flag; excludes native IME. keypad_height=measured clipped height px; keypad_stage=stage markers, REVEAL_REQUEST detail 1=open/0=close, other timing details ns. No field contents.")
         appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
+        appendLine("pen_window: dialog Window.Callback touch/generic motion before delegation; tool=Android tool type, event/down times=Android uptime, MOVE/HOVER_MOVE sampled at 100 ms; hover or touch intercepted by OS/IME may be absent. pen_gesture: Compose route, classification, dispatch; displacement/path are aggregate dp, no coordinates or text; NA=unavailable.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }

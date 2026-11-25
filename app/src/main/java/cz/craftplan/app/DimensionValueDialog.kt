@@ -331,6 +331,8 @@ internal fun DimensionValueDialog(
             pending = { ink.hasPendingInput },
             blocked = waitForInk,
             missingModel = inkSettings::requestModelForWriting,
+            diagnostics = diagnostics,
+            field = field,
         )
     }
     val confirm: () -> Unit = {
@@ -531,12 +533,14 @@ internal fun DimensionValueDialog(
         val outsideTap by rememberUpdatedState(hideKeyboard)
         val openField: (DimensionField) -> Unit = open@{ target ->
             if (ink.hasPendingInput) {
+                diagnostics?.penGesture(PenDiagnosticStage.OPEN_BLOCKED, target, pending = true)
                 waitForInk()
                 return@open
             }
             // Normal taps inside an already focused editable field still only
             // move the cursor. A missing IME, however, gets a fresh show request.
             val next = keys.open(target)
+            diagnostics?.penGesture(PenDiagnosticStage.OPEN_FIELD, target, pending = false)
             if (next != keys || (next.systemOpen && !latestImeVisible)) {
                 val previousField = keys.field
                 keyboardRequest++
@@ -565,7 +569,7 @@ internal fun DimensionValueDialog(
         Box(
             Modifier.fillMaxSize()
                 .onGloballyPositioned { dialogInkOrigin = it.positionInRoot() }
-                .inkDialogInput { routeInk(it) }
+                .inkDialogInput(diagnostics) { routeInk(it) }
                 .safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
@@ -1054,6 +1058,9 @@ private fun DimensionInputField(
                 layout.layoutInput.text.text == value.text) {
                 layout.getWordBoundary(offset.coerceIn(0, value.text.lastIndex))
             } else TextRange(offset)
+            inkCallbacks.diagnostics?.penGesture(
+                if (doubleTap) PenDiagnosticStage.DOUBLE_TAP else PenDiagnosticStage.TAP,
+                inkCallbacks.field, eventMs = time, selection = !selection.collapsed)
             lastPenTapTime = if (doubleTap) -1L else time
             lastPenTapPosition = position
             inkCallbacks.tap()
@@ -1064,6 +1071,8 @@ private fun DimensionInputField(
             val offset = offsetAt(position)
             val selection = if (!value.selection.collapsed && offset in value.selection.min..value.selection.max)
                 value.selection else TextRange(offset)
+            inkCallbacks.diagnostics?.penGesture(PenDiagnosticStage.HOLD, inkCallbacks.field,
+                selection = !selection.collapsed)
             inkCallbacks.tap()
             onValueChange(value.copy(selection = selection, composition = null))
             penMenu = true

@@ -29,12 +29,18 @@ internal fun Modifier.inkFieldInput(
         if (down.position.x !in 0f..size.width.toFloat() || down.position.y !in 0f..size.height.toFloat()) return@awaitEachGesture
         val stylus = down.type == PointerType.Stylus
         // The dialog's Initial-pass owner already claimed this continuation.
-        if (stylus && down.isConsumed) return@awaitEachGesture
         val actions = callbacks()
+        if (stylus && down.isConsumed) {
+            actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_ALREADY_OWNED,
+                actions.field, eventMs = down.uptimeMillis, consumed = true)
+            return@awaitEachGesture
+        }
         val pending = actions.pending()
         if (stylus) down.consume()
         val ticket = if (enabled && stylus) actions.begin() else null
         if (enabled && stylus && ticket == null && pending) actions.blocked()
+        if (stylus) actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_DOWN, actions.field,
+            eventMs = down.uptimeMillis, pending = pending, enabled = enabled, ticket = ticket != null)
         val origin = down.position
         var last = origin
         var maximum = 0f
@@ -86,6 +92,10 @@ internal fun Modifier.inkFieldInput(
                 val kind = classifyPenContact(pending, duration,
                     maximum / density, travel / density)
                 if (!change.pressed) {
+                    actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_RELEASE, actions.field,
+                        eventMs = change.uptimeMillis, pending = pending, enabled = enabled, ticket = ticket != null,
+                        kind = kind, durationMs = duration, displacementDp = maximum / density,
+                        pathDp = travel / density, rawAction = raw.actionMasked)
                     if (!canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
                     when (kind) {
                         PenContactKind.INK -> if (ticket != null) {
@@ -115,6 +125,9 @@ internal fun Modifier.inkFieldInput(
             }
         } finally {
             if (!delivered && ticket != null) actions.cancel(ticket)
+            if (stylus && !delivered) actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_ABORT,
+                actions.field, eventMs = down.uptimeMillis, pending = pending, enabled = enabled,
+                ticket = ticket != null, displacementDp = maximum / density, pathDp = travel / density)
         }
     }
 }
@@ -165,12 +178,17 @@ internal data class DialogInkContact(
  * Near-field starts claim only actual writing movement, not ordinary button
  * taps/holds. The handler is stable across recognition and recomposition. */
 internal fun Modifier.inkDialogInput(
+    diagnostics: EditorDiagnostics?,
     route: (Offset) -> DialogInkContact?,
 ): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         if (down.type != PointerType.Stylus || down.isConsumed) return@awaitEachGesture
-        val routed = route(down.position) ?: return@awaitEachGesture
+        diagnostics?.penGesture(PenDiagnosticStage.ROOT_DOWN, eventMs = down.uptimeMillis)
+        val routed = route(down.position)
+        diagnostics?.penGesture(PenDiagnosticStage.ROOT_ROUTE, routed?.actions?.field,
+            eventMs = down.uptimeMillis, enabled = routed?.enabled, continuing = routed?.continuing)
+        if (routed == null) return@awaitEachGesture
         val actions = routed.actions
         var owned = routed.continuing
         var ticket: Long? = null
@@ -223,6 +241,11 @@ internal fun Modifier.inkDialogInput(
                     }
                 }
                 if (!change.pressed) {
+                    diagnostics?.penGesture(PenDiagnosticStage.ROOT_RELEASE, actions.field,
+                        eventMs = change.uptimeMillis, enabled = routed.enabled, ticket = ticket != null,
+                        kind = kind, durationMs = change.uptimeMillis - down.uptimeMillis,
+                        displacementDp = maximum / density, pathDp = travel / density,
+                        rawAction = raw.actionMasked, consumed = owned, continuing = routed.continuing)
                     if (!owned || !canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
                     val activeTicket = ticket
                     if (kind == PenContactKind.INK) {
@@ -241,6 +264,10 @@ internal fun Modifier.inkDialogInput(
             }
         } finally {
             if (!delivered) ticket?.let(actions.cancel)
+            if (owned && !delivered) diagnostics?.penGesture(PenDiagnosticStage.ROOT_ABORT,
+                actions.field, eventMs = down.uptimeMillis, ticket = ticket != null,
+                displacementDp = maximum / density, pathDp = travel / density,
+                continuing = routed.continuing)
         }
     }
 }
@@ -259,4 +286,6 @@ internal data class InkFieldCallbacks(
     val pending: () -> Boolean,
     val blocked: () -> Unit,
     val missingModel: () -> Unit,
+    val diagnostics: EditorDiagnostics? = null,
+    val field: DimensionField? = null,
 )

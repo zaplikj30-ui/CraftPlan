@@ -8,6 +8,34 @@ import org.junit.Test
 
 class EditorDiagnosticsTest {
     @Test
+    fun penDiagnosticsRecordWindowAndClassificationOnlyWithinSessionAndSampleMoves() {
+        var now = 0L
+        val recorder = EditorDiagnostics(now = { now })
+        recorder.penWindow(PenWindowEvent.DOWN, 2, 1, 900, 900, false, 0)
+        recorder.start()
+        recorder.penWindow(PenWindowEvent.HOVER_ENTER, 2, 1, 1000, 1000, false, 0)
+        recorder.penWindow(PenWindowEvent.HOVER_MOVE, 2, 1, 1001, 1000, false, 0)
+        recorder.penWindow(PenWindowEvent.HOVER_MOVE, 2, 1, 1002, 1000, false, 0)
+        now += 120_000_000
+        recorder.penWindow(PenWindowEvent.HOVER_MOVE, 2, 1, 1120, 1000, false, 0)
+        recorder.penWindow(PenWindowEvent.DOWN, 2, 1, 1121, 1121, false, 0)
+        recorder.penGesture(PenDiagnosticStage.FIELD_RELEASE, DimensionField.VALUE,
+            eventMs = 1161, kind = PenContactKind.TAP, durationMs = 40,
+            displacementDp = 0.5f, pathDp = 0.6f, rawAction = 1)
+        recorder.penGesture(PenDiagnosticStage.DOUBLE_TAP, DimensionField.VALUE, selection = true)
+        recorder.stop()
+        recorder.penGesture(PenDiagnosticStage.HOLD)
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(2, report.lineSequence().count { it.contains("pen_window HOVER_MOVE") })
+        assertTrue(report.contains("pen_window DOWN tool=2 pointers=1 event_uptime_ms=1121"))
+        assertFalse(report.contains("event_uptime_ms=900"))
+        assertTrue(report.contains("pen_gesture FIELD_RELEASE field=VALUE"))
+        assertTrue(report.contains("kind=TAP duration_ms=40 displacement_dp=0.5 path_dp=0.6 raw_action=1"))
+        assertTrue(report.contains("pen_gesture DOUBLE_TAP field=VALUE"))
+        assertFalse(report.contains("pen_gesture HOLD"))
+    }
+
+    @Test
     fun reportSeparatesTouchGestureAndAnonymousResultAndStopsRecording() {
         var now = 0L
         val recorder = EditorDiagnostics(now = { now })
