@@ -80,7 +80,7 @@ class DimensionValueDraftTest {
     fun rejectsInvalidAndStaleConfirmation() {
         val original = dimension.withManualLength("850 mm")
         val draft = DimensionValueDraft(original).type("950")
-        for (input in listOf("1/0 in", "1.2,3", "1000000001", "1".repeat(97))) {
+        for (input in listOf("1/0 in", "1.2,3", "1000000001", "1000000001mm popis", "1".repeat(97))) {
             assertNull(input, draft.type(input).confirm(original))
         }
         assertNull(draft.confirm(original.copy(id = UUID.randomUUID())))
@@ -264,6 +264,7 @@ class DimensionValueDraftTest {
         val cm = DimensionValueDraft(dimension).type("125 cm")
         assertEquals(LengthUnit.CM, cm.effectiveDisplayUnit())
         assertEquals("125 cm", cm.confirm(dimension)!!.displayLabel())
+        assertEquals("1250 mm v otvoru", DimensionValueDraft(dimension).type("1250 v otvoru").confirm(dimension)!!.displayLabel())
         assertEquals("1250", cm.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
         assertEquals("1250 mm", cm.selectUnit(LengthUnit.MM).confirm(dimension)!!.displayLabel())
         assertEquals("2,5 m", DimensionValueDraft(dimension).type("2,5 m").confirm(dimension)!!.displayLabel())

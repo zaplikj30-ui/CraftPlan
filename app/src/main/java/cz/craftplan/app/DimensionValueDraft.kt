@@ -38,7 +38,7 @@ private fun isLabelSuffix(text: String): Boolean {
 // These are display annotations, not length units or calculations. The exact
 // length parser is deliberately unchanged.
 private val nonLengthUnit = Regex(
-    """(?i)^(?:[µμmcdk]?m[²³23]|%|‰|°|kg|g|mg|l|ml|cl|dl|pa|bar|w|kw|v|a|hz)(?=$|[\s.,;:])""",
+    """^(?:[µμmcdk]?m[²³23]|%|‰|°|kg|g|mg|l|ml|cl|dl|Pa|bar|W|kW|V|A|Hz)(?=$|[\s.,;:])""",
 )
 private val annotationNumber = Regex("""^[0-9]+(?:[.,][0-9]+)?""")
 private fun isNonLengthTail(text: String): Boolean {
@@ -60,7 +60,8 @@ private fun isExplicitTextLabel(text: String): Boolean {
     if (tail.isNotEmpty() && !tail.first().isWhitespace() && tail.first().isLetter()) {
         // Attached descriptive text is a label, but an actual length unit
         // remains subject to exact validation.
-        return LengthUnit.entries.none { tail.equals(it.symbol, ignoreCase = true) }
+        val firstWord = tail.takeWhile(Char::isLetter)
+        return LengthUnit.entries.none { firstWord.equals(it.symbol, ignoreCase = true) }
     }
     return false
 }
@@ -152,9 +153,9 @@ internal class DimensionValueDraft private constructor(
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
         val parsed = entry()
+        if (parsed is DimensionEntry.TextOnly) return this // No length to convert or reinterpret.
         if (newUnit == effectiveDisplayUnit() && (keepNumber || unchangedEntry != null)) return withUnitVisibility(true)
         if (newUnit == effectiveDisplayUnit() && !showUnit) return withUnitVisibility(true)
-        if (parsed is DimensionEntry.TextOnly) return this // No length to convert or reinterpret.
         if (keepNumber) {
             // Keep the raw input. An explicitly typed length unit still wins.
             return DimensionValueDraft(target, input, newUnit, null, note, true)
