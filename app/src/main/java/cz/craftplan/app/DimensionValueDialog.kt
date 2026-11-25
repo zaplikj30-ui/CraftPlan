@@ -699,8 +699,9 @@ internal fun DimensionValueDialog(
                                 }
                             }
                         }
-                        // Reserve the gap throughout keyboard show/hide, including the closed state.
-                        Spacer(Modifier.height(4.dp))
+                        // Material button already has a 4dp inset above its visible shape.
+                        // Keep that same visible gap below either the note or the keypad.
+                        Spacer(Modifier.height(0.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,

@@ -34,15 +34,15 @@ class DimensionKeyboardTest {
     }
 
     @Test
-    fun sameFieldKeepsManualChoiceAndCanSwitchAfterReopening() {
+    fun sameFieldKeepsManualChoiceOnlyUntilHidden() {
         for (field in DimensionField.entries) {
             val initial = DimensionKeyboard().open(field)
             val changed = initial.switch()
             assertEquals(initial, changed.switch())
             assertEquals(changed, changed.open(field))
             assertFalse(changed.hide().visible)
-            assertEquals(changed, changed.hide().open(field))
-            assertEquals(initial, changed.hide().open(field).switch())
+            assertEquals(initial, changed.hide().open(field))
+            assertEquals(changed, changed.hide().open(field).switch())
         }
     }
 

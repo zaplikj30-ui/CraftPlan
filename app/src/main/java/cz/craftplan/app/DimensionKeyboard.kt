@@ -23,13 +23,16 @@ internal data class DimensionKeyboard(
 
     fun open(field: DimensionField): DimensionKeyboard {
         val nextMode = when {
-            field == this.field -> mode
+            visible && field == this.field -> mode
             field == DimensionField.VALUE -> DimensionKeyboardMode.NUMERIC
             else -> DimensionKeyboardMode.SYSTEM
         }
         return copy(field = field, mode = nextMode, visible = true)
     }
-    fun hide() = copy(visible = false)
+    fun hide() = copy(
+        mode = if (field == DimensionField.VALUE) DimensionKeyboardMode.NUMERIC else DimensionKeyboardMode.SYSTEM,
+        visible = false,
+    )
 
     fun switch(): DimensionKeyboard {
         val next = if (mode == DimensionKeyboardMode.NUMERIC) DimensionKeyboardMode.SYSTEM else DimensionKeyboardMode.NUMERIC
