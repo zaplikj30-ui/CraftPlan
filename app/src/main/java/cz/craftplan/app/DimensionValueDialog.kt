@@ -1061,6 +1061,10 @@ private fun DimensionInputField(
             lastPenTapTime = -1L
             inkCallbacks.preview(ticket, points)
         },
+        finishDot = { ticket, points ->
+            lastPenTapTime = -1L
+            inkCallbacks.finishDot(ticket, points)
+        },
         penTap = { position, time ->
             val doubleTap = lastPenTapTime >= 0L && time - lastPenTapTime in 1L..300L &&
                 (position - lastPenTapPosition).getDistance() <= with(density) { 24.dp.toPx() }

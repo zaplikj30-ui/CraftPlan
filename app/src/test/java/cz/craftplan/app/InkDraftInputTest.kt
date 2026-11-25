@@ -103,6 +103,10 @@ class InkDraftInputTest {
         assertEquals("a Xc", insertInkResult(DimensionField.NOTE,
             TextFieldValue("abc", TextRange(1, 2)), " X")?.text)
         assertEquals("1/3", append("1/", "3", DimensionField.VALUE)?.text)
+        assertEquals("1/3", append("1/", " 3", DimensionField.VALUE)?.text)
+        assertEquals("1/3", append("1", " /3", DimensionField.VALUE)?.text)
+        assertEquals("1,3", append("1,", " 3", DimensionField.VALUE)?.text)
+        assertEquals("1.3", append("1.", " 3", DimensionField.VALUE)?.text)
         assertEquals("aXc", insertInkResult(DimensionField.NOTE, TextFieldValue("abc", TextRange(1, 2)), "X")?.text)
         assertEquals("aXbc", insertInkResult(DimensionField.NOTE, TextFieldValue("abc", TextRange(1)), "X")?.text)
         assertNull(append("a".repeat(MAX_DIMENSION_NOTE_LENGTH - 1), "b"))

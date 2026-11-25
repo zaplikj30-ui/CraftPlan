@@ -267,8 +267,9 @@ internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candi
     val trimmed = candidate.trimStart(' ')
     val firstTrimmed = trimmed.firstOrNull()
     val adjusted = if (append && previous != null && firstTrimmed != null &&
-        (previous == ' ' || (previous.isDigit() && firstTrimmed.isDigit()) ||
-            firstTrimmed in ".,"))
+        (previous == ' ' ||
+            (previous.isDigit() && (firstTrimmed.isDigit() || firstTrimmed == '/')) ||
+            (previous in ".,/" && firstTrimmed.isDigit()) || firstTrimmed in ".,"))
         trimmed else candidate
     val first = adjusted.first()
     val separateWords = append && previous?.isLetterOrDigit() == true && first.isLetterOrDigit() &&
