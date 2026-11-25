@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -164,7 +163,7 @@ internal fun Modifier.inkFieldInput(
         // Claim in-field pen writing before the editable Compose field can start IME handwriting.
         val slop = if (ownsPenMotion) minOf(3.dp.toPx(), viewConfiguration.handwritingSlop)
             else viewConfiguration.touchSlop
-        val points = mutableListOf(PenPoint(origin.x, origin.y, down.uptimeMillis))
+        val points = PenStrokeBuffer(PenPoint(origin.x, origin.y, down.uptimeMillis))
         var moved = false
         var delivered = false
         var rejectedMultitouch = false
@@ -198,7 +197,8 @@ internal fun Modifier.inkFieldInput(
                     val validUp = canFinishPenStroke(raw.actionMasked, false, event.changes.size)
                     if (validUp && moved && ticket != null && points.size >= 2) {
                         change.consume()
-                        actions.finish(ticket, points.toList())
+                        points.append(PenPoint(position.x, position.y, change.uptimeMillis))
+                        actions.finish(ticket, points.snapshot())
                         delivered = true
                     } else if (validUp && moved && missingModel) {
                         change.consume()
@@ -215,15 +215,12 @@ internal fun Modifier.inkFieldInput(
                 if (moved && !ownsPenMotion) {
                     break
                 }
-                if (ticket != null && points.size < 256) {
-                    val previous = points.last()
-                    if ((position - Offset(previous.x, previous.y)).getDistance() >= 1f) {
-                        points += PenPoint(position.x, position.y, change.uptimeMillis)
-                    }
+                if (ticket != null) {
+                    points.append(PenPoint(position.x, position.y, change.uptimeMillis))
                 }
                 if (moved && ownsPenMotion) {
                     change.consume()
-                    if (ticket != null) actions.preview(ticket, points.toList())
+                    if (ticket != null) actions.preview(ticket, points.snapshot())
                 }
             }
         } finally {

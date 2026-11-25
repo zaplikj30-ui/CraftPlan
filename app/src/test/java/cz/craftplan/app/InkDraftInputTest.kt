@@ -47,6 +47,30 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun longContinuousStrokeKeepsLatestPointBeyondOldLimitAndBoundedBudget() {
+        val first = PenPoint(0f, 0f, 0L)
+        val buffer = PenStrokeBuffer(first)
+        for (i in 1..20_000) {
+            val next = PenPoint(i.toFloat(), (i % 17).toFloat(), i.toLong())
+            buffer.append(next)
+            assertTrue(buffer.size <= PenStrokeBuffer.MAX_POINTS)
+            if (i % 251 == 0 || i == 20_000) {
+                val snapshot = buffer.snapshot()
+                assertEquals(first, snapshot.first())
+                assertEquals(next, snapshot.last())
+                assertTrue(snapshot.zipWithNext().all { (a, b) -> a.timeMs < b.timeMs })
+            }
+        }
+        val snapshot = buffer.snapshot()
+        assertEquals((19_900..20_000).map { it.toLong() }, snapshot.takeLast(101).map { it.timeMs })
+        buffer.append(PenPoint(20_000f, (20_000 % 17).toFloat(), 20_001L))
+        assertEquals(snapshot, buffer.snapshot())
+        buffer.append(PenPoint(20_001f, 0f, 20_002L))
+        assertEquals(20_002L, buffer.snapshot().last().timeMs)
+        assertEquals(20_000L, snapshot.last().timeMs)
+    }
+
+    @Test
     fun onlyRealUncanceledSinglePointerReleaseCanFinishStroke() {
         assertTrue(canFinishPenStroke(MotionEvent.ACTION_UP, canceled = false, pointerCount = 1))
         assertFalse(canFinishPenStroke(MotionEvent.ACTION_UP, canceled = true, pointerCount = 1))
