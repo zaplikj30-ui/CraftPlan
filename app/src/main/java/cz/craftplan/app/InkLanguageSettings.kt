@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.content.SharedPreferences
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -25,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal data class InkDownloadRequest(val tag: String, val manualSelection: Boolean = false)
 
@@ -109,6 +113,34 @@ internal class InkLanguageSettings(
         checkedLanguage = null
         requestedLanguage = null
         retry++
+    }
+}
+
+/** Warm only local, reusable data after the first app frame. Never change dialog state
+ * or initiate a download; the dialog still checks current availability before writing. */
+@Composable
+internal fun PrepareDimensionDialog(diagnostics: EditorDiagnostics?) {
+    val context = LocalContext.current.applicationContext
+    val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
+    LaunchedEffect(context, locale) {
+        withFrameNanos { }
+        diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_START)
+        val start = System.nanoTime()
+        try {
+            withContext(Dispatchers.IO) {
+                // SharedPreferences performs its initial read lazily. Warm the same
+                // file, not a cached copy of any editable values.
+                context.getSharedPreferences("dimension_keypad", Context.MODE_PRIVATE).getBoolean("automatic_calculations", true)
+                InkModels.prepareForEditor(context, locale)
+            }
+            diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_END, System.nanoTime() - start)
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (_: Exception) {
+            diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_FAILED)
+        } catch (_: LinkageError) {
+            diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_FAILED)
+        }
     }
 }
 

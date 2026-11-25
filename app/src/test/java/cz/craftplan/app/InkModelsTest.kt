@@ -26,6 +26,19 @@ class InkModelsTest {
     }
 
     @Test
+    fun warmupOnlySelectsApprovedCurrentLanguage() {
+        val locale = Locale.forLanguageTag("cs-CZ")
+        val available = setOf("cs", "en")
+        assertEquals(null, approvedInkWarmupLanguage(locale, available, null, emptySet()))
+        assertEquals(null, approvedInkWarmupLanguage(locale, available, null, setOf("en")))
+        assertEquals("cs", approvedInkWarmupLanguage(locale, available, null, setOf("cs")))
+        assertEquals("en", approvedInkWarmupLanguage(locale, available, "en", setOf("en")))
+        assertEquals(null, approvedInkWarmupLanguage(locale, available, "en", setOf("cs")))
+        assertEquals("cs", approvedInkWarmupLanguage(locale, available, "invalid", setOf("cs")))
+        assertEquals(null, approvedInkWarmupLanguage(locale, emptySet(), null, setOf("cs")))
+    }
+
+    @Test
     fun downloadApprovalDoesNotPinAutomaticLanguage() {
         val store = mutableMapOf<String, Any>()
         val prefs = testInkPreferences(store)

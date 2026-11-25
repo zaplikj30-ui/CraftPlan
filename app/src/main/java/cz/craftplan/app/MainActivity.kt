@@ -362,6 +362,7 @@ internal class PhotoEditorState : ViewModel() {
 private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
     if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsRecordingEffects(editorState, window)
+    PrepareDimensionDialog(editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording })
     val closePhoto = {
         editorState.cancelStressGeneration()
         editorState.stopDiagnostics()

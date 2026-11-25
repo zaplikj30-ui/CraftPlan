@@ -14,6 +14,8 @@ import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal data class PenPoint(val x: Float, val y: Float, val timeMs: Long)
 
@@ -33,6 +35,12 @@ internal fun defaultInkLanguage(appLocale: Locale, available: Set<String>): Stri
         ?: available.firstOrNull { it == "en" }
         ?: available.firstOrNull()
 }
+
+/** Resolve the same selected language as the dialog, but never initialize an unapproved model. */
+internal fun approvedInkWarmupLanguage(
+    locale: Locale, available: Set<String>, manual: String?, approved: Set<String>,
+): String? = (manual?.takeIf { it in available } ?: defaultInkLanguage(locale, available))
+    ?.takeIf { it in approved }
 
 internal object InkModels {
     private var initialized = false
@@ -62,14 +70,27 @@ internal object InkModels {
     private fun model(tag: String): DigitalInkRecognitionModel =
         DigitalInkRecognitionModel.builder(identifiers.getValue(tag)).build()
 
-    suspend fun isDownloaded(context: Context, tag: String, diagnostics: EditorDiagnostics? = null): Boolean {
-        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_START)
-        val start = if (diagnostics != null) System.nanoTime() else 0L
-        val task = try {
-            manager(context).isModelDownloaded(model(tag))
-        } finally {
-            if (diagnostics != null) diagnostics.keypadStage(KeypadDiagnosticStage.MODEL_TASK_CREATED, System.nanoTime() - start)
+    /** Run only on a worker. Catalog lookup is local; manager initialization requires stored approval. */
+    fun prepareForEditor(context: Context, locale: Locale) {
+        val available = languages
+        val prefs = context.getSharedPreferences("ink_language", Context.MODE_PRIVATE)
+        val tag = approvedInkWarmupLanguage(locale, available, prefs.getString("language", null),
+            prefs.getStringSet("approved_models", emptySet()).orEmpty())
+        if (tag != null) {
+            manager(context)
+            model(tag)
         }
+    }
+
+    suspend fun isDownloaded(context: Context, tag: String, diagnostics: EditorDiagnostics? = null): Boolean {
+        // RemoteModelManager is thread-safe. Keep potentially expensive SDK setup off
+        // the UI thread; state changes and diagnostic recorder calls stay with the caller.
+        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_START)
+        val (task, elapsed) = withContext(Dispatchers.IO) {
+            val start = System.nanoTime()
+            manager(context).isModelDownloaded(model(tag)) to (System.nanoTime() - start)
+        }
+        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_CREATED, elapsed)
         return task.awaitInkTask()
     }
 
