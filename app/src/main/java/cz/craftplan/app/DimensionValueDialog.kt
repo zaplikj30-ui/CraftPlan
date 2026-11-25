@@ -53,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -148,6 +149,16 @@ internal fun DimensionValueDialog(
     val quickPreferences = remember(context) {
         context.getSharedPreferences("dimension_keypad", Context.MODE_PRIVATE)
     }
+    var automaticCalculations by remember(quickPreferences) {
+        mutableStateOf(quickPreferences.getBoolean("automatic_calculations", true))
+    }
+    var calculationError by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    var calculationNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    fun toggleCalculations() {
+        automaticCalculations = !automaticCalculations
+        quickPreferences.edit().putBoolean("automatic_calculations", automaticCalculations).apply()
+        if (!automaticCalculations) calculationError = false
+    }
     var quickSymbol by remember(quickPreferences) {
         mutableStateOf(validQuickSymbol(quickPreferences.getString("quick_symbol", "") ?: ""))
     }
@@ -178,10 +189,36 @@ internal fun DimensionValueDialog(
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
             edited.text.length < previous.text.length
         ) {
-            if (target == DimensionField.VALUE) valueField = edited else noteField = edited
-            if (previous.text != edited.text) {
-                onChange { if (target == DimensionField.VALUE) it.type(edited.text) else it.withNote(edited.text) }
-                showError = false
+            if (target == DimensionField.VALUE) {
+                valueField = edited
+                val committed = edited.composition == null && edited.selection.collapsed &&
+                    edited.selection.end == edited.text.length
+                val previousText = if (previous.composition != null && committed &&
+                    previous.text == edited.text && edited.text.endsWith('=')) previous.text.dropLast(1)
+                    else previous.text
+                val calculate = committed && requestsDimensionCalculation(previousText, edited.text, automaticCalculations)
+                if (calculate) {
+                    calculationNeedsSave = true
+                    onChange { current ->
+                        val result = current.calculate(edited.text)
+                        calculationError = result == null
+                        showError = false
+                        if (result != null) {
+                            valueField = editableText(result.input)
+                            result
+                        } else current.type(edited.text)
+                    }
+                } else if (previous.text != edited.text) {
+                    calculationError = false
+                    onChange { it.type(edited.text) }
+                    showError = false
+                }
+            } else {
+                noteField = edited
+                if (previous.text != edited.text) {
+                    onChange { it.withNote(edited.text) }
+                    showError = false
+                }
             }
         }
     }
@@ -208,7 +245,9 @@ internal fun DimensionValueDialog(
     val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
     val confirm: () -> Unit = {
         if (ink.hasPendingInput) waitForInk()
-        else {
+        else if (calculationError) {
+            Toast.makeText(context, R.string.dimension_calculation_error, Toast.LENGTH_SHORT).show()
+        } else {
             ink.interrupt()
             if (!onConfirm()) showError = true
         }
@@ -364,6 +403,7 @@ internal fun DimensionValueDialog(
             val keyboardOpen = keys.visible || nativeIme
             when {
                 ink.hasPendingInput -> waitForInk()
+                !keyboardOpen && calculationNeedsSave -> Toast.makeText(context, R.string.dimension_calculation_explicit_save, Toast.LENGTH_SHORT).show()
                 !keyboardOpen && inkNeedsSave -> Toast.makeText(context, R.string.ink_explicit_save, Toast.LENGTH_SHORT).show()
                 else -> handleDimensionDialogBack(keyboardOpen, hideKeyboard, confirm)
             }
@@ -417,7 +457,7 @@ internal fun DimensionValueDialog(
                         onInkPosition = { valueInkOrigin = it },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
-                        isError = showError,
+                        isError = showError || calculationError,
                         compactLabel = !portrait,
                     )
                 }
@@ -433,7 +473,7 @@ internal fun DimensionValueDialog(
                         DropdownMenu(
                             expanded = unitsOpen,
                             onDismissRequest = { unitsOpen = false },
-                            modifier = Modifier.width(116.dp).heightIn(max = 408.dp),
+                            modifier = Modifier.width(240.dp).heightIn(max = 408.dp),
                         ) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.dimension_no_unit)) },
@@ -468,6 +508,11 @@ internal fun DimensionValueDialog(
                                     unitsOpen = false
                                     inkSettings.chooserOpen = true
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_automatic_calculations)) },
+                                trailingIcon = { Switch(checked = automaticCalculations, onCheckedChange = null) },
+                                onClick = { toggleCalculations() },
                             )
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
@@ -556,16 +601,17 @@ internal fun DimensionValueDialog(
                     }
                 }
                 val errorMessage: @Composable () -> Unit = {
-                    if (showError || draft.hasApproximateDisplay() || draft.isTextOnly()) {
+                    if (calculationError || showError || draft.hasApproximateDisplay() || draft.isTextOnly()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val color = if (showError) MaterialTheme.colorScheme.error
+                            val color = if (showError || calculationError) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
-                            if (showError || draft.hasApproximateDisplay()) {
-                                Text(if (showError) "⚠ " else "≈ ", color = color)
+                            if (showError || calculationError || draft.hasApproximateDisplay()) {
+                                Text(if (showError || calculationError) "⚠ " else "≈ ", color = color)
                             }
                             Text(
                                 stringResource(
                                     when {
+                                        calculationError -> R.string.dimension_calculation_error
                                         showError -> R.string.dimension_value_invalid
                                         draft.isTextOnly() -> R.string.dimension_text_only
                                         else -> R.string.dimension_approximate_display

@@ -55,6 +55,9 @@
     <string name="dimension_notes_hidden">Poznámky jsou skryté</string>
     <string name="dimension_value_invalid">Délku nelze uložit. Zkontroluj zápis čísla, zlomku a jednotky. Maximální délka je 1 000 000 000 mm.</string>
     <string name="dimension_text_only">Pouze text – bez naměřené délky a převodu jednotek.</string>
+    <string name="dimension_automatic_calculations">Automatické výpočty (=)</string>
+    <string name="dimension_calculation_error">Výpočet nelze dokončit. Zkontroluj výraz, dělení nulou a limit přesné délky.</string>
+    <string name="dimension_calculation_explicit_save">Výsledek potvrď tlačítkem Uložit nebo úpravu zruš.</string>
     <string name="dimension_approximate_display">Zobrazení je zaokrouhlené, uložený rozměr zůstává přesný.</string>
     <string name="cancel_value">Zrušit</string>
     <string name="confirm_value">Uložit</string>
