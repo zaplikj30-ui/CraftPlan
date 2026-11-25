@@ -39,6 +39,43 @@ class InkModelsTest {
     }
 
     @Test
+    fun availabilityChecksShareOnlyRunningTasksAndSeparateLanguages() {
+        class FakeTask(var complete: Boolean = false)
+        val checks = InFlightModelChecks<FakeTask> { it.complete }
+        var creations = 0
+        fun acquire(tag: String) = checks.acquire(tag) { creations++; FakeTask() }
+        val (first, joinedFirst) = acquire("cs")
+        assertFalse(joinedFirst)
+        val (shared, joined) = acquire("cs")
+        assertTrue(joined)
+        assertTrue(first === shared)
+        val (other, joinedOther) = acquire("en")
+        assertFalse(joinedOther)
+        assertTrue(first !== other)
+        first.complete = true
+        val (fresh, joinedFresh) = acquire("cs")
+        assertFalse(joinedFresh)
+        assertTrue(first !== fresh)
+        // A delayed completion callback cannot remove the newer task.
+        checks.release("cs", first)
+        assertTrue(acquire("cs").first === fresh)
+        fresh.complete = true
+        checks.release("cs", fresh)
+        assertFalse(acquire("cs").second)
+        assertEquals(4, creations)
+    }
+
+    @Test
+    fun failedCreationDoesNotReserveModel() {
+        val checks = InFlightModelChecks<Any> { false }
+        try {
+            checks.acquire("cs") { error("SDK unavailable") }
+            throw AssertionError("expected failure")
+        } catch (_: IllegalStateException) { }
+        assertFalse(checks.acquire("cs") { Any() }.second)
+    }
+
+    @Test
     fun downloadApprovalDoesNotPinAutomaticLanguage() {
         val store = mutableMapOf<String, Any>()
         val prefs = testInkPreferences(store)

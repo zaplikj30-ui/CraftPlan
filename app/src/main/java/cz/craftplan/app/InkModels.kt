@@ -11,6 +11,8 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
 import com.google.mlkit.vision.digitalink.recognition.Ink
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -42,7 +44,31 @@ internal fun approvedInkWarmupLanguage(
 ): String? = (manual?.takeIf { it in available } ?: defaultInkLanguage(locale, available))
     ?.takeIf { it in approved }
 
+/** Share only running checks for the same model, never their completed results.
+ * Acquire on a worker; completion removes only the exact task that finished. */
+internal class InFlightModelChecks<T : Any>(private val isComplete: (T) -> Boolean) {
+    private val running = ConcurrentHashMap<String, T>()
+
+    @Synchronized
+    fun acquire(tag: String, create: () -> T): Pair<T, Boolean> {
+        val existing = running[tag]
+        if (existing != null) {
+            if (!isComplete(existing)) return existing to true
+            running.remove(tag, existing)
+        }
+        val task = create()
+        running[tag] = task
+        return task to false
+    }
+
+    fun release(tag: String, task: T) {
+        running.remove(tag, task)
+    }
+}
+
 internal object InkModels {
+    private val checks = InFlightModelChecks<Task<Boolean>> { it.isComplete }
+    private val directExecutor = Executor { it.run() }
     private var initialized = false
     private val identifiers by lazy {
         try {
@@ -70,27 +96,30 @@ internal object InkModels {
     private fun model(tag: String): DigitalInkRecognitionModel =
         DigitalInkRecognitionModel.builder(identifiers.getValue(tag)).build()
 
-    /** Run only on a worker. Catalog lookup is local; manager initialization requires stored approval. */
-    fun prepareForEditor(context: Context, locale: Locale) {
+    /** Run only on a worker. Select the approved model without changing preferences. */
+    fun prepareForEditor(context: Context, locale: Locale): String? {
         val available = languages
         val prefs = context.getSharedPreferences("ink_language", Context.MODE_PRIVATE)
-        val tag = approvedInkWarmupLanguage(locale, available, prefs.getString("language", null),
+        return approvedInkWarmupLanguage(locale, available, prefs.getString("language", null),
             prefs.getStringSet("approved_models", emptySet()).orEmpty())
-        if (tag != null) {
-            manager(context)
-            model(tag)
-        }
     }
 
     suspend fun isDownloaded(context: Context, tag: String, diagnostics: EditorDiagnostics? = null): Boolean {
         // RemoteModelManager is thread-safe. Keep potentially expensive SDK setup off
         // the UI thread; state changes and diagnostic recorder calls stay with the caller.
         diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_START)
-        val (task, elapsed) = withContext(Dispatchers.IO) {
+        val (task, elapsed, joined) = withContext(Dispatchers.IO) {
             val start = System.nanoTime()
-            manager(context).isModelDownloaded(model(tag)) to (System.nanoTime() - start)
+            val (active, shared) = checks.acquire(tag) { manager(context).isModelDownloaded(model(tag)) }
+            if (!shared) {
+                // The SDK task can outlive a canceled caller. Keep it registered until
+                // actual completion, then discard it without retaining availability.
+                active.addOnCompleteListener(directExecutor) { checks.release(tag, active) }
+            }
+            Triple(active, System.nanoTime() - start, shared)
         }
-        diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_TASK_CREATED, elapsed)
+        diagnostics?.keypadStage(if (joined) KeypadDiagnosticStage.MODEL_TASK_JOINED
+            else KeypadDiagnosticStage.MODEL_TASK_CREATED, elapsed)
         return task.awaitInkTask()
     }
 

@@ -117,22 +117,31 @@ internal class InkLanguageSettings(
     }
 }
 
-/** Warm only local, reusable data after the first app frame. Never change dialog state
- * or initiate a download; the dialog still checks current availability before writing. */
+/** Warm local data and run the approved model's first availability check after initial frames.
+ * Never change dialog state or download; completed availability results are not reused. */
 @Composable
 internal fun PrepareDimensionDialog(diagnostics: EditorDiagnostics?) {
     val context = LocalContext.current.applicationContext
     val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
     LaunchedEffect(context, locale) {
         withFrameNanos { }
+        withFrameNanos { }
         diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_START)
         val start = System.nanoTime()
         try {
-            withContext(Dispatchers.IO) {
+            val tag = withContext(Dispatchers.IO) {
                 // SharedPreferences performs its initial read lazily. Warm the same
                 // file, not a cached copy of any editable values.
                 context.getSharedPreferences("dimension_keypad", Context.MODE_PRIVATE).getBoolean("automatic_calculations", true)
                 InkModels.prepareForEditor(context, locale)
+            }
+            if (tag != null) {
+                diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_MODEL_CHECK_START)
+                val checkStart = System.nanoTime()
+                // Prime the SDK with a real local availability query. If a dialog opens
+                // during it, both await the same task; later queries are always fresh.
+                InkModels.isDownloaded(context, tag)
+                diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_MODEL_CHECK_END, System.nanoTime() - checkStart)
             }
             diagnostics?.keypadStage(KeypadDiagnosticStage.WARMUP_END, System.nanoTime() - start)
         } catch (canceled: CancellationException) {
