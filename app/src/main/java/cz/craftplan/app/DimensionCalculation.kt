@@ -165,3 +165,11 @@ internal fun roundedCalculation(expression: String, places: Int): RoundedCalcula
     if (shown.text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
     return RoundedCalculation(expression, shown.text, shown.approximate, places)
 }
+
+/** Remove only the marker in the last result, not a previous rounded operand. */
+internal fun removeResultApproximation(text: String): String {
+    val equals = text.lastIndexOf('=')
+    if (equals < 0) return text
+    val marker = equals + 1 + text.substring(equals + 1).takeWhile { it == ' ' }.length
+    return if (text.getOrNull(marker) == '≈') text.removeRange(marker, marker + 1) else text
+}

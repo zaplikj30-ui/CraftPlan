@@ -37,6 +37,8 @@ internal data class PhotoDimension(
     val labelT: Float = 0f,
     /** A visible diameter marker, independent of the exact length. */
     val labelPrefix: String = "",
+    /** Visible equation through the last equals; never a second hidden result. */
+    val equationPrefix: String? = null,
 ) {
     val measurementState: MeasurementState
         get() = if (measurement == null) MeasurementState.UNMEASURED else MeasurementState.MEASURED
@@ -45,9 +47,12 @@ internal data class PhotoDimension(
 
     fun displayLabel(): String? {
         val measured = measurement
-        if (measured == null) return textLabel?.takeIf { it.isNotBlank() }
+        if (measured == null) return textLabel?.takeIf { it.isNotBlank() }?.let {
+            listOfNotNull(equationPrefix, it).joinToString(" ")
+        }
         val shown = measured.length.displayNumberForUi(displayUnit)
         return listOfNotNull(
+            equationPrefix,
             labelPrefix.takeIf { it.isNotBlank() },
             if (shown.approximate || measured.calculationRounded) "≈" + shown.text else shown.text,
             displayUnit.symbol.takeIf { showUnit },
@@ -57,7 +62,7 @@ internal data class PhotoDimension(
 
     fun withManualLength(input: String, selectedUnit: LengthUnit? = null): PhotoDimension {
         val validated = ManualLengthMeasurement.parse(input, selectedUnit) ?: return this
-        return copy(measurement = validated, labelPrefix = "", labelSuffix = "", textLabel = null)
+        return copy(measurement = validated, labelPrefix = "", labelSuffix = "", textLabel = null, equationPrefix = null)
     }
 
     init {
