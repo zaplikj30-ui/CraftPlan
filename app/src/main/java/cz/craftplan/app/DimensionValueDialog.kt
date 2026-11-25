@@ -138,6 +138,7 @@ private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
 @Composable
 internal fun DimensionValueDialog(
     draft: DimensionValueDraft,
+    ink: InkDraftController,
     onChange: ((DimensionValueDraft) -> DimensionValueDraft) -> Unit,
     onConfirm: () -> Boolean,
     onCancel: () -> Unit,
@@ -193,23 +194,33 @@ internal fun DimensionValueDialog(
         quickPreferences.edit().putString("quick_symbol", validated).apply()
         showSymbols = false
     }
-    var valueField by remember { mutableStateOf(editableText(draft.input)) }
-    var noteField by remember { mutableStateOf(editableText(draft.note)) }
+    // The controller owns pending selection and strokes across configuration changes.
+    var valueField by remember(draft.targetId) {
+        mutableStateOf(ink.pendingInput(DimensionField.VALUE)?.takeIf { it.text == draft.input } ?: editableText(draft.input))
+    }
+    var noteField by remember(draft.targetId) {
+        mutableStateOf(ink.pendingInput(DimensionField.NOTE)?.takeIf { it.text == draft.note } ?: editableText(draft.note))
+    }
     var unitsOpen by remember { mutableStateOf(false) }
     val inkSettings = rememberInkLanguageSettings()
-    val scope = rememberCoroutineScope()
-    val ink = remember(draft.targetId, scope) { InkDraftController(scope) }
-    DisposableEffect(ink) { onDispose { ink.interrupt() } }
+    val inkOwner = remember { Any() }
+    val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
+    var discardInkOpen by rememberSaveable { mutableStateOf(false) }
+    var valueInkOrigin by remember { mutableStateOf<Offset?>(null) }
+    var noteInkOrigin by remember { mutableStateOf<Offset?>(null) }
     val currentDraftId by rememberUpdatedState(draft.targetId)
     var inkNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     fun currentInkTarget(field: DimensionField): InkDraftTarget? {
         val language = inkSettings.readyLanguage ?: return null
         val input = if (field == DimensionField.VALUE) valueField else noteField
-        return InkDraftTarget(currentDraftId, field, language, input)
+        return InkDraftTarget(currentDraftId, field, language, input.copy(composition = null))
     }
-    val applyInput: (DimensionField, TextFieldValue) -> Unit = { target, edited ->
+    val applyInput: (DimensionField, TextFieldValue) -> Unit = apply@{ target, edited ->
         val previous = if (target == DimensionField.VALUE) valueField else noteField
-        if (previous != edited) ink.interrupt()
+        if (ink.hasPendingInput) {
+            if (previous != edited) waitForInk()
+            return@apply
+        }
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
             edited.text.length < previous.text.length
         ) {
@@ -255,27 +266,40 @@ internal fun DimensionValueDialog(
             }
         }
     }
+    val liveInkCurrent by rememberUpdatedState<(DimensionField) -> InkDraftTarget?>({ currentInkTarget(it) })
+    val liveInkApply by rememberUpdatedState<(DimensionField, TextFieldValue) -> Unit>({ field, edited ->
+        inkNeedsSave = true
+        if (keys.field != field) {
+            showSymbols = false
+            keys = if (keys.visible) keys.open(field) else DimensionKeyboard().open(field).hide()
+        }
+        applyInput(field, edited)
+    })
+    DisposableEffect(ink, inkOwner) {
+        ink.attach(inkOwner, { liveInkCurrent(it) }, { field, edited -> liveInkApply(field, edited) },
+            { Toast.makeText(context, R.string.ink_recognition_failed, Toast.LENGTH_SHORT).show() })
+        onDispose { ink.detach(inkOwner) }
+    }
+    fun inkOrigin(field: DimensionField): Offset? =
+        if (field == DimensionField.VALUE) valueInkOrigin else noteInkOrigin
+    fun routedPoints(field: DimensionField, points: List<PenPoint>): List<PenPoint> {
+        val target = ink.pendingField ?: field
+        if (target == field) return points
+        val from = inkOrigin(field) ?: return points
+        val to = inkOrigin(target) ?: return points
+        val delta = from - to
+        return points.map { it.copy(x = it.x + delta.x, y = it.y + delta.y) }
+    }
     fun inkCallbacks(field: DimensionField, tap: () -> Unit) = InkFieldCallbacks(
-        begin = { currentInkTarget(field)?.let(ink::start) },
-        preview = ink::previewStroke,
-        finish = { ticket, points ->
-            ink.finish(
-                ticket, points, { currentInkTarget(field) },
-                apply = { edited ->
-                    inkNeedsSave = true
-                    if (keys.field != field) showSymbols = false
-                    keys = keys.copy(field = field)
-                    applyInput(field, edited)
-                },
-                failed = { Toast.makeText(context, R.string.ink_recognition_failed, Toast.LENGTH_SHORT).show() },
-            )
-        },
+        begin = { currentInkTarget(ink.pendingField ?: field)?.let(ink::start) },
+        preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(field, points)) },
+        finish = { ticket, points -> ink.finish(ticket, routedPoints(field, points)) },
         cancel = ink::cancel,
         tap = tap,
-        otherContact = ink::interrupt,
+        pending = { ink.hasPendingInput },
+        blocked = waitForInk,
         missingModel = inkSettings::requestModelForWriting,
     )
-    val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
     val confirm: () -> Unit = {
         if (ink.hasPendingInput) waitForInk()
         else if (calculationError) {
@@ -358,7 +382,9 @@ internal fun DimensionValueDialog(
             keys = next
             showSymbols = false
         }
-        val hideKeyboard: () -> Unit = { requestKeyboard(keys.hide()) }
+        val hideKeyboard: () -> Unit = {
+            if (ink.hasPendingInput) waitForInk() else requestKeyboard(keys.hide())
+        }
 
         // Exactly one cancellable owner of native IME show/hide commands. Even
         // a repeated request for the same field gets a fresh request identity.
@@ -444,12 +470,15 @@ internal fun DimensionValueDialog(
         val dispatchBack = remember { { latestBack() } }
         SideEffect { handleBack = dispatchBack }
         val outsideTap by rememberUpdatedState(hideKeyboard)
-        val openField: (DimensionField) -> Unit = { target ->
+        val openField: (DimensionField) -> Unit = open@{ target ->
+            if (ink.hasPendingInput) {
+                waitForInk()
+                return@open
+            }
             // Normal taps inside an already focused editable field still only
             // move the cursor. A missing IME, however, gets a fresh show request.
             val next = keys.open(target)
             if (next != keys || (next.systemOpen && !latestImeVisible)) {
-                ink.interrupt()
                 val previousField = keys.field
                 keyboardRequest++
                 keys = next
@@ -457,8 +486,6 @@ internal fun DimensionValueDialog(
             }
         }
 
-        var valueInkOrigin by remember { mutableStateOf<Offset?>(null) }
-        var noteInkOrigin by remember { mutableStateOf<Offset?>(null) }
         var previewOrigin by remember { mutableStateOf<Offset?>(null) }
         val inkColor = MaterialTheme.colorScheme.primary
 
@@ -483,7 +510,7 @@ internal fun DimensionValueDialog(
                         label = stringResource(R.string.dimension_value),
                         editable = keys.edits(DimensionField.VALUE),
                         allowSystemInput = keys.allowsSystemInput(DimensionField.VALUE),
-                        active = keys.field == DimensionField.VALUE,
+                        active = (ink.pendingField ?: keys.field) == DimensionField.VALUE,
                         focus = valueFocus,
                         handwritingEnabled = inkSettings.readyLanguage != null,
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
@@ -499,7 +526,7 @@ internal fun DimensionValueDialog(
                     val unitLabel = stringResource(R.string.dimension_unit, unitText)
                     Box(Modifier.padding(horizontal = if (portrait) 4.dp else 0.dp)) {
                         OutlinedButton(
-                            onClick = { ink.interrupt(); unitsOpen = true },
+                            onClick = { if (ink.hasPendingInput) waitForInk() else unitsOpen = true },
                             modifier = Modifier.semantics { contentDescription = unitLabel },
                             contentPadding = PaddingValues(horizontal = 8.dp),
                         ) { Text(unitText) }
@@ -594,7 +621,7 @@ internal fun DimensionValueDialog(
                         else R.string.use_system_keyboard,
                     )
                     IconButton(
-                        onClick = { ink.interrupt(); requestKeyboard(keys.switch()) },
+                        onClick = { if (ink.hasPendingInput) waitForInk() else requestKeyboard(keys.switch()) },
                         modifier = Modifier.semantics { contentDescription = switchLabel },
                     ) {
                         Icon(
@@ -614,7 +641,7 @@ internal fun DimensionValueDialog(
                             label = stringResource(R.string.dimension_note),
                             editable = keys.edits(DimensionField.NOTE),
                             allowSystemInput = keys.allowsSystemInput(DimensionField.NOTE),
-                            active = keys.field == DimensionField.NOTE,
+                            active = (ink.pendingField ?: keys.field) == DimensionField.NOTE,
                             focus = noteFocus,
                             handwritingEnabled = inkSettings.readyLanguage != null,
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
@@ -643,6 +670,13 @@ internal fun DimensionValueDialog(
                     }
                 }
                 val errorMessage: @Composable () -> Unit = {
+                    if (ink.failed) {
+                        Text(stringResource(R.string.ink_retained), color = MaterialTheme.colorScheme.error)
+                        Row {
+                            TextButton(onClick = ink::retry) { Text(stringResource(R.string.ink_retry)) }
+                            TextButton(onClick = { discardInkOpen = true }) { Text(stringResource(R.string.ink_discard)) }
+                        }
+                    }
                     if (calculationError || showError || draft.hasApproximateDisplay() || draft.isTextOnly()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val color = if (showError || calculationError) MaterialTheme.colorScheme.error
@@ -779,6 +813,11 @@ internal fun DimensionValueDialog(
                 )) {
                     val translation = (fieldOrigin ?: continue) - origin
                     for (stroke in ink.previewFor(field)) {
+                        if (stroke.size == 1) {
+                            val point = stroke.first()
+                            drawCircle(inkColor, radius = 1.5.dp.toPx(),
+                                center = Offset(point.x, point.y) + translation)
+                        }
                         for (index in 1 until stroke.size) {
                             val start = stroke[index - 1]
                             val end = stroke[index]
@@ -791,6 +830,21 @@ internal fun DimensionValueDialog(
                     }
                 }
             }
+        }
+        if (discardInkOpen) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { discardInkOpen = false },
+                title = { Text(stringResource(R.string.ink_discard)) },
+                text = { Text(stringResource(R.string.ink_discard_question)) },
+                confirmButton = {
+                    TextButton(onClick = { ink.interrupt(); discardInkOpen = false }) {
+                        Text(stringResource(R.string.ink_discard))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { discardInkOpen = false }) { Text(stringResource(R.string.cancel_value)) }
+                },
+            )
         }
         if (placesOpen) {
             androidx.compose.material3.AlertDialog(

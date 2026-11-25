@@ -31,76 +31,148 @@ internal data class InkDraftTarget(
     val input: TextFieldValue,
 )
 
+/** A retained, bounded batch of handwriting. Contacts and recognition jobs
+ * have separate identities. Cancellation of one contact never discards the
+ * completed batch; only successful insertion or explicit discard clears it. */
 internal class InkDraftController(
     private val scope: CoroutineScope,
     private val recognize: suspend (String, List<List<PenPoint>>) -> String? = InkModels::recognize,
     private val settleDelayMs: Long = 650,
 ) {
+    private data class Binding(
+        val owner: Any,
+        val current: (DimensionField) -> InkDraftTarget?,
+        val apply: (DimensionField, TextFieldValue) -> Unit,
+        val failed: () -> Unit,
+    )
+    private var binding: Binding? = null
     private var work: Job? = null
     private var revision = 0L
     private var target: InkDraftTarget? = null
     private var completedStrokes = emptyList<List<PenPoint>>()
+    private var contact: Long? = null
+    private var candidate: String? = null
     var preview by mutableStateOf<List<List<PenPoint>>>(emptyList())
         private set
+    var failed by mutableStateOf(false)
+        private set
+    var hasPendingInput by mutableStateOf(false)
+        private set
+    var pendingField by mutableStateOf<DimensionField?>(null)
+        private set
 
-    val hasPendingInput: Boolean get() = preview.isNotEmpty() || completedStrokes.isNotEmpty()
+    fun pendingInput(field: DimensionField): TextFieldValue? =
+        target?.takeIf { it.field == field }?.input
 
-    fun start(next: InkDraftTarget): Long {
-        val previousStrokes = completedStrokes.takeIf { target == next && it.size < 24 }.orEmpty()
-        // Invalidate the previous request before cancellation, without blanking its visible ink.
+    fun attach(
+        owner: Any,
+        current: (DimensionField) -> InkDraftTarget?,
+        apply: (DimensionField, TextFieldValue) -> Unit,
+        failed: () -> Unit,
+    ) {
+        binding = Binding(owner, current, apply, failed)
+        deliver()
+    }
+
+    fun detach(owner: Any) {
+        if (binding?.owner === owner) binding = null
+    }
+
+    fun start(next: InkDraftTarget): Long? {
+        // Do not replace another target, an incomplete contact or a full batch.
+        // The UI will offer waiting/retry instead of discarding old handwriting.
+        if (contact != null || (target != null && target != next) ||
+            completedStrokes.size >= MAX_STROKES) return null
         revision++
         work?.cancel()
         work = null
+        candidate = null
         target = next
-        completedStrokes = previousStrokes
-        preview = previousStrokes
+        pendingField = next.field
+        failed = false
+        preview = completedStrokes
+        hasPendingInput = true
+        contact = revision
         return revision
     }
 
     fun previewStroke(ticket: Long, points: List<PenPoint>) {
-        if (revision == ticket) preview = completedStrokes + listOf(points)
+        if (contact == ticket) preview = completedStrokes + listOf(points)
     }
 
-    fun finish(
-        ticket: Long,
-        points: List<PenPoint>,
-        current: () -> InkDraftTarget?,
-        apply: (TextFieldValue) -> Unit,
-        failed: () -> Unit,
-    ) {
-        val captured = target?.takeIf { ticket == revision } ?: return
-        completedStrokes = completedStrokes + listOf(points)
+    fun finish(ticket: Long, points: List<PenPoint>) {
+        if (contact != ticket) return
+        contact = null
+        if (points.isNotEmpty()) completedStrokes = completedStrokes + listOf(points)
         preview = completedStrokes
-        val request = completedStrokes
-        work = scope.launch {
-            try {
-                delay(settleDelayMs) // Natural pauses between strokes belong to the same recognition.
-                val candidate = try {
-                    withTimeoutOrNull(5_000) { recognize(captured.language, request) }
-                } catch (_: CancellationException) {
-                    // A canceled SDK task can fail without cancellation of this coroutine.
-                    currentCoroutineContext().ensureActive()
-                    null
-                } catch (_: Exception) {
-                    null
-                } catch (_: LinkageError) {
-                    null
-                }
-                if (ticket == revision && captured == current()) {
-                    val next = candidate?.let { insertInkResult(captured.field, captured.input, it) }
-                    clearInk()
-                    if (next != null) apply(next) else failed()
-                }
-            } finally {
-                if (ticket == revision) clearInk()
-            }
+        if (completedStrokes.isEmpty()) clearInk() else schedule()
+    }
+
+    // Only the unfinished contact is canceled (palm/system cancellation or a tap).
+    fun cancel(ticket: Long) {
+        if (contact != ticket) return
+        contact = null
+        preview = completedStrokes
+        if (completedStrokes.isEmpty()) clearInk() else schedule()
+    }
+
+    fun retry() {
+        if (contact == null && completedStrokes.isNotEmpty()) {
+            candidate = null
+            schedule()
         }
     }
 
-    fun cancel(ticket: Long) {
-        if (ticket == revision) interrupt()
+    private fun schedule() {
+        val captured = target ?: return
+        val request = completedStrokes
+        val ticket = ++revision
+        failed = false
+        work?.cancel()
+        work = scope.launch {
+            delay(settleDelayMs)
+            val result = try {
+                withTimeoutOrNull(5_000) { recognize(captured.language, request) }
+            } catch (_: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                null
+            } catch (_: Exception) {
+                null
+            } catch (_: LinkageError) {
+                null
+            }
+            if (ticket != revision || contact != null) return@launch
+            work = null
+            candidate = result
+            if (result.isNullOrBlank()) markFailed() else deliver()
+        }
     }
 
+    private fun markFailed() {
+        failed = true
+        binding?.failed?.invoke()
+    }
+
+    private fun deliver() {
+        val captured = target ?: return
+        val result = candidate ?: return
+        val active = binding ?: return // Rotation: retain the candidate for the new UI.
+        if (contact != null) return
+        val current = active.current(captured.field)
+        if (current != captured) {
+            markFailed()
+            return
+        }
+        val next = insertInkResult(captured.field, captured.input, result)
+        if (next == null) {
+            markFailed()
+            return
+        }
+        clearInk()
+        active.apply(captured.field, next)
+    }
+
+    /** Explicit cancellation of the entire draft or user-approved discard only. */
     fun interrupt() {
         revision++
         work?.cancel()
@@ -110,14 +182,34 @@ internal class InkDraftController(
     private fun clearInk() {
         work = null
         target = null
+        pendingField = null
+        contact = null
+        candidate = null
         completedStrokes = emptyList()
         preview = emptyList()
+        failed = false
+        hasPendingInput = false
     }
 
-    fun previewFor(field: DimensionField): List<List<PenPoint>> {
-        val strokes = preview
-        return if (target?.field == field) strokes else emptyList()
+    fun previewFor(field: DimensionField): List<List<PenPoint>> =
+        if (pendingField == field) preview else emptyList()
+
+    companion object {
+        internal const val MAX_STROKES = 128
     }
+}
+
+internal enum class PenContactKind { TAP, HOLD, INK }
+
+/** Stationary holds tolerate jitter; tiny marks in an active batch are ink. */
+internal fun classifyPenContact(
+    pending: Boolean, durationMs: Long, displacementDp: Float, pathDp: Float,
+): PenContactKind = when {
+    displacementDp > 8f || pathDp > 16f -> PenContactKind.INK
+    pending -> PenContactKind.INK
+    durationMs >= PEN_HOLD_MS -> PenContactKind.HOLD
+    displacementDp >= 1.5f || pathDp >= 3f -> PenContactKind.INK
+    else -> PenContactKind.TAP
 }
 
 internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candidate: String): TextFieldValue? {
@@ -128,11 +220,14 @@ internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candi
         DimensionField.VALUE -> ManualLengthMeasurement.MAX_INPUT_LENGTH
         DimensionField.NOTE -> MAX_DIMENSION_NOTE_LENGTH
     }
-    // Separate independently recognized words only when appending to a note.
-    // Do not change selected text, punctuation, existing whitespace or exact numeric input.
-    val separateWords = field == DimensionField.NOTE && start == end && end == value.text.length &&
-        value.text.lastOrNull()?.isLetterOrDigit() == true && candidate.first().isLetterOrDigit() &&
-        (value.text.last().isLetter() || candidate.first().isLetter())
+    // Notes separate words; values only separate a number from a following word.
+    // Never insert spaces between digits, into decimals/fractions or selections.
+    val append = start == end && end == value.text.length
+    val previous = value.text.lastOrNull()
+    val first = candidate.first()
+    val separateWords = append && previous?.isLetterOrDigit() == true && first.isLetterOrDigit() &&
+        (if (field == DimensionField.NOTE) previous.isLetter() || first.isLetter()
+        else previous.isDigit() && first.isLetter() && first !in "xX")
     val insertion = if (separateWords) " $candidate" else candidate
     if (insertion.length > limit - (value.text.length - (end - start))) return null
     val text = value.text.replaceRange(start, end, insertion)
@@ -157,82 +252,61 @@ internal fun Modifier.inkFieldInput(
         if (down.position.x !in 0f..size.width.toFloat() || down.position.y !in 0f..size.height.toFloat()) return@awaitEachGesture
         val actions = callbacks()
         val stylus = down.type == PointerType.Stylus
+        val pending = actions.pending()
         if (stylus) down.consume()
         val ticket = if (enabled && stylus) actions.begin() else null
-        if (ticket == null) actions.otherContact()
-        val pen = down.type == PointerType.Stylus || down.type == PointerType.Eraser
-        val missingModel = !enabled && down.type == PointerType.Stylus
-        val ownsPenMotion = ticket != null || missingModel || (pen && editable)
         val origin = down.position
-        // Claim in-field pen writing before the editable Compose field can start IME handwriting.
-        val slop = if (ownsPenMotion) minOf(3.dp.toPx(), viewConfiguration.handwritingSlop)
-            else viewConfiguration.touchSlop
+        var last = origin
+        var maximum = 0f
+        var travel = 0f
         val points = PenStrokeBuffer(PenPoint(origin.x, origin.y, down.uptimeMillis))
-        var moved = false
         var delivered = false
-        var rejectedMultitouch = false
         try {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
                 val raw = event.motionEvent
-                val canceled = raw == null || raw.actionMasked == MotionEvent.ACTION_CANCEL ||
-                    raw.flags and MotionEvent.FLAG_CANCELED != 0
-                if (canceled) break
-                if (event.changes.size != 1 && !rejectedMultitouch) {
-                    rejectedMultitouch = true
-                    if (ticket != null) actions.cancel(ticket)
-                }
-                if (rejectedMultitouch) {
-                    // Do not let subsequent movement of the rejected pen reach Compose's IME recognizer.
-                    if (ownsPenMotion) change.consume()
-                    if (!change.pressed || !ownsPenMotion) break
-                    continue
-                }
+                if (raw == null || raw.actionMasked == MotionEvent.ACTION_CANCEL ||
+                    raw.flags and MotionEvent.FLAG_CANCELED != 0 || event.changes.size != 1) break
                 val position = change.position
                 if (!position.x.isFinite() || !position.y.isFinite()) break
-                val distance = (position - origin).getDistance()
-                val contactTime = change.uptimeMillis - down.uptimeMillis
-                if (!stylus && !moved && contactTime >= viewConfiguration.longPressTimeoutMillis) break
-                if (distance > slop) moved = true
-                // Own every event of a stylus contact, including tiny movements.
-                // The text field must not receive a native long press or second tap.
-                if (stylus) change.consume()
-                // Compose retains the original hit path for this contact. Once a pen
-                // starts here, keep that target even outside this field's capture bounds.
+                maximum = maxOf(maximum, (position - origin).getDistance())
+                travel += (position - last).getDistance()
+                last = position
+                val duration = change.uptimeMillis - down.uptimeMillis
+                if (!stylus) {
+                    // Native finger selection remains available; a stationary
+                    // release also lets the dialog open the intended field.
+                    if (!change.pressed && maximum <= viewConfiguration.touchSlop) actions.tap()
+                    if (!change.pressed || maximum > viewConfiguration.touchSlop) break
+                    continue
+                }
+                change.consume()
+                if (ticket != null) points.append(PenPoint(position.x, position.y, change.uptimeMillis))
+                val kind = classifyPenContact(pending, duration,
+                    maximum / density, travel / density)
                 if (!change.pressed) {
-                    val validUp = canFinishPenStroke(raw.actionMasked, false, event.changes.size)
-                    if (validUp && moved && ticket != null) {
-                        change.consume()
-                        points.append(PenPoint(position.x, position.y, change.uptimeMillis))
-                        if (points.size >= 2) {
+                    if (!canFinishPenStroke(raw.actionMasked, false, event.changes.size)) break
+                    when (kind) {
+                        PenContactKind.INK -> if (ticket != null) {
+                            // A single point is a legitimate dot, not a canceled stroke.
                             actions.finish(ticket, points.snapshot())
                             delivered = true
+                        } else if (!enabled) actions.missingModel() else actions.blocked()
+                        PenContactKind.HOLD -> {
+                            if (ticket != null) actions.cancel(ticket)
+                            delivered = true
+                            actions.penHold(origin)
                         }
-                    } else if (validUp && moved && missingModel) {
-                        change.consume()
-                        actions.missingModel()
-                    } else if (validUp && !moved && stylus) {
-                        if (ticket != null) actions.cancel(ticket)
-                        if (contactTime >= PEN_HOLD_MS) actions.penHold(origin)
-                        else actions.penTap(origin, change.uptimeMillis)
-                    } else if (validUp && !moved) {
-                        actions.tap()
-                    } else if (moved && ownsPenMotion) {
-                        change.consume()
+                        PenContactKind.TAP -> {
+                            if (ticket != null) actions.cancel(ticket)
+                            delivered = true
+                            actions.penTap(origin, change.uptimeMillis)
+                        }
                     }
                     break
                 }
-                if (moved && !ownsPenMotion) {
-                    break
-                }
-                if (ticket != null) {
-                    points.append(PenPoint(position.x, position.y, change.uptimeMillis))
-                }
-                if (moved && ownsPenMotion) {
-                    change.consume()
-                    if (ticket != null) actions.preview(ticket, points.snapshot())
-                }
+                if (ticket != null && kind == PenContactKind.INK) actions.preview(ticket, points.snapshot())
             }
         } finally {
             if (!delivered && ticket != null) actions.cancel(ticket)
@@ -250,6 +324,7 @@ internal data class InkFieldCallbacks(
     val tap: () -> Unit,
     val penTap: (Offset, Long) -> Unit = { _, _ -> },
     val penHold: (Offset) -> Unit = {},
-    val otherContact: () -> Unit,
+    val pending: () -> Boolean,
+    val blocked: () -> Unit,
     val missingModel: () -> Unit,
 )

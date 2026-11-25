@@ -118,4 +118,8 @@
     <string name="dimension_reset_hold">Obnovit výchozí dobu podržení</string>
     <string name="dimension_reset_symbols">Obnovit výchozí rozmístění symbolů</string>
     <string name="dimension_swap_symbol">Vybrat symbol k přesunutí</string>
+    <string name="ink_retained">Rukopis zůstal zachován. Zopakujte rozpoznání nebo jej vědomě zahoďte.</string>
+    <string name="ink_retry">Zopakovat rozpoznání</string>
+    <string name="ink_discard">Zahodit rukopis</string>
+    <string name="ink_discard_question">Zahodit dosud nerozpoznané tahy? Již zadaný text zůstane zachován.</string>
 </resources>

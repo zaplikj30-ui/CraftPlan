@@ -79,72 +79,122 @@ class InkDraftInputTest {
         assertFalse(canFinishPenStroke(null, canceled = false, pointerCount = 1))
     }
 
-    @Test(timeout = 3000)
-    fun delayedResultIsRejectedAfterNewerInputOrTargetChange(): Unit = runBlocking {
-        val original = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue("123"))
-        for (change in listOf(
-            original.copy(input = TextFieldValue("124")),
-            original.copy(input = TextFieldValue("123", TextRange(2))),
-            original.copy(field = DimensionField.NOTE),
-            original.copy(language = "en"),
-            original.copy(draftId = UUID.randomUUID()),
-        )) {
-            val started = CompletableDeferred<Unit>()
-            val result = CompletableDeferred<String>()
-            val controller = InkDraftController(this, recognize = { _, _ ->
-                started.complete(Unit)
-                withContext(NonCancellable) { result.await() }
-            }, settleDelayMs = 0)
-            var current = original
-            val applied = mutableListOf<TextFieldValue>()
-            controller.finish(controller.start(original), stroke, { current }, { applied += it }, {})
-            started.await()
-            current = change
-            result.complete("4")
-            // Wait until the pending preview is discarded.
-            while (controller.preview.isNotEmpty()) kotlinx.coroutines.yield()
-            assertTrue(applied.isEmpty())
-        }
+    @Test
+    fun penClassificationAllowsJitterAndDotsWithoutTreatingWritingAsHold() {
+        assertEquals(PenContactKind.HOLD, classifyPenContact(false, 900, 5f, 10f))
+        assertEquals(PenContactKind.TAP, classifyPenContact(false, 80, 0.5f, 0.6f))
+        assertEquals(PenContactKind.INK, classifyPenContact(true, 50, 0f, 0f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 9f, 12f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 1200, 5f, 20f))
+        assertEquals(PenContactKind.INK, classifyPenContact(false, 200, 2f, 2f))
+        assertEquals("455 Ahoj", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "Ahoj")?.text)
+        assertEquals("45520", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "20")?.text)
+        assertEquals("455x", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "x")?.text)
     }
 
     @Test(timeout = 3000)
-    fun sdkCancellationClearsThePendingDraft() = runBlocking {
+    fun canceledContactPreservesEarlierStrokesAndAnotherFieldCannotReplaceTarget(): Unit = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue())
-        val failed = CompletableDeferred<Unit>()
-        val controller = InkDraftController(this, recognize = { _, _ ->
-            throw kotlinx.coroutines.CancellationException("SDK task canceled")
+        val result = CompletableDeferred<TextFieldValue>()
+        val controller = InkDraftController(this, recognize = { _, strokes ->
+            assertEquals(listOf(stroke), strokes)
+            "123"
         }, settleDelayMs = 0)
-        controller.finish(controller.start(target), stroke, { target }, { error("Draft changed") }, { failed.complete(Unit) })
-        failed.await()
+        controller.attach(Any(), { target }, { _, value -> result.complete(value) }, {})
+        controller.finish(controller.start(target)!!, stroke)
+        assertNull(controller.start(target.copy(field = DimensionField.NOTE)))
+        val contact = controller.start(target)!!
+        controller.cancel(contact)
+        assertTrue(controller.hasPendingInput)
+        assertEquals(listOf(stroke), controller.preview)
+        assertEquals("123", result.await().text)
         assertFalse(controller.hasPendingInput)
     }
 
     @Test(timeout = 3000)
-    fun nextStrokeBatchesAndInterruptionRejectsAnOlderSdkCallback(): Unit = runBlocking {
+    fun recognitionSurvivesDetachAndDeliversOnceToNewUi(): Unit = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs", TextFieldValue())
+        val started = CompletableDeferred<Unit>()
+        val recognized = CompletableDeferred<String>()
+        val applied = CompletableDeferred<TextFieldValue>()
+        val controller = InkDraftController(this, recognize = { _, _ ->
+            started.complete(Unit)
+            recognized.await()
+        }, settleDelayMs = 0)
+        val old = Any()
+        controller.attach(old, { target }, { _, _ -> error("Old UI") }, {})
+        controller.finish(controller.start(target)!!, stroke)
+        started.await()
+        controller.detach(old)
+        recognized.complete("nové")
+        kotlinx.coroutines.yield()
+        assertTrue(controller.hasPendingInput)
+        controller.attach(Any(), { target }, { _, text -> applied.complete(text) }, {})
+        assertEquals("nové", applied.await().text)
+        assertFalse(controller.hasPendingInput)
+    }
+
+    @Test(timeout = 3000)
+    fun nextStrokeAndDotRetainEarlierInkDespiteLateSdkResult(): Unit = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs", TextFieldValue())
         val firstStarted = CompletableDeferred<Unit>()
         val firstResult = CompletableDeferred<String>()
-        var calls = 0
         val applied = CompletableDeferred<TextFieldValue>()
+        val dot = listOf(PenPoint(12f, 15f, 40))
+        var calls = 0
         val controller = InkDraftController(this, recognize = { _, strokes ->
             if (++calls == 1) {
                 firstStarted.complete(Unit)
                 withContext(NonCancellable) { firstResult.await() }
             } else {
-                assertEquals(listOf(stroke, stroke), strokes)
-                "číslo"
+                assertEquals(listOf(stroke, dot), strokes)
+                "číslo."
             }
         }, settleDelayMs = 0)
-        controller.finish(controller.start(target), stroke, { target }, { applied.complete(it) }, {})
+        controller.attach(Any(), { target }, { _, text -> applied.complete(text) }, {})
+        controller.finish(controller.start(target)!!, stroke)
         firstStarted.await()
-        assertTrue(controller.hasPendingInput)
-        val nextTicket = controller.start(target)
+        val ticket = controller.start(target)!!
         assertEquals(listOf(stroke), controller.preview)
-        controller.previewStroke(nextTicket, stroke)
-        assertEquals(listOf(stroke, stroke), controller.preview)
-        controller.finish(nextTicket, stroke, { target }, { applied.complete(it) }, {})
-        assertEquals("číslo", applied.await().text)
-        assertFalse(controller.hasPendingInput)
+        controller.finish(ticket, dot)
+        assertEquals("číslo.", applied.await().text)
         firstResult.complete("starý výsledek")
+        assertFalse(controller.hasPendingInput)
+    }
+
+    @Test(timeout = 3000)
+    fun failureRetainsInkUntilRetryOrExplicitDiscard(): Unit = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue())
+        val failure = CompletableDeferred<Unit>()
+        val applied = CompletableDeferred<TextFieldValue>()
+        var calls = 0
+        val controller = InkDraftController(this, recognize = { _, strokes ->
+            assertEquals(listOf(stroke), strokes)
+            if (++calls == 1) null else "42"
+        }, settleDelayMs = 0)
+        controller.attach(Any(), { target }, { _, text -> applied.complete(text) }, { failure.complete(Unit) })
+        controller.finish(controller.start(target)!!, stroke)
+        failure.await()
+        assertTrue(controller.failed)
+        assertTrue(controller.hasPendingInput)
+        assertEquals(listOf(stroke), controller.preview)
+        controller.retry()
+        assertEquals("42", applied.await().text)
+        assertFalse(controller.hasPendingInput)
+    }
+
+    @Test(timeout = 3000)
+    fun staleTargetNeverReceivesTextAndRetainsInk(): Unit = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue("123"))
+        val failure = CompletableDeferred<Unit>()
+        val controller = InkDraftController(this, recognize = { _, _ -> "4" }, settleDelayMs = 0)
+        controller.attach(Any(), { target.copy(input = TextFieldValue("124")) },
+            { _, _ -> error("Stale result") }, { failure.complete(Unit) })
+        controller.finish(controller.start(target)!!, stroke)
+        failure.await()
+        assertTrue(controller.hasPendingInput)
+        assertEquals(listOf(stroke), controller.preview)
+        controller.interrupt()
+        assertFalse(controller.hasPendingInput)
     }
 }

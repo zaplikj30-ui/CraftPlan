@@ -199,6 +199,7 @@ internal class PhotoEditorState : ViewModel() {
     }
 
     fun cancelStressGeneration() { stressJob?.cancel() }
+    val inkController = InkDraftController(viewModelScope)
     var valueDraft by mutableStateOf<DimensionValueDraft?>(null)
     var showNotes by mutableStateOf(true)
     var toolbarExpanded by mutableStateOf(false)
@@ -388,6 +389,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
             editorState.valueDraft?.let { draft ->
                 DimensionValueDialog(
                     draft = draft,
+                    ink = editorState.inkController,
                     onChange = { update -> editorState.valueDraft = editorState.valueDraft?.let(update) },
                     onConfirm = editorState::confirmValue,
                     onCancel = {
