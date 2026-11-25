@@ -42,6 +42,11 @@ class DimensionCalculationTest {
         assertFalse(requestsDimensionCalculation("100+50=", "100+50=", true))
         assertFalse(requestsDimensionCalculation("25%", "25%=", true))
         assertFalse(requestsDimensionCalculation("12 mm", "12 mm=", true))
+        for (label in listOf("1/3=", "1/0=", "100+50=")) {
+            val literal = DimensionValueDraft(dimension).type(label).confirm(dimension)!!
+            assertNull(literal.measurement)
+            assertEquals(label, literal.displayLabel())
+        }
     }
 
     @Test
@@ -56,9 +61,13 @@ class DimensionCalculationTest {
         assertEquals("1÷3=", confirmed.measurement.originalInput)
         assertEquals(LengthMmEncoding.Rational("1", "3"), confirmed.measurement.length.encoding)
         assertEquals(confirmed.measurement, ManualLengthMeasurement.calculate("1÷3=", LengthUnit.MM))
-        val converted = calculated.selectUnit(LengthUnit.CM).confirm(dimension)!!
+        val convertedDraft = calculated.selectUnit(LengthUnit.CM)
+        assertEquals("1/30", convertedDraft.input)
+        assertEquals("1", convertedDraft.calculate("1/30*30=")!!.input)
+        val converted = convertedDraft.confirm(dimension)!!
         assertEquals(confirmed.measurement, converted.measurement)
         val reopened = DimensionValueDraft(confirmed)
+        assertEquals("1/3", reopened.input)
         assertEquals(confirmed.measurement, reopened.confirm(confirmed)!!.measurement)
         val changed = calculated.type("25").confirm(dimension)!!
         assertEquals(LengthSource.MANUAL, changed.measurement!!.source)

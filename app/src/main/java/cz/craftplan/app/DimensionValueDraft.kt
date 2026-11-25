@@ -9,8 +9,14 @@ internal sealed interface DimensionEntry {
         val prefix: String = "",
         val explicitlyTypedUnit: Boolean = false,
     ) : DimensionEntry {
-        fun inputText(unit: LengthUnit): String = listOf(prefix, value.length.displayNumberForUi(unit).text, suffix)
-            .filter(String::isNotBlank).joinToString(" ")
+        fun inputText(unit: LengthUnit): String {
+            val number = if (value.source == LengthSource.CALCULATED) {
+                // Chaining arithmetic must start from the exact editable result, not
+                // the rounded metric presentation used on the photo.
+                value.length.displayNumber(unit).replace('.', ',')
+            } else value.length.displayNumberForUi(unit).text
+            return listOf(prefix, number, suffix).filter(String::isNotBlank).joinToString(" ")
+        }
     }
     data class TextOnly(val text: String) : DimensionEntry
 }
@@ -71,6 +77,7 @@ internal fun parseDimensionEntry(input: String, unit: LengthUnit): DimensionEntr
     if (input.isBlank() || input.length > ManualLengthMeasurement.MAX_INPUT_LENGTH ||
         input.any { it == '\r' || it == '\n' || it == '\u0000' }) return null
     val trimmed = input.trim()
+    if (isLiteralCalculationLabel(trimmed)) return DimensionEntry.TextOnly(trimmed)
     val prefix = if (trimmed.startsWith("Ø")) "Ø" else ""
     val body = if (prefix.isEmpty()) trimmed else trimmed.drop(1).trimStart()
     if (body.isEmpty()) return DimensionEntry.TextOnly(trimmed)
@@ -113,9 +120,10 @@ internal class DimensionValueDraft private constructor(
 
     constructor(dimension: PhotoDimension) : this(
         dimension,
-        dimension.textLabel ?: dimension.measurement?.length?.displayNumberForUi(dimension.displayUnit)?.text
-            ?.let { number -> listOf(dimension.labelPrefix, number, dimension.labelSuffix).filter { it.isNotBlank() }.joinToString(" ") }
-            .orEmpty(),
+        dimension.textLabel ?: dimension.measurement?.let {
+            DimensionEntry.Measured(it, dimension.labelSuffix, dimension.displayUnit, dimension.labelPrefix)
+                .inputText(dimension.displayUnit)
+        }.orEmpty(),
         dimension.displayUnit,
         dimension.measurement?.let { DimensionEntry.Measured(it, dimension.labelSuffix, dimension.displayUnit, dimension.labelPrefix) },
         note = dimension.note,
@@ -192,7 +200,8 @@ internal class DimensionValueDraft private constructor(
 
     fun hasApproximateDisplay(): Boolean =
         unchangedEntry?.let {
-            it.value.length.displayNumberForUi(unit).approximate && input == it.inputText(unit)
+            it.value.source != LengthSource.CALCULATED &&
+                it.value.length.displayNumberForUi(unit).approximate && input == it.inputText(unit)
         } == true
 
     fun isTextOnly(): Boolean = entry() is DimensionEntry.TextOnly

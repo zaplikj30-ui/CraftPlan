@@ -4,6 +4,7 @@ import java.math.BigDecimal
 import java.math.BigInteger
 
 /** Exact, bounded arithmetic for the editable value field. No evaluation of arbitrary code. */
+@ConsistentCopyVisibility
 internal data class DimensionCalculation private constructor(
     val numerator: BigInteger,
     val denominator: BigInteger,
@@ -109,7 +110,10 @@ private class CalculationParser(private val text: String) {
     }
 }
 
+/** An expression deliberately retained with a literal equals is never a length. */
+internal fun isLiteralCalculationLabel(input: String): Boolean =
+    input.endsWith('=') && calculationCharacters.matches(input.dropLast(1))
+
 /** Only a newly entered final equals in a numeric expression triggers evaluation. */
 internal fun requestsDimensionCalculation(previous: String, next: String, enabled: Boolean): Boolean =
-    enabled && previous != next && !previous.endsWith('=') && next.endsWith('=') &&
-        calculationCharacters.matches(next.dropLast(1))
+    enabled && previous != next && !previous.endsWith('=') && isLiteralCalculationLabel(next)
