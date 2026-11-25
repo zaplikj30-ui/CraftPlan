@@ -68,7 +68,7 @@ Fyzické ověření nových gest lišty, překryvů, posunu popisků a Undo/Redo
 
 ### Vícejazyčný rukopis pera v dialogu kóty
 
-Po pádu dialogu v sestavení 56 je obnoveno textové pole Compose ze sestavení 55. V menu jednotek otevřete **Jazyk rukopisu**, vyberte dostupný model a potvrďte jeho stažení. Výchozí kód BCP‑47 odpovídá jazyku prostředků aplikace. Volba modelu se ukládá samostatně a nemění jazyk aplikace ani klávesnice. Po stažení funguje rozpoznávání na zařízení i bez sítě. Bez modelu zůstává běžné zadávání dostupné.
+Po pádu dialogu v sestavení 56 je obnoveno textové pole Compose ze sestavení 55. V menu jednotek otevřete **Jazyk rukopisu**, vyberte dostupný model a potvrďte jeho stažení. Výchozí automatická volba BCP‑47 odpovídá jazyku prostředků aplikace a přizpůsobí se jeho změně. Potvrzení stažení výchozího modelu neukládá ruční volbu; ručně zvolený jazyk lze vrátit na Automaticky. Ruční volba se ukládá samostatně a nemění jazyk aplikace ani klávesnice. Po stažení funguje rozpoznávání na zařízení i bez sítě. Bez modelu zůstává běžné zadávání dostupné.
 
 Pište aktivním perem přímo do hodnoty nebo poznámky. Hover ani klepnutí nespustí rozpoznávání. Po krátké pauze se výsledek vloží do aktuálního výběru jako upravitelný text. Modelový výsledek nepotvrzuje hodnotu ani nezmění jednotku. Ruční změna vstupu či cíle zneplatní čekající výsledek. Během rozpoznávání dialog vyčká a rozpoznanou úpravu lze potvrdit tlačítkem **Uložit** nebo odmítnout tlačítkem **Zrušit**.
 

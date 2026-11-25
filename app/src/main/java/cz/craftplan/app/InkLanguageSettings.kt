@@ -27,17 +27,20 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+internal data class InkDownloadRequest(val tag: String, val manualSelection: Boolean = false)
+
 internal class InkLanguageSettings(
     private val preferences: SharedPreferences,
-    default: String?,
+    private val default: String?,
 ) {
-    var language by mutableStateOf(preferences.getString("language", null)?.takeIf { it in InkModels.languages } ?: default)
+    var manualLanguage by mutableStateOf(preferences.getString("language", null)?.takeIf { it in InkModels.languages })
         private set
+    val language: String? get() = manualLanguage ?: default
     var approved by mutableStateOf(preferences.getStringSet("approved_models", emptySet()).orEmpty().toSet())
         private set
     var downloadedLanguage by mutableStateOf<String?>(null)
     var chooserOpen by mutableStateOf(false)
-    var downloadConfirmation by mutableStateOf<String?>(null)
+    var downloadConfirmation by mutableStateOf<InkDownloadRequest?>(null)
     var downloading by mutableStateOf(false)
     var failed by mutableStateOf(false)
     var retry by mutableStateOf(0)
@@ -47,22 +50,28 @@ internal class InkLanguageSettings(
     fun select(tag: String) {
         if (tag !in InkModels.languages || downloading) return
         if (tag !in approved) {
-            downloadConfirmation = tag
+            downloadConfirmation = InkDownloadRequest(tag, manualSelection = true)
             return
         }
         choose(tag)
     }
 
-    private fun choose(tag: String) {
-        failed = false
-        if (language != tag) downloadedLanguage = null
-        language = tag
-        preferences.edit().putString("language", tag).apply()
+    fun selectAutomatic() {
+        if (!downloading) choose(null)
     }
 
-    fun approve(tag: String) {
-        choose(tag)
-        approved = approved + tag
+    private fun choose(tag: String?) {
+        failed = false
+        if (language != (tag ?: default)) downloadedLanguage = null
+        manualLanguage = tag
+        preferences.edit().apply {
+            if (tag == null) remove("language") else putString("language", tag)
+        }.apply()
+    }
+
+    fun approve(request: InkDownloadRequest) {
+        if (request.manualSelection) choose(request.tag)
+        approved = approved + request.tag
         preferences.edit().putStringSet("approved_models", approved).apply()
     }
 
@@ -115,6 +124,7 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
             text = {
                 Column {
                     settings.language?.let { Text(stringResource(R.string.ink_selected_language, it)) }
+                    if (settings.manualLanguage == null) Text(stringResource(R.string.ink_language_automatic))
                     if (settings.downloading) Text(stringResource(R.string.ink_downloading))
                     else if (settings.failed) Text(stringResource(R.string.ink_download_failed))
                     else if (settings.readyLanguage != null) Text(stringResource(R.string.ink_ready))
@@ -123,9 +133,13 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
                         settings.language?.let { tag ->
                             TextButton(onClick = {
                                 settings.chooserOpen = false
-                                settings.downloadConfirmation = tag
+                                settings.downloadConfirmation = InkDownloadRequest(tag)
                             }) { Text(stringResource(R.string.ink_download)) }
                         }
+                    }
+                    TextButton(enabled = !settings.downloading && settings.manualLanguage != null,
+                        onClick = settings::selectAutomatic) {
+                        Text(stringResource(R.string.ink_language_automatic))
                     }
                     OutlinedTextField(
                         value = query,
@@ -154,7 +168,8 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
             },
         )
     }
-    settings.downloadConfirmation?.let { tag ->
+    settings.downloadConfirmation?.let { request ->
+        val tag = request.tag
         val display = Locale.forLanguageTag(tag).getDisplayName(locale)
         AlertDialog(
             onDismissRequest = { settings.downloadConfirmation = null },
@@ -170,7 +185,7 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
                     settings.downloadConfirmation = null
                     settings.downloading = true
                     settings.failed = false
-                    settings.approve(tag)
+                    settings.approve(request)
                     settings.chooserOpen = true
                     scope.launch {
                         try {
