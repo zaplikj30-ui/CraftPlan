@@ -124,9 +124,15 @@ internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candi
         DimensionField.VALUE -> ManualLengthMeasurement.MAX_INPUT_LENGTH
         DimensionField.NOTE -> MAX_DIMENSION_NOTE_LENGTH
     }
-    if (candidate.length > limit - (value.text.length - (end - start))) return null
-    val text = value.text.replaceRange(start, end, candidate)
-    return TextFieldValue(text, TextRange(start + candidate.length))
+    // Separate independently recognized words only when appending to a note.
+    // Do not change selected text, punctuation, existing whitespace or exact numeric input.
+    val separateWords = field == DimensionField.NOTE && start == end && end == value.text.length &&
+        value.text.lastOrNull()?.isLetterOrDigit() == true && candidate.first().isLetterOrDigit() &&
+        (value.text.last().isLetter() || candidate.first().isLetter())
+    val insertion = if (separateWords) " $candidate" else candidate
+    if (insertion.length > limit - (value.text.length - (end - start))) return null
+    val text = value.text.replaceRange(start, end, insertion)
+    return TextFieldValue(text, TextRange(start + insertion.length))
 }
 
 internal fun canFinishPenStroke(action: Int?, canceled: Boolean, pointerCount: Int): Boolean =

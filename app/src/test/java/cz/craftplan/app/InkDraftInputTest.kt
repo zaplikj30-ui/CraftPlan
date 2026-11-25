@@ -30,6 +30,23 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun separateNoteWordsAtEndWithoutChangingNumericOrSelectedText() {
+        fun append(text: String, candidate: String, field: DimensionField = DimensionField.NOTE) =
+            insertInkResult(field, TextFieldValue(text, TextRange(text.length)), candidate)
+        val note = append("Levá strana", "okna")
+        assertEquals("Levá strana okna", note?.text)
+        assertEquals(TextRange(16), note?.selection)
+        assertEquals("Levá strana okna", append("Levá strana ", "okna")?.text)
+        assertEquals("okno,", append("okno", ",")?.text)
+        assertEquals("1250", append("12", "50")?.text)
+        assertEquals("1250", append("12", "50", DimensionField.VALUE)?.text)
+        assertEquals("1/3", append("1/", "3", DimensionField.VALUE)?.text)
+        assertEquals("aXc", insertInkResult(DimensionField.NOTE, TextFieldValue("abc", TextRange(1, 2)), "X")?.text)
+        assertEquals("aXbc", insertInkResult(DimensionField.NOTE, TextFieldValue("abc", TextRange(1)), "X")?.text)
+        assertNull(append("a".repeat(MAX_DIMENSION_NOTE_LENGTH - 1), "b"))
+    }
+
+    @Test
     fun onlyRealUncanceledSinglePointerReleaseCanFinishStroke() {
         assertTrue(canFinishPenStroke(MotionEvent.ACTION_UP, canceled = false, pointerCount = 1))
         assertFalse(canFinishPenStroke(MotionEvent.ACTION_UP, canceled = true, pointerCount = 1))
