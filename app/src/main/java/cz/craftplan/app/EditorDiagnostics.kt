@@ -18,6 +18,7 @@ internal fun consumeColdStartDiagnosticRequest(armed: Boolean, clear: () -> Bool
 internal enum class KeypadDiagnosticStage {
     WARMUP_START, WARMUP_END, WARMUP_FAILED,
     SETTINGS_START, SETTINGS_END, MODEL_CHECK_START, MODEL_CHECK_END,
+    MODEL_CHECK_DEFERRED, MODEL_CHECK_RELEASED,
     MODEL_TASK_START, MODEL_TASK_CREATED, WINDOW_ATTACHED, WINDOW_UNAVAILABLE, WINDOW_DETACHED,
     REVEAL_REQUEST, FIRST_PREPARED, ANIMATION_START, ANIMATION_END, ANIMATION_CANCELED, NATIVE_HANDOFF,
 }
@@ -63,6 +64,14 @@ internal class EditorDiagnostics(
 
     val recording: Boolean get() = started != null && ended == null
     val hasSession: Boolean get() = started != null
+    private var isolateInk = false
+    val isolateInkCheck: Boolean get() = recording && isolateInk
+
+    fun toggleInkIsolation() {
+        val time = recordingTime() ?: return
+        isolateInk = !isolateInk
+        append(time, "keypad_isolation defer_model_check=$isolateInk")
+    }
     fun elapsedMs(): Long = started?.let { ((ended ?: now()) - it).coerceAtLeast(0) / 1_000_000 } ?: 0L
 
     fun expired(): Boolean = recording && now() - checkNotNull(started) >= durationLimitNs
@@ -84,6 +93,7 @@ internal class EditorDiagnostics(
         started = null
         ended = null
         events.clear()
+        isolateInk = false
         targetNumbers.clear()
         metrics.reset()
         nextMove = Long.MIN_VALUE
@@ -211,6 +221,8 @@ internal class EditorDiagnostics(
         totalNs: Long, deadlineNs: Long, layoutNs: Long, drawNs: Long,
         syncNs: Long, issueNs: Long, unknownNs: Long, intendedVsyncNs: Long,
         droppedCallbacks: Int, firstDraw: Boolean,
+        inputNs: Long = -1, animationNs: Long = -1, swapNs: Long = -1,
+        gpuNs: Long = -1, actualVsyncNs: Long = -1,
     ) {
         val time = recordingTime() ?: return
         val start = checkNotNull(started)
@@ -218,7 +230,9 @@ internal class EditorDiagnostics(
         val vsyncOffsetMs = if (intendedVsyncNs > 0) (intendedVsyncNs - start) / 1_000_000 else null
         append(time, "keypad_frame vsync_ms=${vsyncOffsetMs ?: "NA"} total_ns=$totalNs deadline_ns=$deadlineNs" +
             " layout_ns=$layoutNs draw_ns=$drawNs sync_ns=$syncNs issue_ns=$issueNs unknown_ns=$unknownNs" +
-            " dropped_callbacks=${droppedCallbacks.coerceAtLeast(0)} first_draw=$firstDraw")
+            " dropped_callbacks=${droppedCallbacks.coerceAtLeast(0)} first_draw=$firstDraw" +
+            " input_ns=$inputNs animation_ns=$animationNs swap_ns=$swapNs gpu_ns=$gpuNs" +
+            " vsync_delay_ns=${if (actualVsyncNs > 0 && intendedVsyncNs > 0) (actualVsyncNs - intendedVsyncNs).coerceAtLeast(0) else -1}")
     }
 
     fun operation(action: DiagnosticAction, elapsedNs: Long) {
@@ -264,6 +278,7 @@ internal class EditorDiagnostics(
         appendLine("toolbar_window: activity window px, grip_bounds=left,top,right,bottom in same coordinates; in_grip/in_shared=measured bounds only; toolbar_grip: local px, dedicated/shared zone, release, yield or cancellation reason; OS-intercepted touches may be absent")
         appendLine("frames=Android FrameMetrics for the activity window (including controls/timer, excluding dialog/IME); observed FPS includes idle and excludes lost callbacks; deadline misses are not a count of lost presentations")
         appendLine("keypad_frame=separate dimension dialog window FrameMetrics, time=callback receipt, vsync_ms=intended frame start relative to recording; negative metrics unavailable; first_draw is SDK flag; excludes native IME. keypad_height=measured clipped height px; keypad_stage=stage markers, REVEAL_REQUEST detail 1=open/0=close, other timing details ns. No field contents.")
+        appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }

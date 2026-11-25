@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -145,7 +146,10 @@ internal fun PrepareDimensionDialog(diagnostics: EditorDiagnostics?) {
 }
 
 @Composable
-internal fun rememberInkLanguageSettings(diagnostics: EditorDiagnostics? = null): InkLanguageSettings {
+internal fun rememberInkLanguageSettings(
+    diagnostics: EditorDiagnostics? = null,
+    checkGate: CompletableDeferred<Unit>? = null,
+): InkLanguageSettings {
     val context = LocalContext.current.applicationContext
     val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
     val settings = remember(context, locale) {
@@ -158,9 +162,14 @@ internal fun rememberInkLanguageSettings(diagnostics: EditorDiagnostics? = null)
             if (diagnostics != null) diagnostics.keypadStage(KeypadDiagnosticStage.SETTINGS_END, System.nanoTime() - start)
         }
     }
-    LaunchedEffect(settings, settings.language, settings.approved, settings.retry, settings.downloading) {
+    LaunchedEffect(settings, settings.language, settings.approved, settings.retry, settings.downloading, checkGate) {
         val tag = settings.language ?: return@LaunchedEffect
         if (settings.downloading || tag !in settings.approved) return@LaunchedEffect
+        if (checkGate != null && !checkGate.isCompleted) {
+            diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_CHECK_DEFERRED)
+            checkGate.await()
+            diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_CHECK_RELEASED)
+        }
         diagnostics?.keypadStage(KeypadDiagnosticStage.MODEL_CHECK_START)
         val downloaded = try {
             InkModels.isDownloaded(context, tag, diagnostics)

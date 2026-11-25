@@ -146,6 +146,18 @@ internal fun DiagnosticActions(state: PhotoEditorState, export: () -> Unit, clos
             closeMenu()
         },
     )
+    if (state.diagnosticsRecording) {
+        DropdownMenuItem(
+            text = { Text(stringResource(if (diagnostics.isolateInkCheck) R.string.diagnostic_ink_isolation_off
+                else R.string.diagnostic_ink_isolation_on)) },
+            onClick = {
+                diagnostics.toggleInkIsolation()
+                if (diagnostics.isolateInkCheck) android.widget.Toast.makeText(context,
+                    R.string.diagnostic_ink_isolation_warning, android.widget.Toast.LENGTH_LONG).show()
+                closeMenu()
+            },
+        )
+    }
     if (state.diagnosticsEnabled) {
         DropdownMenuItem(
             text = { Text(stringResource(if (state.diagnosticsRecording) R.string.diagnostic_stop else R.string.diagnostic_start)) },

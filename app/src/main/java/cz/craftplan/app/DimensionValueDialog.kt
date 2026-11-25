@@ -82,7 +82,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clipToBounds
@@ -121,6 +120,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
@@ -210,7 +210,11 @@ internal fun DimensionValueDialog(
         mutableStateOf(ink.pendingInput(DimensionField.NOTE)?.takeIf { it.text == draft.note } ?: editableText(draft.note))
     }
     var unitsOpen by remember { mutableStateOf(false) }
-    val inkSettings = rememberInkLanguageSettings(diagnostics)
+    // Explicit synthetic A/B recording only; no gate in ordinary editing.
+    val inkCheckGate = remember(diagnostics) {
+        if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
+    }
+    val inkSettings = rememberInkLanguageSettings(diagnostics, inkCheckGate)
     val inkOwner = remember { Any() }
     val waitForInk = { Toast.makeText(context, R.string.ink_pending, Toast.LENGTH_SHORT).show() }
     var discardInkOpen by rememberSaveable { mutableStateOf(false) }
@@ -364,7 +368,8 @@ internal fun DimensionValueDialog(
         var keypadPrepared by remember { mutableStateOf(false) }
         val revealContent by remember(keypadReveal) { derivedStateOf { keypadReveal.value > 0f } }
         val keypadVisible = numericRequested && !imeVisible
-        LaunchedEffect(numericRequested, keys.systemOpen, density) {
+        LaunchedEffect(numericRequested, keys.systemOpen, density, inkCheckGate) {
+            if (!numericRequested) inkCheckGate?.complete(Unit)
             diagnostics?.keypadStage(KeypadDiagnosticStage.REVEAL_REQUEST, if (numericRequested) 1 else 0)
             val baseline = maxOf(bars.getBottom(density), cutout.getBottom(density))
             if (keys.systemOpen && keypadReveal.value > 0f) {
@@ -391,6 +396,7 @@ internal fun DimensionValueDialog(
                 keypadPrepared = true
                 diagnostics?.keypadStage(KeypadDiagnosticStage.NATIVE_HANDOFF)
                 keypadReveal.snapTo(1f)
+                inkCheckGate?.complete(Unit)
             } else {
                 diagnostics?.keypadStage(KeypadDiagnosticStage.ANIMATION_START)
                 var finished = false
@@ -403,6 +409,7 @@ internal fun DimensionValueDialog(
                 } finally {
                     diagnostics?.keypadStage(if (finished) KeypadDiagnosticStage.ANIMATION_END
                         else KeypadDiagnosticStage.ANIMATION_CANCELED)
+                    if (finished) inkCheckGate?.complete(Unit)
                 }
             }
         }
@@ -423,9 +430,7 @@ internal fun DimensionValueDialog(
                     awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
                 }
             }
-        }).graphicsLayer()
-        // The inner layer follows the full measured keypad, not the animated clip height.
-        // Reuse its drawing while the outer layout reveals it; real content changes still invalidate it.
+        })
         var keyboardRequest by remember { mutableStateOf(0L) }
         var imeHidePending by remember { mutableStateOf(false) }
         fun requestKeyboard(next: DimensionKeyboard) {

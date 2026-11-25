@@ -28,6 +28,11 @@ internal fun KeypadWindowDiagnostics(diagnostics: EditorDiagnostics?) {
                 intendedVsyncNs = frame.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP),
                 droppedCallbacks = dropped,
                 firstDraw = frame.getMetric(FrameMetrics.FIRST_DRAW_FRAME) == 1L,
+                inputNs = frame.getMetric(FrameMetrics.INPUT_HANDLING_DURATION),
+                animationNs = frame.getMetric(FrameMetrics.ANIMATION_DURATION),
+                swapNs = frame.getMetric(FrameMetrics.SWAP_BUFFERS_DURATION),
+                gpuNs = frame.getMetric(FrameMetrics.GPU_DURATION),
+                actualVsyncNs = frame.getMetric(FrameMetrics.VSYNC_TIMESTAMP),
             )
         }
         val registered = if (window == null) false else try {

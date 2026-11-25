@@ -92,6 +92,9 @@
     <string name="diagnostic_cold_start_error">Nastavení záznamu se nepodařilo uložit.</string>
     <string name="diagnostic_stop">Ukončit záznam</string>
     <string name="diagnostic_reset">Vymazat měření a záznam</string>
+    <string name="diagnostic_ink_isolation_on">Izolační test: odložit kontrolu rukopisu</string>
+    <string name="diagnostic_ink_isolation_off">Izolační test: vypnout</string>
+    <string name="diagnostic_ink_isolation_warning">Pouze test animace na syntetických datech. Během testu nepište perem. Režim skončí se záznamem.</string>
     <string name="diagnostic_copy">Kopírovat souhrn</string>
     <string name="diagnostic_export">Exportovat časovou osu</string>
     <string name="diagnostic_export_done">Diagnostický soubor byl uložen.</string>
