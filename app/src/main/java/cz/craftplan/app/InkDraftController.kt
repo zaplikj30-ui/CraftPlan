@@ -42,6 +42,7 @@ internal class InkDraftController(
     private var revision = 0L
     private var target: InkDraftTarget? = null
     private var recognitionHints = InkRecognitionHints("")
+    private var gestureDensity: Float? = null
     private var completedStrokes = emptyList<List<PenPoint>>()
     private var contact: Long? = null
     private var candidate: String? = null
@@ -75,7 +76,7 @@ internal class InkDraftController(
         if (binding?.owner === owner) binding = null
     }
 
-    fun start(next: InkDraftTarget, area: InkWritingArea? = null): Long? {
+    fun start(next: InkDraftTarget, area: InkWritingArea? = null, density: Float? = null): Long? {
         // Do not replace another target, an incomplete contact or a full batch.
         // The UI will offer waiting/retry instead of discarding old handwriting.
         if (literalDot || contact != null || (target != null && target != next) ||
@@ -84,7 +85,10 @@ internal class InkDraftController(
         work?.cancel()
         work = null
         candidate = null
-        if (target == null) recognitionHints = InkRecognitionHints(inkPreContext(next.input), area)
+        if (target == null) {
+            recognitionHints = InkRecognitionHints(inkPreContext(next.input), area)
+            gestureDensity = density
+        }
         target = next
         pendingField = next.field
         failed = false
@@ -139,14 +143,16 @@ internal class InkDraftController(
         val captured = target ?: return
         val request = completedStrokes
         val hints = recognitionHints
+        val density = gestureDensity
         val ticket = ++revision
         failed = false
         work?.cancel()
         work = scope.launch {
             delay(settleDelayMs)
-            val observer = binding?.diagnostics?.inkCandidateObserver(
+            val localComma = isStandaloneInkComma(request, density)
+            val observer = if (localComma) null else binding?.diagnostics?.inkCandidateObserver(
                 captured.field, request.size, request.lastOrNull()?.lastOrNull()?.timeMs, hints.preContext)
-            val result = try {
+            val result = if (localComma) "," else try {
                 withTimeoutOrNull(5_000) {
                     recognize(captured.language, request, if (observer == null) hints
                         else hints.copy(diagnosticCandidates = observer))
@@ -161,6 +167,8 @@ internal class InkDraftController(
             }
             if (ticket != revision || contact != null) return@launch
             work = null
+            if (localComma) binding?.diagnostics?.penGesture(PenDiagnosticStage.LOCAL_COMMA,
+                captured.field, eventMs = request.single().last().timeMs)
             candidate = result
             if (result.isNullOrBlank()) markFailed() else deliver()
         }
@@ -201,6 +209,7 @@ internal class InkDraftController(
         work = null
         target = null
         recognitionHints = InkRecognitionHints("")
+        gestureDensity = null
         pendingField = null
         contact = null
         candidate = null

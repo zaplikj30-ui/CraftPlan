@@ -20,6 +20,70 @@ class InkDraftInputTest {
     private val stroke = listOf(PenPoint(1f, 1f, 10), PenPoint(10f, 15f, 20))
 
     @Test
+    fun standaloneCommaChecksSizeSlopeAndSingleStrokeAtAnyDensity() {
+        fun line(dx: Float, dy: Float, density: Float = 1f) =
+            listOf(PenPoint(0f, 0f, 0), PenPoint(dx * density, dy * density, 120))
+        fun comma(dx: Float, dy: Float, density: Float = 1f) =
+            isStandaloneInkComma(listOf(line(dx, dy, density)), density)
+        assertTrue(comma(-9f, 12f))
+        assertTrue(comma(9f, -12f))
+        assertTrue(comma(-12f, 16f))
+        assertTrue(comma(-9f, 12f, 3.5f))
+        assertFalse(comma(-12.1f, 16f))
+        assertFalse(comma(-1f, 12f))
+        assertFalse(comma(-12f, 1f))
+        assertFalse(comma(9f, 12f))
+        assertFalse(comma(-2f, 2f))
+        assertFalse(comma(-30f, 40f))
+        assertFalse(isStandaloneInkComma(listOf(line(-9f, 12f), line(-9f, 12f)), 1f))
+        assertFalse(isStandaloneInkComma(listOf(line(-9f, 12f)), null))
+        assertFalse(isStandaloneInkComma(listOf(line(-9f, 12f)), 0f))
+        assertFalse(isStandaloneInkComma(listOf(line(Float.NaN, 12f)), 1f))
+        assertFalse(isStandaloneInkComma(listOf(listOf(PenPoint(0f, 0f, 0),
+            PenPoint(-20f, 25f, 50), PenPoint(-9f, 12f, 100))), 1f))
+        assertFalse(isStandaloneInkComma(listOf(listOf(PenPoint(0f, 0f, 0),
+            PenPoint(-9f, 12f, 40), PenPoint(0f, 0f, 80), PenPoint(-9f, 12f, 120))), 1f))
+    }
+
+    @Test(timeout = 3000)
+    fun shortDiagonalInsertsCommaAfterSlashWithoutRecognizerInBothFields() = runBlocking {
+        for (field in DimensionField.entries) {
+            val target = InkDraftTarget(UUID.randomUUID(), field, "cs",
+                TextFieldValue("1/", TextRange(2)))
+            val result = CompletableDeferred<TextFieldValue>()
+            val controller = InkDraftController(this, recognize = { _, _, _ ->
+                error("Local comma must not call recognizer")
+            }, settleDelayMs = 0)
+            controller.attach(Any(), { target }, { _, edited -> result.complete(edited) },
+                { error("Unexpected failure") })
+            controller.finish(controller.start(target, density = 1f)!!,
+                listOf(PenPoint(0f, 0f, 0), PenPoint(-9f, 12f, 120)))
+            assertEquals("1/,", result.await().text)
+            assertFalse(controller.hasPendingInput)
+        }
+    }
+
+    @Test(timeout = 3000)
+    fun longerAndMultiStrokeInkRetainRecognizerAndOriginalContext() = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs",
+            TextFieldValue("1", TextRange(1)))
+        val short = listOf(PenPoint(0f, 0f, 0), PenPoint(-9f, 12f, 120))
+        val long = listOf(PenPoint(0f, 0f, 0), PenPoint(-24f, 32f, 120))
+        for (batch in listOf(listOf(long), listOf(short, short))) {
+            val result = CompletableDeferred<TextFieldValue>()
+            val controller = InkDraftController(this, recognize = { _, strokes, hints ->
+                assertEquals(batch, strokes)
+                assertEquals("1", hints.preContext)
+                "/"
+            }, settleDelayMs = 0)
+            controller.attach(Any(), { target }, { _, edited -> result.complete(edited) },
+                { error("Unexpected failure") })
+            for (points in batch) controller.finish(controller.start(target, density = 1f)!!, points)
+            assertEquals("1/", result.await().text)
+        }
+    }
+
+    @Test
     fun dialogInkRoutesPendingBatchEverywhereAndOnlyNewWritingNearFields() {
         val value = Rect(10f, 10f, 110f, 30f)
         val note = Rect(10f, 50f, 110f, 70f)

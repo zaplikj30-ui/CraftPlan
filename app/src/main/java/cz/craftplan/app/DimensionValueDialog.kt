@@ -303,6 +303,7 @@ internal fun DimensionValueDialog(
     }
     fun inkOrigin(field: DimensionField): Offset? =
         if (field == DimensionField.VALUE) valueInkOrigin else noteInkOrigin
+    val inkGestureDensity = LocalDensity.current.density
     fun inkCallbacks(
         field: DimensionField,
         sourceOrigin: () -> Offset? = { inkOrigin(field) },
@@ -324,7 +325,7 @@ internal fun DimensionValueDialog(
                     val bounds = if (target == DimensionField.VALUE) valueInkBounds else noteInkBounds
                     val area = bounds?.takeIf { it.width > 0f && it.height > 0f }
                         ?.let { InkWritingArea(it.width, it.height) }
-                    currentInkTarget(target)?.let { ink.start(it, area) }
+                    currentInkTarget(target)?.let { ink.start(it, area, inkGestureDensity) }
                 }
             },
             preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(points)) },
