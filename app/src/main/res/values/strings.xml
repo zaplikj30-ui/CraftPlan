@@ -84,4 +84,5 @@
     <string name="diagnostic_export">Exportovat časovou osu</string>
     <string name="diagnostic_export_done">Diagnostický soubor byl uložen.</string>
     <string name="diagnostic_export_error">Diagnostický soubor se nepodařilo uložit.</string>
+    <string name="dimension_explicit_save">Použijte Uložit pro potvrzení nebo Zrušit pro zahození úprav.</string>
 </resources>

@@ -65,3 +65,11 @@ Numerická klávesnice 4 × 4 zachová hlavní čísla uprostřed, malé alterna
 Poslední numerické tlačítko je zpočátku volné. Krátké klepnutí vloží nastavený symbol (u prázdného otevře výběr), dlouhý stisk otevře nabídku všech 15 vkládaných symbolů a vyprázdnění. Alternativně lze symbol podržet a přetáhnout na zvýrazněné pravé spodní políčko druhé klávesnice; při platném puštění se přiřadí a zobrazí numerická klávesnice. Výběr/přetažení samo nic nevkládá, neplatné puštění nic nemění. Preference je lokální a společná pro kóty. Historie laseru zůstává vyhrazená, bez nové funkce.
 
 Fyzické ověření nových gest lišty, překryvů, posunu popisků a Undo/Redo vyžaduje následné samostatné GO pro APK a praktický test. Trvalé ukládání dokumentů, plochy a úhly jsou mimo tento rozsah.
+
+### Rukopis S Pen v dialogu kóty
+
+Dialog používá uvnitř stávajícího orámování dvě nativní textová pole. Na Androidu 14+ může kompatibilní IME převést tah pera přímo v poli hodnoty nebo poznámky na upravitelný text. Vlastní klávesnice mohou zůstat zvolené, protože fokus textového pole sám neotevírá systémovou klávesnici. Klepnutí prstem nebo perem dál slouží k běžné editaci. Android 13 a zařízení bez kompatibilní IME používají běžné zadávání.
+
+Android doručuje rozepsaný text z IME stejným kanálem pro rukopis i systémové psaní. Na Androidu 14+ proto změna textu tímto kanálem vyžaduje tlačítko **Uložit**, případně **Zrušit**. Zpět nejprve schová klávesnici. Tlačítko Uložit nadále používá stejnou kontrolu přesné hodnoty a stejnou historii změn.
+
+Fyzický test Samsungu je **NOT RUN**. Ověřit vložení desetinné čárky, zlomku i textu poznámky při každé z klávesnic, výběr kurzoru klepnutím perem, běžné zadávání prstem, přechody mezi poli, otočení, Uložit/Zrušit a Undo/Redo.

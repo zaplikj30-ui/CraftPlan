@@ -2,9 +2,15 @@ package cz.craftplan.app
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.view.WindowInsets as AndroidWindowInsets
-import androidx.compose.foundation.clickable
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,11 +34,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -60,23 +64,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
     save = { listOf(it.field.name, it.mode.name, it.visible) },
@@ -132,6 +133,14 @@ internal fun DimensionValueDialog(
     var valueField by remember { mutableStateOf(editableText(draft.input)) }
     var noteField by remember { mutableStateOf(editableText(draft.note)) }
     var unitsOpen by remember { mutableStateOf(false) }
+    var penInProgress by rememberSaveable { mutableStateOf(false) }
+    var nativeDraftNeedsSave by rememberSaveable { mutableStateOf(false) }
+    val onPenContact: (PenContact) -> Unit = { contact ->
+        penInProgress = contact == PenContact.START
+        // Android cancels the regular stylus touch when it hands it to handwriting.
+        // A canceled pen contact can also have other causes. Keep the draft safe in both cases.
+        if (contact == PenContact.CANCELED) nativeDraftNeedsSave = true
+    }
     val applyInput: (DimensionField, TextFieldValue) -> Unit = { target, edited ->
         val previous = if (target == DimensionField.VALUE) valueField else noteField
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
@@ -144,6 +153,14 @@ internal fun DimensionValueDialog(
             }
         }
     }
+    val applyNativeInput: (DimensionField, TextFieldValue) -> Unit = { target, edited ->
+        val previous = if (target == DimensionField.VALUE) valueField else noteField
+        // Android delivers IME edits through the same connection for keyboard and handwriting.
+        if (requiresExplicitSaveForNativeInput(Build.VERSION.SDK_INT, previous.text, edited.text)) {
+            nativeDraftNeedsSave = true
+        }
+        applyInput(target, edited)
+    }
     val confirm: () -> Unit = { if (!onConfirm()) showError = true }
     var handleBack by remember { mutableStateOf<() -> Unit>({}) }
     Dialog(
@@ -155,69 +172,108 @@ internal fun DimensionValueDialog(
         ),
     ) {
         val view = LocalView.current
-        val ime = LocalSoftwareKeyboardController.current
-        val focusManager = LocalFocusManager.current
-        val valueFocus = remember { FocusRequester() }
-        val noteFocus = remember { FocusRequester() }
+        val ime = view.context.getSystemService(InputMethodManager::class.java)
+        var valueEditor by remember { mutableStateOf<DimensionNativeInput?>(null) }
+        var noteEditor by remember { mutableStateOf<DimensionNativeInput?>(null) }
+        var focusedField by remember { mutableStateOf<DimensionField?>(null) }
+        val activeField = focusedField ?: keys.field
+        val systemEditor = if (keys.field == DimensionField.VALUE) valueEditor else noteEditor
+        val focusChanged: (DimensionField, Boolean) -> Unit = { field, focused ->
+            if (focused) focusedField = field
+            else if (focusedField == field) focusedField = null
+        }
+        val hideSystemKeyboard = {
+            view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
+        }
         val valueBounds = remember { BringIntoViewRequester() }
         val noteBounds = remember { BringIntoViewRequester() }
         val imeVisible = WindowInsets.isImeVisible
         val latestImeVisible by rememberUpdatedState(imeVisible)
         var imeHidePending by remember { mutableStateOf(false) }
+        var pendingSystemShow by remember { mutableStateOf(false) }
+        fun showSystemKeyboard(input: DimensionNativeInput): Boolean {
+            val requested = ime?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT) == true
+            if (requested && !latestImeVisible) pendingSystemShow = true
+            return requested
+        }
+        val trackPenContact: (PenContact) -> Unit = { contact ->
+            if (contact == PenContact.CANCELED) pendingSystemShow = false
+            onPenContact(contact)
+        }
+        LaunchedEffect(pendingSystemShow) {
+            if (pendingSystemShow) {
+                delay(750)
+                pendingSystemShow = false
+            }
+        }
+        LaunchedEffect(imeVisible, keys.systemOpen) {
+            if (imeVisible) {
+                val lateShow = pendingSystemShow && !keys.systemOpen
+                pendingSystemShow = false
+                if (lateShow) hideSystemKeyboard()
+            }
+        }
         val hideKeyboard: () -> Unit = {
             keys = keys.hide()
             showSymbols = false
+            hideSystemKeyboard()
         }
-        LaunchedEffect(imeVisible, keys.systemOpen) {
-            // Finish an app-requested hide if the IME becomes visible late.
-            if (imeVisible && !keys.systemOpen) {
-                imeHidePending = true
-                ime?.hide()
-            }
-        }
-        LaunchedEffect(keys.systemOpen, keys.field) {
+        LaunchedEffect(keys.systemOpen, keys.field, systemEditor) {
             val requested = keys
             if (requested.systemOpen) {
-                // A delayed close from the previous mode must not close this request.
+                val input = systemEditor ?: return@LaunchedEffect
                 val previousHideSettled = !imeHidePending || !latestImeVisible ||
                     awaitSystemImeHidden(snapshotFlow { latestImeVisible })
                 imeHidePending = false
                 if (keys != requested) return@LaunchedEffect
-                if (requested.field == DimensionField.VALUE) valueFocus.requestFocus() else noteFocus.requestFocus()
-                withFrameNanos { } // Let the focused editor establish its input connection.
-                if (keys != requested) return@LaunchedEffect
-                ime?.show()
-                if (!previousHideSettled) {
-                    // A late hide may still arrive. Retry showing, but never wait without a deadline.
-                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
-                    if (keys != requested) return@LaunchedEffect
-                    ime?.show()
+                input.requestFocus()
+                // The Dialog window and its native input connection may attach on different frames.
+                for (attempt in 0 until 6) {
+                    withFrameNanos { }
+                    if (keys != requested || !input.hasFocus()) return@LaunchedEffect
+                    if (input.hasWindowFocus() && showSystemKeyboard(input)) break
                 }
-                // Native Back can close the IME itself; only observe dismissal after showing this session.
+                if (!previousHideSettled) {
+                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
+                    if (keys != requested || !input.hasFocus()) return@LaunchedEffect
+                    showSystemKeyboard(input)
+                }
                 awaitSystemImeDismissal(snapshotFlow { latestImeVisible })
                 if (keys == requested) hideKeyboard()
             } else {
-                focusManager.clearFocus()
-                imeHidePending = imeHidePending || latestImeVisible ||
+                // Leave the focused EditText connected for Android handwriting.
+                imeHidePending = latestImeVisible ||
                     view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) == true
-                ime?.hide()
+                if (imeHidePending) hideSystemKeyboard()
             }
         }
-        LaunchedEffect(keys.field, keys.systemOpen, imeVisible) {
-            if (keys.systemOpen) {
-                if (keys.field == DimensionField.VALUE) valueBounds.bringIntoView() else noteBounds.bringIntoView()
+        LaunchedEffect(activeField, keys.systemOpen, imeVisible) {
+            if (keys.systemOpen || imeVisible) {
+                if (activeField == DimensionField.VALUE) valueBounds.bringIntoView() else noteBounds.bringIntoView()
             }
         }
         val latestBack by rememberUpdatedState<() -> Unit> {
             val nativeIme = view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) ?: imeVisible
-            handleDimensionDialogBack(keys.visible || nativeIme, hideKeyboard, confirm)
+            handleDimensionDialogBack(
+                keys.visible || nativeIme, hideKeyboard, confirm,
+                requiresExplicitSave = nativeDraftNeedsSave || penInProgress,
+                onExplicitSaveRequired = {
+                    Toast.makeText(context, R.string.dimension_explicit_save, Toast.LENGTH_SHORT).show()
+                },
+            )
         }
         val dispatchBack = remember { { latestBack() } }
         SideEffect { handleBack = dispatchBack }
         val outsideTap by rememberUpdatedState(hideKeyboard)
         val openField: (DimensionField) -> Unit = { target ->
             if (keys.field != target) showSymbols = false
-            keys = keys.open(target)
+            val next = keys.open(target)
+            val input = if (target == DimensionField.VALUE) valueEditor else noteEditor
+            input?.requestFocus()
+            if (next == keys && next.systemOpen && !latestImeVisible && !pendingSystemShow) {
+                input?.let { showSystemKeyboard(it) }
+            }
+            keys = next
         }
 
         BoxWithConstraints(
@@ -239,11 +295,13 @@ internal fun DimensionValueDialog(
                         modifier = modifier.bringIntoViewRequester(valueBounds),
                         value = valueField,
                         label = stringResource(R.string.dimension_value),
-                        editable = keys.systemOpen && keys.field == DimensionField.VALUE,
-                        active = keys.field == DimensionField.VALUE,
-                        focus = valueFocus,
+                        field = DimensionField.VALUE,
+                        active = activeField == DimensionField.VALUE,
+                        onEditor = { valueEditor = it },
+                        onFocusChanged = { focusChanged(DimensionField.VALUE, it) },
+                        onPenContact = trackPenContact,
                         onActivate = { openField(DimensionField.VALUE) },
-                        onValueChange = { applyInput(DimensionField.VALUE, it) },
+                        onValueChange = { applyNativeInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
                         isError = showError,
                         compactLabel = !portrait,
@@ -329,7 +387,7 @@ internal fun DimensionValueDialog(
                         else R.string.use_system_keyboard,
                     )
                     IconButton(
-                        onClick = { keys = keys.switch(); showSymbols = false },
+                        onClick = { keys = keys.switch(activeField); showSymbols = false },
                         modifier = Modifier.semantics { contentDescription = switchLabel },
                     ) {
                         Icon(
@@ -348,13 +406,14 @@ internal fun DimensionValueDialog(
                             modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
                             value = noteField,
                             label = stringResource(R.string.dimension_note),
-                            editable = keys.systemOpen && keys.field == DimensionField.NOTE,
-                            active = keys.field == DimensionField.NOTE,
-                            focus = noteFocus,
+                            field = DimensionField.NOTE,
+                            active = activeField == DimensionField.NOTE,
+                            onEditor = { noteEditor = it },
+                            onFocusChanged = { focusChanged(DimensionField.NOTE, it) },
+                            onPenContact = trackPenContact,
                             onActivate = { openField(DimensionField.NOTE) },
-                            onValueChange = { applyInput(DimensionField.NOTE, it) },
+                            onValueChange = { applyNativeInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
-                            isNote = true,
                             compactLabel = !portrait,
                         )
                         val notesState = stringResource(
@@ -399,11 +458,11 @@ internal fun DimensionValueDialog(
                         onQuickSymbolChange = setQuickSymbol,
                         onToggleSymbols = { showSymbols = !showSymbols },
                         onKey = { key ->
-                            val editingNote = keys.field == DimensionField.NOTE
+                            val editingNote = activeField == DimensionField.NOTE
                             val field = if (editingNote) noteField else valueField
                             val limit = if (editingNote) MAX_DIMENSION_NOTE_LENGTH
                                 else ManualLengthMeasurement.MAX_INPUT_LENGTH
-                            applyInput(keys.field, editDimensionInput(field, key, limit))
+                            applyInput(activeField, editDimensionInput(field, key, limit))
                             showSymbols = false
                         },
                     )
@@ -492,60 +551,108 @@ private fun DimensionInputField(
     modifier: Modifier,
     value: TextFieldValue,
     label: String,
-    editable: Boolean,
+    field: DimensionField,
     active: Boolean,
-    focus: FocusRequester,
+    onEditor: (DimensionNativeInput?) -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    onPenContact: (PenContact) -> Unit,
     onActivate: () -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
     onDone: () -> Unit,
-    isNote: Boolean = false,
     isError: Boolean = false,
     compactLabel: Boolean = false,
 ) {
-    Box(modifier) {
-        val interaction = remember { MutableInteractionSource() }
-        val scheme = MaterialTheme.colorScheme
-        val colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
-        )
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).focusRequester(focus)
-                .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
-            singleLine = true,
-            readOnly = !editable,
-            // Keep the Material floating label and border with tighter internal padding.
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
-            cursorBrush = SolidColor(if (isError) scheme.error else scheme.primary),
-            interactionSource = interaction,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Text,
-                autoCorrectEnabled = isNote,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(onDone = { onDone() }),
-            decorationBox = { inner ->
-                OutlinedTextFieldDefaults.DecorationBox(
-                    value = value.text,
-                    innerTextField = inner,
-                    enabled = true,
-                    singleLine = true,
-                    visualTransformation = VisualTransformation.None,
-                    interactionSource = interaction,
-                    isError = isError,
-                    label = {
-                        if (compactLabel) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        else Text(label)
+    val interaction = remember { MutableInteractionSource() }
+    val scheme = MaterialTheme.colorScheme
+    val style = MaterialTheme.typography.bodyLarge
+    val colors = OutlinedTextFieldDefaults.colors(
+        unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
+    )
+    val currentEditorCallback by rememberUpdatedState(onEditor)
+    val currentFocusCallback by rememberUpdatedState(onFocusChanged)
+    val currentActivate by rememberUpdatedState(onActivate)
+    val focusInteraction = remember(interaction) {
+        ViewFocusInteraction(interaction) { currentFocusCallback(it) }
+    }
+    Box(
+        modifier.fillMaxWidth().heightIn(min = 50.dp)
+            .pointerInput(Unit) {
+                // The AndroidView handles text and handwriting. Keep unhandled taps on the border,
+                // label and surrounding padding useful without intercepting the native field.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = true, pass = PointerEventPass.Final)
+                    waitForUpOrCancellation(PointerEventPass.Final)?.let { currentActivate() }
+                }
+            }
+            .padding(top = 6.dp),
+    ) {
+        OutlinedTextFieldDefaults.DecorationBox(
+            value = value.text,
+            innerTextField = {
+                AndroidView(
+                    factory = { context ->
+                        DimensionNativeInput(context, field).also {
+                            it.onFocusChangeListener = focusInteraction
+                            currentEditorCallback(it)
+                        }
                     },
-                    colors = colors,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    onReset = null,
+                    onRelease = { input ->
+                        input.onTap = {}
+                        input.onInput = {}
+                        input.onPenContact = {}
+                        input.onFocusChangeListener = null
+                        if (input.hasFocus()) focusInteraction.onFocusChange(input, false)
+                        currentEditorCallback(null)
+                    },
+                    update = { input ->
+                        input.onTap = onActivate
+                        input.onInput = onValueChange
+                        input.onPenContact = onPenContact
+                        input.contentDescription = label
+                        input.setTextColor(scheme.onSurface.toArgb())
+                        input.textSize = style.fontSize.value
+                        input.textCursorDrawable?.mutate()?.setTint((if (isError) scheme.error else scheme.primary).toArgb())
+                        input.setOnEditorActionListener { _, action, _ ->
+                            if (action != EditorInfo.IME_ACTION_DONE) false else {
+                                onDone()
+                                true
+                            }
+                        }
+                        input.applyDraft(value)
+                    },
                 )
             },
+            enabled = true,
+            singleLine = true,
+            visualTransformation = VisualTransformation.None,
+            interactionSource = interaction,
+            isError = isError,
+            label = {
+                if (compactLabel) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                else Text(label)
+            },
+            colors = colors,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
         )
-        if (!editable) {
-            Box(Modifier.matchParentSize().clickable(onClickLabel = label, onClick = onActivate))
+    }
+}
+
+private class ViewFocusInteraction(
+    private val interaction: MutableInteractionSource,
+    private val onFocusChanged: (Boolean) -> Unit,
+) : android.view.View.OnFocusChangeListener {
+    private var current: FocusInteraction.Focus? = null
+
+    override fun onFocusChange(view: android.view.View, focused: Boolean) {
+        if (focused) {
+            current = FocusInteraction.Focus().also(interaction::tryEmit)
+        } else {
+            current?.let { interaction.tryEmit(FocusInteraction.Unfocus(it)) }
+            current = null
         }
+        onFocusChanged(focused)
     }
 }
 
@@ -555,8 +662,18 @@ internal fun landscapeInputRowWidth(availableWidth: Float): Float = availableWid
 internal fun landscapeKeyHeight(availableHeight: Float): Float =
     ((availableHeight - 12f) / 4f).coerceIn(48f, 62f)
 
-internal fun handleDimensionDialogBack(keyboardOpen: Boolean, hideKeyboard: () -> Unit, confirm: () -> Unit) {
-    if (keyboardOpen) hideKeyboard() else confirm()
+internal fun handleDimensionDialogBack(
+    keyboardOpen: Boolean,
+    hideKeyboard: () -> Unit,
+    confirm: () -> Unit,
+    requiresExplicitSave: Boolean = false,
+    onExplicitSaveRequired: () -> Unit = {},
+) {
+    when {
+        keyboardOpen -> hideKeyboard()
+        requiresExplicitSave -> onExplicitSaveRequired()
+        else -> confirm()
+    }
 }
 
 private fun editableText(text: String) = TextFieldValue(text, TextRange(text.length))
