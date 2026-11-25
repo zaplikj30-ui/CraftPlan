@@ -76,6 +76,17 @@ class InkModelsTest {
         assertTrue(isTextInkLanguage("zh-Hant"))
         assertFalse(isTextInkLanguage("zxx-Zsym-x-autodraw"))
         assertFalse(isTextInkLanguage("und"))
+        assertFalse(isTextInkLanguage("cs-x-gesture"))
+        assertFalse(isTextInkLanguage("abs-Latn-ID-x-gesture"))
+        assertTrue(isTextInkLanguage("abs-Latn-ID"))
+        assertTrue(InkModels.languages.none { it.endsWith("-x-gesture") })
+    }
+
+    @Test
+    fun languageNamesUseApplicationLocaleAndKeepScriptDistinctions() {
+        val cs = Locale.forLanguageTag("cs")
+        assertEquals("Čeština", inkLanguageName("cs", cs))
+        assertTrue(inkLanguageName("zh-Hant", cs) != inkLanguageName("zh-Hans", cs))
     }
 }
 

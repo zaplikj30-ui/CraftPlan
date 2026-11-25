@@ -17,8 +17,15 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 internal data class PenPoint(val x: Float, val y: Float, val timeMs: Long)
 
-internal fun isTextInkLanguage(tag: String): Boolean =
-    Locale.forLanguageTag(tag).language.let { it.isNotEmpty() && it != "und" && it != "zxx" }
+internal fun isTextInkLanguage(tag: String): Boolean {
+    val locale = Locale.forLanguageTag(tag)
+    return locale.language.isNotEmpty() && locale.language != "und" && locale.language != "zxx" &&
+        locale.getExtension('x')?.split('-')?.contains("gesture") != true
+}
+
+internal fun inkLanguageName(tag: String, locale: Locale): String =
+    Locale.forLanguageTag(tag).getDisplayName(locale).ifBlank { tag }
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
 
 internal fun defaultInkLanguage(appLocale: Locale, available: Set<String>): String? {
     val localized = Locale.lookupTag(listOf(Locale.LanguageRange(appLocale.toLanguageTag())), available)
@@ -32,7 +39,6 @@ internal object InkModels {
     private val identifiers by lazy {
         try {
             DigitalInkRecognitionModelIdentifier.allModelIdentifiers()
-                .filter { isTextInkLanguage(it.languageTag) }
                 .associateBy { it.languageTag }
         } catch (_: LinkageError) {
             emptyMap()
@@ -41,7 +47,8 @@ internal object InkModels {
         }
     }
 
-    val languages: Set<String> get() = identifiers.keys
+    // Keep the full SDK catalog for future gesture support, but expose only text models here.
+    val languages: Set<String> by lazy { identifiers.keys.filter(::isTextInkLanguage).toSet() }
 
     @Synchronized
     private fun manager(context: Context): RemoteModelManager {

@@ -88,6 +88,8 @@
     <string name="app_language_tag">cs</string>
     <string name="ink_language">Jazyk rukopisu</string>
     <string name="ink_language_automatic">Automaticky – podle jazyka aplikace</string>
+    <string name="ink_language_manual">Ručně zvolený jazyk</string>
+    <string name="ink_model_downloaded">Staženo</string>
     <string name="ink_selected_language">Zvolený jazyk: %1$s</string>
     <string name="ink_find_language">Najít jazyk nebo kód</string>
     <string name="ink_model_needed">Pro rukopis stáhněte jazykový model. Klávesnice fungují i bez něj.</string>

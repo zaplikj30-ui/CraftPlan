@@ -19,7 +19,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -142,25 +141,47 @@ internal fun rememberInkLanguageSettings(): InkLanguageSettings {
 
 @Composable
 internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = Locale.forLanguageTag(stringResource(R.string.app_language_tag))
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     if (settings.chooserOpen) {
         var query by rememberSaveable { mutableStateOf("") }
         val models = remember(locale) {
-            InkModels.languages.map { it to Locale.forLanguageTag(it).getDisplayName(locale) }
-                .sortedBy { it.second.lowercase(locale) }
+            val named = InkModels.languages.map { it to inkLanguageName(it, locale) }
+            val duplicateNames = named.groupingBy { it.second }.eachCount()
+            named.map { (tag, name) ->
+                tag to if ((duplicateNames[name] ?: 0) > 1) "$name ($tag)" else name
+            }.sortedWith(compareBy(java.text.Collator.getInstance(locale)) { it.second })
         }
         val visible = remember(models, query) {
             models.filter { (tag, name) -> tag.contains(query, ignoreCase = true) || name.contains(query, ignoreCase = true) }
+        }
+        var downloaded by remember(settings) { mutableStateOf(emptySet<String>()) }
+        LaunchedEffect(settings, settings.approved, settings.retry, settings.downloading) {
+            if (!settings.downloading) {
+                val ready = mutableSetOf<String>()
+                for (tag in settings.approved.intersect(InkModels.languages)) {
+                    val present = try {
+                        InkModels.isDownloaded(context, tag)
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (_: Exception) {
+                        false
+                    } catch (_: LinkageError) {
+                        false
+                    }
+                    if (present) ready += tag
+                }
+                downloaded = ready
+            }
         }
         AlertDialog(
             onDismissRequest = { settings.chooserOpen = false },
             title = { Text(stringResource(R.string.ink_language)) },
             text = {
                 Column {
-                    settings.language?.let { Text(stringResource(R.string.ink_selected_language, it)) }
-                    if (settings.manualLanguage == null) Text(stringResource(R.string.ink_language_automatic))
+                    settings.language?.let { Text(stringResource(R.string.ink_selected_language, inkLanguageName(it, locale))) }
+                    Text(stringResource(if (settings.manualLanguage == null) R.string.ink_language_automatic else R.string.ink_language_manual))
                     if (settings.downloading) Text(stringResource(R.string.ink_downloading))
                     else if (settings.failed) Text(stringResource(R.string.ink_download_failed))
                     else if (settings.readyLanguage != null) Text(stringResource(R.string.ink_ready))
@@ -186,7 +207,14 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
                     LazyColumn(Modifier.heightIn(max = 220.dp)) {
                         items(visible, key = { it.first }) { (tag, name) ->
                             DropdownMenuItem(
-                                text = { Text("$name ($tag)") },
+                                text = {
+                                    Column {
+                                        Text(name)
+                                        if (tag == settings.readyLanguage || tag in downloaded) {
+                                            Text(stringResource(R.string.ink_model_downloaded))
+                                        }
+                                    }
+                                },
                                 enabled = !settings.downloading,
                                 onClick = {
                                     settings.select(tag)
@@ -206,7 +234,7 @@ internal fun InkLanguageDialogs(settings: InkLanguageSettings) {
     }
     settings.downloadConfirmation?.let { request ->
         val tag = request.tag
-        val display = Locale.forLanguageTag(tag).getDisplayName(locale)
+        val display = inkLanguageName(tag, locale)
         AlertDialog(
             onDismissRequest = { settings.downloadConfirmation = null },
             title = { Text(stringResource(R.string.ink_download_title, display)) },
