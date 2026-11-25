@@ -98,22 +98,29 @@ internal fun DimensionKeypad(
     showSymbols: Boolean,
     keyHeight: Dp,
     quickSymbol: String,
+    symbolLayout: KeySymbolLayout,
+    holdMs: Int,
+    onSwapSymbols: (String, String) -> Unit,
     onQuickSymbolChange: (String) -> Unit,
     onToggleSymbols: () -> Unit,
     onKey: (String) -> Unit,
 ) {
     var chooserOpen by remember { mutableStateOf(false) }
-    var dropBounds by remember { mutableStateOf<Rect?>(null) }
-    var dragging by remember { mutableStateOf<String?>(null) }
-    var dragOverTarget by remember { mutableStateOf(false) }
+    val dropBounds = remember(symbolLayout, showSymbols) { mutableMapOf<String, Rect>() }
+    var dragging by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
+    var dragOverTarget by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
+    var selectedForSwap by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
+    fun targetAt(point: Offset?): String? = point?.let { p ->
+        dropBounds.entries.firstOrNull { it.value.contains(p) }?.key
+    }
     val colors = MaterialTheme.colorScheme
 
-    for ((rowIndex, row) in displayedDimensionKeyRows(showSymbols).withIndex()) {
+    for (row in if (showSymbols) symbolLayout.rows() else dimensionKeyRows) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for ((columnIndex, key) in row.withIndex()) {
+            for (key in row) {
                 val quick = key == QUICK_KEY
-                val target = showSymbols && rowIndex == 3 && columnIndex == 3
-                val alternate = if (showSymbols) null else dimensionAlternateSymbols[key]
+                val target = showSymbols && key in dimensionQuickSymbolOptions
+                val alternate = if (showSymbols) null else symbolLayout.alternate(key)
                 val gesture = when {
                     quick -> KeyGesture.QUICK
                     showSymbols && key in dimensionQuickSymbolOptions -> KeyGesture.DRAG
@@ -132,7 +139,11 @@ internal fun DimensionKeypad(
                     else -> null
                 }
                 val tap: () -> Unit = {
-                    when (key) {
+                    val selected = selectedForSwap
+                    if (selected != null && target) {
+                        selectedForSwap = null
+                        onSwapSymbols(selected, key)
+                    } else when (key) {
                         "⋯", SYMBOL_RETURN -> onToggleSymbols()
                         "◷" -> Unit
                         QUICK_KEY -> if (quickSymbol.isEmpty()) chooserOpen = true else onKey(quickSymbol)
@@ -143,15 +154,14 @@ internal fun DimensionKeypad(
                     when (gesture) {
                         KeyGesture.ALTERNATE -> alternate?.let(onKey)
                         KeyGesture.QUICK -> chooserOpen = true
-                        // Accessibility equivalent of dragging the symbol into the target.
-                        KeyGesture.DRAG -> onQuickSymbolChange(key)
+                        // Accessibility equivalent: select source, then tap destination.
+                        KeyGesture.DRAG -> selectedForSwap = key
                         KeyGesture.TAP -> Unit
                     }
                 }
                 Box(Modifier.weight(1f).height(keyHeight)) {
-                    val activeTarget = target && dragging != null
+                    val activeTarget = target && (dragging == key || selectedForSwap == key || dragOverTarget == key)
                     val label = when {
-                        activeTarget -> keyLabel(dragging.orEmpty())
                         quick -> keyLabel(quickSymbol)
                         else -> keyLabel(key)
                     }
@@ -160,28 +170,27 @@ internal fun DimensionKeypad(
                         label = label,
                         alternate = alternate,
                         gesture = gesture,
+                        holdMs = holdMs,
                         enabled = isDimensionKeyEnabled(key),
                         description = description,
                         longDescription = when (gesture) {
                             KeyGesture.ALTERNATE -> stringResource(R.string.dimension_key_insert_alternate, alternate.orEmpty())
                             KeyGesture.QUICK -> stringResource(R.string.dimension_choose_quick_symbol)
-                            KeyGesture.DRAG -> stringResource(R.string.dimension_assign_quick_symbol)
+                            KeyGesture.DRAG -> stringResource(R.string.dimension_swap_symbol)
                             KeyGesture.TAP -> null
                         },
                         modifier = Modifier.fillMaxSize().then(
-                            if (target) Modifier.onGloballyPositioned { dropBounds = it.boundsInRoot() }
+                            if (target) Modifier.onGloballyPositioned { dropBounds[key] = it.boundsInRoot() }
                             else Modifier,
                         ),
                         activeTarget = activeTarget,
-                        overTarget = activeTarget && dragOverTarget,
+                        overTarget = dragOverTarget == key,
                         onTap = tap,
                         onLongAction = longAction,
-                        onDragStart = { dragging = key; dragOverTarget = false },
-                        onDragMove = { point -> dragOverTarget = point != null && dropBounds?.contains(point) == true },
-                        onDragFinish = { point ->
-                            if (point != null && dropBounds?.contains(point) == true) onQuickSymbolChange(key)
-                        },
-                        onDragEnd = { dragging = null; dragOverTarget = false },
+                        onDragStart = { dragging = key; dragOverTarget = null },
+                        onDragMove = { point -> dragOverTarget = targetAt(point) },
+                        onDragFinish = { point -> targetAt(point)?.let { onSwapSymbols(key, it) } },
+                        onDragEnd = { dragging = null; dragOverTarget = null },
                     )
                     if (quick) {
                         DropdownMenu(
@@ -229,6 +238,7 @@ private fun DimensionKeypadKey(
     label: String,
     alternate: String?,
     gesture: KeyGesture,
+    holdMs: Int,
     enabled: Boolean,
     description: String?,
     longDescription: String?,
@@ -259,13 +269,13 @@ private fun DimensionKeypadKey(
             role = Role.Button
             onClick { tap(); true }
             onLongClick(label = longDescription) { longAction(); true }
-        }.pointerInput(key, gesture) {
+        }.pointerInput(key, gesture, holdMs) {
             awaitEachGesture {
                 val down = awaitFirstDown()
                 down.consume()
                 // Distinguish a real timeout from a cancelled tap (e.g. parent scrolling).
                 var completedBeforeHold = false
-                val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                val up = withTimeoutOrNull(holdMs.toLong()) {
                     val result = waitForUpOrCancellation()
                     completedBeforeHold = true
                     result
@@ -293,7 +303,7 @@ private fun DimensionKeypadKey(
                         if (change.changedToUpIgnoreConsumed()) {
                             change.consume()
                             if (drag) {
-                                if (moved) dragFinish(rootPoint)
+                                if (moved) dragFinish(rootPoint) else longAction()
                             } else if (point.x >= 0f && point.y >= 0f &&
                                 point.x < size.width && point.y < size.height
                             ) {
@@ -342,15 +352,6 @@ private fun DimensionKeypadKey(
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 5.dp, bottom = 3.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
-            )
-        }
-        if (activeTarget) {
-            Text(
-                stringResource(R.string.dimension_quick_drop_target),
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor,
-                maxLines = 1,
             )
         }
         if (held && gesture == KeyGesture.ALTERNATE && alternate != null) {

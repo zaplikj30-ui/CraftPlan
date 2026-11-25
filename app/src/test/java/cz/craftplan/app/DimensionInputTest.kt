@@ -40,6 +40,24 @@ class DimensionInputTest {
     }
 
     @Test
+    fun reorderedSymbolsUpdateLongPressAndPersistWithFixedReturn() {
+        val original = KeySymbolLayout.default()
+        val swapped = original.swap("+", "×")
+        assertEquals("×", swapped.rows()[0][0])
+        assertEquals("+", swapped.rows()[0][2])
+        assertEquals("×", swapped.alternate("7"))
+        assertEquals("+", swapped.alternate("9"))
+        assertEquals(SYMBOL_RETURN, swapped.rows()[3][2])
+        assertEquals(swapped, KeySymbolLayout.decode(swapped.encode()))
+        assertEquals(original, KeySymbolLayout.decode("0,0"))
+        assertEquals(original, original.swap("+", SYMBOL_RETURN))
+        assertEquals(300, DEFAULT_KEY_HOLD_MS)
+        assertEquals(150, keyHoldMs(0))
+        assertEquals(350, keyHoldMs(337))
+        assertEquals(1000, keyHoldMs(2000))
+    }
+
+    @Test
     fun multiCharacterSymbolsInsertAtCaretAndRespectLimitsAtomically() {
         val field = TextFieldValue("ABCD", TextRange(1, 3))
         val edited = editDimensionInput(field, "m²")

@@ -56,6 +56,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -170,6 +171,17 @@ internal fun DimensionValueDialog(
             valueCalculationError = false
             noteCalculationError = false
         }
+    }
+    var symbolLayout by remember(quickPreferences) {
+        mutableStateOf(KeySymbolLayout.decode(quickPreferences.getString("symbol_layout", null)))
+    }
+    var holdMs by remember(quickPreferences) {
+        mutableStateOf(keyHoldMs(quickPreferences.getInt("key_hold_ms", DEFAULT_KEY_HOLD_MS)))
+    }
+    var keypadSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    fun updateSymbolLayout(next: KeySymbolLayout) {
+        symbolLayout = next
+        quickPreferences.edit().putString("symbol_layout", next.encode()).apply()
     }
     var quickSymbol by remember(quickPreferences) {
         mutableStateOf(validQuickSymbol(quickPreferences.getString("quick_symbol", "") ?: ""))
@@ -539,6 +551,10 @@ internal fun DimensionValueDialog(
                                 text = { Text(stringResource(R.string.dimension_calculation_places, calculationPlaces)) },
                                 onClick = { unitsOpen = false; placesOpen = true },
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_keypad_settings)) },
+                                onClick = { unitsOpen = false; keypadSettingsOpen = true },
+                            )
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
                             )
@@ -654,6 +670,11 @@ internal fun DimensionValueDialog(
                         showSymbols = showSymbols,
                         keyHeight = keyHeight,
                         quickSymbol = quickSymbol,
+                        symbolLayout = symbolLayout,
+                        holdMs = holdMs,
+                        onSwapSymbols = { first, second ->
+                            if (keypadVisible) updateSymbolLayout(symbolLayout.swap(first, second))
+                        },
                         onQuickSymbolChange = { if (keypadVisible) setQuickSymbol(it) },
                         onToggleSymbols = { if (keypadVisible) showSymbols = !showSymbols },
                         onKey = keyAction@{ key ->
@@ -815,6 +836,36 @@ internal fun DimensionValueDialog(
                 },
                 confirmButton = {
                     TextButton(onClick = { placesOpen = false }) { Text(stringResource(R.string.cancel_value)) }
+                },
+            )
+        }
+        if (keypadSettingsOpen) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { keypadSettingsOpen = false },
+                title = { Text(stringResource(R.string.dimension_keypad_settings)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.dimension_key_hold_ms, holdMs))
+                        Slider(
+                            value = holdMs.toFloat(),
+                            onValueChange = {
+                                holdMs = keyHoldMs(it.toInt())
+                                quickPreferences.edit().putInt("key_hold_ms", holdMs).apply()
+                            },
+                            valueRange = 150f..1000f,
+                            steps = 16,
+                        )
+                        TextButton(onClick = {
+                            holdMs = DEFAULT_KEY_HOLD_MS
+                            quickPreferences.edit().putInt("key_hold_ms", holdMs).apply()
+                        }) { Text(stringResource(R.string.dimension_reset_hold)) }
+                        TextButton(onClick = { updateSymbolLayout(KeySymbolLayout.default()) }) {
+                            Text(stringResource(R.string.dimension_reset_symbols))
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { keypadSettingsOpen = false }) { Text("OK") }
                 },
             )
         }
