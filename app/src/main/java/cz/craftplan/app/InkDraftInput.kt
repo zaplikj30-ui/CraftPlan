@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -142,8 +143,9 @@ internal fun canFinishPenStroke(action: Int?, canceled: Boolean, pointerCount: I
     action == MotionEvent.ACTION_UP && !canceled && pointerCount == 1
 
 /**
- * Hover never produces a press. For actual presses, the child field still gets regular taps.
- * Only motion beyond pen slop is consumed, leaving cursor placement to BasicTextField.
+ * Stylus down is owned immediately so the native text toolbar cannot race ink.
+ * Finger selection remains native. A stationary stylus release is classified
+ * separately as a tap or intentional long hold; motion always wins over time.
  */
 internal fun Modifier.inkFieldInput(
     enabled: Boolean,
@@ -154,7 +156,9 @@ internal fun Modifier.inkFieldInput(
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         if (down.position.x !in 0f..size.width.toFloat() || down.position.y !in 0f..size.height.toFloat()) return@awaitEachGesture
         val actions = callbacks()
-        val ticket = if (enabled && down.type == PointerType.Stylus) actions.begin() else null
+        val stylus = down.type == PointerType.Stylus
+        if (stylus) down.consume()
+        val ticket = if (enabled && stylus) actions.begin() else null
         if (ticket == null) actions.otherContact()
         val pen = down.type == PointerType.Stylus || down.type == PointerType.Eraser
         val missingModel = !enabled && down.type == PointerType.Stylus
@@ -189,8 +193,11 @@ internal fun Modifier.inkFieldInput(
                 if (!position.x.isFinite() || !position.y.isFinite()) break
                 val distance = (position - origin).getDistance()
                 val contactTime = change.uptimeMillis - down.uptimeMillis
-                if (!moved && contactTime >= viewConfiguration.longPressTimeoutMillis) break
+                if (!stylus && !moved && contactTime >= viewConfiguration.longPressTimeoutMillis) break
                 if (distance > slop) moved = true
+                // Own every event of a stylus contact, including tiny movements.
+                // The text field must not receive a native long press or second tap.
+                if (stylus) change.consume()
                 // Compose retains the original hit path for this contact. Once a pen
                 // starts here, keep that target even outside this field's capture bounds.
                 if (!change.pressed) {
@@ -203,9 +210,11 @@ internal fun Modifier.inkFieldInput(
                     } else if (validUp && moved && missingModel) {
                         change.consume()
                         actions.missingModel()
+                    } else if (validUp && !moved && stylus) {
+                        if (ticket != null) actions.cancel(ticket)
+                        if (contactTime >= PEN_HOLD_MS) actions.penHold(origin)
+                        else actions.penTap(origin, change.uptimeMillis)
                     } else if (validUp && !moved) {
-                        // The dialog decides whether to open/retry the keyboard.
-                        // Do not consume ordinary editable-field taps.
                         actions.tap()
                     } else if (moved && ownsPenMotion) {
                         change.consume()
@@ -229,12 +238,16 @@ internal fun Modifier.inkFieldInput(
     }
 }
 
+internal const val PEN_HOLD_MS = 800L
+
 internal data class InkFieldCallbacks(
     val begin: () -> Long?,
     val preview: (Long, List<PenPoint>) -> Unit,
     val finish: (Long, List<PenPoint>) -> Unit,
     val cancel: (Long) -> Unit,
     val tap: () -> Unit,
+    val penTap: (Offset, Long) -> Unit = { _, _ -> },
+    val penHold: (Offset) -> Unit = {},
     val otherContact: () -> Unit,
     val missingModel: () -> Unit,
 )

@@ -1,6 +1,8 @@
 package cz.craftplan.app
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
@@ -100,6 +102,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
@@ -840,11 +843,50 @@ private fun DimensionInputField(
     isError: Boolean = false,
     compactLabel: Boolean = false,
 ) {
-    val currentCallbacks by rememberUpdatedState(inkCallbacks)
     val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val clipboard = remember(context) { context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager }
+    val density = LocalDensity.current
+    var fieldOrigin by remember { mutableStateOf(Offset.Zero) }
+    var textOrigin by remember { mutableStateOf(Offset.Zero) }
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var penMenu by remember { mutableStateOf(false) }
+    var lastPenTapTime by remember { mutableStateOf(-1L) }
+    var lastPenTapPosition by remember { mutableStateOf(Offset.Zero) }
+
+    fun offsetAt(position: Offset): Int {
+        val layout = textLayout?.takeIf { it.layoutInput.text.text == value.text } ?: return value.selection.end
+        return layout.getOffsetForPosition(position + fieldOrigin - textOrigin).coerceIn(0, value.text.length)
+    }
+    val currentCallbacks by rememberUpdatedState(inkCallbacks.copy(
+        penTap = { position, time ->
+            val doubleTap = lastPenTapTime >= 0L && time - lastPenTapTime in 1L..300L &&
+                (position - lastPenTapPosition).getDistance() <= with(density) { 24.dp.toPx() }
+            val offset = offsetAt(position)
+            val layout = textLayout
+            val selection = if (doubleTap && value.text.isNotEmpty() && layout != null &&
+                layout.layoutInput.text.text == value.text) {
+                layout.getWordBoundary(offset.coerceIn(0, value.text.lastIndex))
+            } else TextRange(offset)
+            lastPenTapTime = if (doubleTap) -1L else time
+            lastPenTapPosition = position
+            inkCallbacks.tap()
+            onValueChange(value.copy(selection = selection, composition = null))
+        },
+        penHold = { position ->
+            lastPenTapTime = -1L
+            val offset = offsetAt(position)
+            val selection = if (!value.selection.collapsed && offset in value.selection.min..value.selection.max)
+                value.selection else TextRange(offset)
+            onValueChange(value.copy(selection = selection, composition = null))
+            penMenu = true
+        },
+    ))
     Box(
-        modifier.onGloballyPositioned { onInkPosition(it.positionInRoot()) }
-            .inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
+        modifier.onGloballyPositioned {
+            fieldOrigin = it.positionInRoot()
+            onInkPosition(fieldOrigin)
+        }.inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
             .semantics {
                 if (!editable) onClick(label) {
                     currentCallbacks.tap()
@@ -875,6 +917,7 @@ private fun DimensionInputField(
                     .heightIn(min = 54.dp).focusRequester(focus)
                     .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
                 singleLine = true,
+                onTextLayout = { textLayout = it },
                 readOnly = !editable,
                 // Keep the Material floating label and border with tighter internal padding.
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurface),
@@ -889,7 +932,9 @@ private fun DimensionInputField(
                 decorationBox = { inner ->
                     OutlinedTextFieldDefaults.DecorationBox(
                         value = value.text,
-                        innerTextField = inner,
+                        innerTextField = {
+                            Box(Modifier.onGloballyPositioned { textOrigin = it.positionInRoot() }) { inner() }
+                        },
                         enabled = true,
                         singleLine = true,
                         visualTransformation = VisualTransformation.None,
@@ -902,6 +947,53 @@ private fun DimensionInputField(
                         colors = colors,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
                     )
+                },
+            )
+        }
+        // Own the stylus-only menu; no Android Autofill action is exposed here.
+        // Open after release so no part of the initiating contact can choose an item.
+        DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false }) {
+            val selected = value.text.substring(value.selection.min, value.selection.max)
+            fun replaceSelection(insertion: String) {
+                val limit = if (isNote) MAX_DIMENSION_NOTE_LENGTH else ManualLengthMeasurement.MAX_INPUT_LENGTH
+                if (insertion.any { it == '\r' || it == '\n' || it == '\u0000' } ||
+                    insertion.length > limit - (value.text.length - selected.length)) return
+                val start = value.selection.min
+                val text = value.text.replaceRange(start, value.selection.max, insertion)
+                onValueChange(TextFieldValue(text, TextRange(start + insertion.length)))
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.pen_copy)) },
+                enabled = selected.isNotEmpty(),
+                onClick = {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("", selected))
+                    penMenu = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.pen_cut)) },
+                enabled = selected.isNotEmpty(),
+                onClick = {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("", selected))
+                    replaceSelection("")
+                    penMenu = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.pen_paste)) },
+                enabled = clipboard.hasPrimaryClip(),
+                onClick = {
+                    clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+                        ?.let { replaceSelection(it) }
+                    penMenu = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.pen_select_all)) },
+                enabled = value.text.isNotEmpty(),
+                onClick = {
+                    onValueChange(value.copy(selection = TextRange(0, value.text.length), composition = null))
+                    penMenu = false
                 },
             )
         }

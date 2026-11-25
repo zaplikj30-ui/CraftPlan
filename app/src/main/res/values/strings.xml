@@ -109,4 +109,8 @@
     <string name="ink_recognition_failed">Rukopis se nepodařilo rozpoznat.</string>
     <string name="ink_pending">Počkejte na rozpoznání nebo úpravu zrušte.</string>
     <string name="ink_explicit_save">Rozpoznaný text potvrďte tlačítkem Uložit nebo úpravu zrušte.</string>
+    <string name="pen_copy">Kopírovat</string>
+    <string name="pen_cut">Vyjmout</string>
+    <string name="pen_paste">Vložit</string>
+    <string name="pen_select_all">Vybrat vše</string>
 </resources>
