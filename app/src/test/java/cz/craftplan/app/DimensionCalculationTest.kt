@@ -13,6 +13,30 @@ class DimensionCalculationTest {
     )
 
     @Test
+    fun colonDivisionUsesExistingExactCalculationAndPreservesFractionsAndText() {
+        for (expression in listOf("1200:3=", "1200 / 3=", "1200 ÷ 3=")) {
+            assertEquals("400", evaluateDimensionCalculation(expression)?.editableText())
+            assertEquals("1200 ÷ 3 =", formatCalculatedExpression(expression))
+            assertEquals("1200 ÷ 3 = 400", DimensionValueDraft(dimension).calculate(expression)!!.input)
+        }
+        assertEquals("1/3", evaluateDimensionCalculation("1:3=")?.editableText())
+        assertEquals("14", evaluateDimensionCalculation("2+36:3=")?.editableText())
+        assertNull(evaluateDimensionCalculation("1:0="))
+        assertNull(evaluateDimensionCalculation("1::2="))
+        assertNull(evaluateDimensionCalculation("1:="))
+        assertTrue(requestsDimensionCalculation("1200:3", "1200:3=", true))
+        assertFalse(requestsDimensionCalculation("1200:3", "1200:3=", false))
+        assertEquals("Výpočet: 1200 ÷ 3 = 400",
+            DimensionValueDraft(dimension).calculateNote("Výpočet: 1200:3=")!!.note)
+        assertEquals("Výpočet: 1200 ÷ 3 = 400",
+            DimensionValueDraft(dimension).calculateNote("Výpočet:1200:3=")!!.note.replace("Výpočet:1200", "Výpočet: 1200"))
+        assertEquals("100 ÷ 3 = ≈33:2", editedApproximation("100 ÷ 3 = ≈33", "100 ÷ 3 = ≈33:2"))
+        assertEquals("1/16 in", ManualLengthMeasurement.parse("1/16 in")!!.originalInput)
+        assertNull(ManualLengthMeasurement.parse("1:16", LengthUnit.IN))
+        assertNull(DimensionValueDraft(dimension).type("1200:3=").confirm(dimension)!!.measurement)
+    }
+
+    @Test
     fun exactArithmeticAndStandardPrecedence() {
         for ((expression, result) in mapOf(
             "100+50=" to "150", "100−50=" to "50", "100×50=" to "5000",

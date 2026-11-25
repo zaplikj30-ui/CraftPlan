@@ -58,7 +58,7 @@ internal data class DimensionCalculation private constructor(
     }
 }
 
-private val calculationCharacters = Regex("""[0-9., +\-−×xX*÷/]+""")
+private val calculationCharacters = Regex("""[0-9., +\-−×xX*÷/:]+""")
 private val calculationNumber = Regex("""[0-9]{1,18}(?:[.,][0-9]{1,18})?""")
 
 /** Returns null for non-math, malformed input, zero division, or resource limits. */
@@ -98,10 +98,10 @@ private class CalculationParser(private val text: String) {
         var result = number()
         while (true) {
             val operator = next()
-            if (operator !in listOf('×', 'x', 'X', '*', '÷', '/')) return result
+            if (operator !in listOf('×', 'x', 'X', '*', '÷', '/', ':')) return result
             index++
             val right = number()
-            result = if (operator == '÷' || operator == '/') result / right else result * right
+            result = if (operator == '÷' || operator == '/' || operator == ':') result / right else result * right
         }
     }
     fun parse(): DimensionCalculation {
@@ -127,7 +127,7 @@ internal const val DEFAULT_CALCULATION_PLACES = 3
 // A contextual suffix needs at least one binary operator. Do not reinterpret
 // incomplete arithmetic or a fragment of an attached word/number as an expression.
 private val contextualSyntax = Regex(
-    """[ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?(?:[ ]*[+−×xX*÷/-][ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?)+[ ]*=""",
+    """[ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?(?:[ ]*[+−×xX*÷/:-][ ]*[+−-]?[ ]*[0-9]{1,18}(?:[.,][0-9]{1,18})?)+[ ]*=""",
 )
 
 internal data class CalculationSegment(val prefix: String, val expression: String, val contextual: Boolean)
@@ -154,6 +154,11 @@ internal fun findCalculationSegment(input: String): CalculationSegment {
         if (input[i - 1] !in " :;") continue
         val preceding = input.substring(start, i).trimEnd()
         if (preceding.isEmpty() || preceding.last() in "+−-×*÷/.,=") continue
+        // A colon after a number is an arithmetic operator, not a separator
+        // for salvaging a valid suffix from a malformed expression. A textual
+        // label such as "Výpočet:" remains a valid contextual prefix.
+        if (preceding.last() == ':' &&
+            preceding.dropLast(1).trimEnd().lastOrNull()?.isDigit() == true) continue
         if (preceding.last() in "xX" && preceding.dropLast(1).trimEnd().lastOrNull()?.isDigit() == true) continue
         val candidate = input.substring(i)
         if (contextualSyntax.matches(candidate)) {
@@ -170,7 +175,7 @@ internal fun calculationSegment(input: String, note: Boolean = false): Pair<Stri
 /** Canonicalize only a successfully evaluated expression, never surrounding text.
  * Unary signs remain attached to their number. */
 internal fun formatCalculatedExpression(expression: String): String {
-    val tokens = Regex("""[0-9]+(?:[.,][0-9]+)?|[+−×xX*÷/=-]""").findAll(expression)
+    val tokens = Regex("""[0-9]+(?:[.,][0-9]+)?|[+−×xX*÷/:=-]""").findAll(expression)
     val out = StringBuilder()
     var expectsNumber = true
     for (token in tokens) {
@@ -182,7 +187,7 @@ internal fun formatCalculatedExpression(expression: String): String {
             val symbol = when (raw) {
                 "-", "−" -> "−"
                 "x", "X", "*" -> "×"
-                "/" -> "÷"
+                "/", ":" -> "÷"
                 else -> raw
             }
             if (expectsNumber && symbol in listOf("+", "−")) out.append(symbol)
@@ -224,7 +229,7 @@ internal fun editedApproximation(previous: String, next: String): String {
     val tail = next.substring(marker + 1)
     if (tail == oldNumber) return next
     if (tail.startsWith(oldNumber) &&
-        tail.drop(oldNumber.length).trimStart().firstOrNull() in listOf('+', '-', '−', '×', 'x', 'X', '*', '÷', '/')) return next
+        tail.drop(oldNumber.length).trimStart().firstOrNull() in listOf('+', '-', '−', '×', 'x', 'X', '*', '÷', '/', ':')) return next
     // Appending whitespace before the next operator is also not an edit.
     if (tail.startsWith(oldNumber) && tail.drop(oldNumber.length).isBlank()) return next
     return next.removeRange(marker, marker + 1)
