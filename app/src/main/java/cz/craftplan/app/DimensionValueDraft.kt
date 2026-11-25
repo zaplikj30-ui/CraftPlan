@@ -166,6 +166,7 @@ internal class DimensionValueDraft private constructor(
 
     /** A new equals appends a rounded result; no live evaluation during edits. */
     fun calculate(expression: String, places: Int = DEFAULT_CALCULATION_PLACES): DimensionValueDraft? {
+        if (!expression.endsWith('=')) return null
         val (_, segment) = calculationSegment(expression)
         val result = roundedCalculation(segment, places) ?: return null
         val prefix = expression.trimEnd()
@@ -181,11 +182,22 @@ internal class DimensionValueDraft private constructor(
     }
 
     fun calculateNote(expression: String, places: Int = DEFAULT_CALCULATION_PLACES): DimensionValueDraft? {
+        if (!expression.endsWith('=')) return null
         val (_, segment) = calculationSegment(expression, note = true)
         val result = roundedCalculation(segment, places) ?: return null
         val text = expression + " " + result.markedNumber
         if (text.length > MAX_DIMENSION_NOTE_LENGTH) return null
         return withNote(text)
+    }
+
+    fun editNote(text: String): DimensionValueDraft {
+        val oldEquals = note.lastIndexOf('=')
+        val newEquals = text.lastIndexOf('=')
+        val cleaned = if (oldEquals >= 0 && newEquals >= 0 &&
+            note.substring(oldEquals + 1) != text.substring(newEquals + 1) &&
+            note.substring(oldEquals + 1).trimStart().startsWith('≈'))
+            removeResultApproximation(text) else text
+        return withNote(cleaned)
     }
 
     fun withNote(text: String): DimensionValueDraft =
@@ -242,6 +254,7 @@ internal class DimensionValueDraft private constructor(
             // An emptied result is incomplete, not a measurement of zero and
             // not a request to evaluate again. Manual replacements are exact.
             val result = input.removePrefix(resultPrefix).trim().removePrefix("≈")
+            // An unexecuted continuation must not masquerade as a measured length.
             parseDimensionEntry(result, unit)
         } else parseDimensionEntry(input, unit)
     }

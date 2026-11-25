@@ -50,28 +50,41 @@ class DimensionCalculationTest {
     }
 
     @Test
-    fun resultRemainsDraftAndExactFractionHasReplayableProvenance() {
-        val draft = DimensionValueDraft(dimension).type("1÷3=")
-        val calculated = requireNotNull(draft.calculate(draft.input))
-        assertEquals("1/3", calculated.input)
-        assertFalse(calculated.hasApproximateDisplay())
-        assertNull(dimension.measurement)
-        val confirmed = calculated.confirm(dimension)!!
+    fun fullEquationAndRoundedResultSurviveReopenAndManualEdit() {
+        val draft = DimensionValueDraft(dimension).calculate("100 ÷ 3 =", 2)!!
+        assertEquals("100 ÷ 3 = ≈33,33", draft.input)
+        assertTrue(draft.hasApproximateDisplay())
+        val confirmed = draft.confirm(dimension)!!
+        assertEquals("100 ÷ 3 = ≈33,33 mm", confirmed.displayLabel())
         assertEquals(LengthSource.CALCULATED, confirmed.measurement!!.source)
-        assertEquals("1÷3=", confirmed.measurement.originalInput)
-        assertEquals(LengthMmEncoding.Rational("1", "3"), confirmed.measurement.length.encoding)
-        assertEquals(confirmed.measurement, ManualLengthMeasurement.calculate("1÷3=", LengthUnit.MM))
-        val convertedDraft = calculated.selectUnit(LengthUnit.CM)
-        assertEquals("1/30", convertedDraft.input)
-        assertEquals("1", convertedDraft.calculate("1/30*30=")!!.input)
-        val converted = convertedDraft.confirm(dimension)!!
-        assertEquals(confirmed.measurement, converted.measurement)
-        val reopened = DimensionValueDraft(confirmed)
-        assertEquals("1/3", reopened.input)
-        assertEquals(confirmed.measurement, reopened.confirm(confirmed)!!.measurement)
-        val changed = calculated.type("25").confirm(dimension)!!
-        assertEquals(LengthSource.MANUAL, changed.measurement!!.source)
-        assertEquals("25", changed.measurement.length.displayNumber(LengthUnit.MM))
+        assertEquals("33.33", confirmed.measurement.length.displayNumber(LengthUnit.MM))
+        assertEquals(confirmed.measurement, ManualLengthMeasurement.calculate("100 ÷ 3 =", LengthUnit.MM, 2))
+        assertEquals(draft.input, DimensionValueDraft(confirmed).input)
+        val edited = draft.type("100 ÷ 3 = ≈34")
+        assertEquals("100 ÷ 3 = 34", edited.input)
+        assertEquals("100 ÷ 3 = 34 mm", edited.confirm(dimension)!!.displayLabel())
+        assertNull(draft.type("100 ÷ 3 =").confirm(dimension))
+        val next = draft.calculate(draft.input + " × 3 =", 2)!!
+        assertEquals("100 ÷ 3 = ≈33,33 × 3 = 99,99", next.input)
+        assertEquals("99.99", next.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+    }
+
+    @Test
+    fun noteAndConversionPreserveFullEquation() {
+        val draft = DimensionValueDraft(dimension).calculate("100 + 50 =", 3)!!
+        assertEquals("100 + 50 = 150 mm", draft.confirm(dimension)!!.displayLabel())
+        val cm = draft.selectUnit(LengthUnit.CM)
+        assertEquals("100 + 50 = 150 mm = 15", cm.input)
+        assertEquals("100 + 50 = 150 mm = 15 cm", cm.confirm(dimension)!!.displayLabel())
+        val note = draft.calculateNote("Výpočet: 100 / 3 =", 2)!!
+        assertEquals("Výpočet: 100 / 3 = ≈33,33", note.note)
+        assertEquals("Výpočet: 100 / 3 = 34", note.editNote("Výpočet: 100 / 3 = ≈34").note)
+        assertEquals(draft.input, note.input)
+        assertFalse(requestsDimensionCalculation("100+50= 150", "100+50=", true))
+        assertTrue(requestsDimensionCalculation("100+50", "100+50=", true))
+        assertTrue(requestsDimensionCalculation("Výpočet: 100/3", "Výpočet: 100/3=", true, note = true))
+        assertEquals("≈0", roundedCalculation("1/3=", 0)!!.markedNumber)
+        assertNull(ManualLengthMeasurement.calculate("1/3=", LengthUnit.MM, 0))
     }
 
     @Test
@@ -82,11 +95,11 @@ class DimensionCalculationTest {
         assertEquals("1÷0=", draft.input)
         assertEquals("50 mm", original.displayLabel())
         assertNull(draft.calculate("1000000001+0="))
-        assertNull(draft.calculate("1/10000000000000="))
+        assertNull(draft.calculate("1/10000000000000=", 13))
         val negative = draft.calculate("1-2=")!!.confirm(original)!!
-        assertEquals("-1", negative.displayLabel())
+        assertEquals("1-2= -1", negative.displayLabel())
         assertNull(negative.measurement)
         val zero = draft.calculate("1-1=")!!.confirm(original)!!
-        assertEquals("0 mm", zero.displayLabel())
+        assertEquals("1-1= 0 mm", zero.displayLabel())
     }
 }

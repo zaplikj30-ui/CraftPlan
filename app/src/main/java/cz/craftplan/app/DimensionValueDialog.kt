@@ -152,12 +152,21 @@ internal fun DimensionValueDialog(
     var automaticCalculations by remember(quickPreferences) {
         mutableStateOf(quickPreferences.getBoolean("automatic_calculations", true))
     }
-    var calculationError by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    var valueCalculationError by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    var noteCalculationError by rememberSaveable(draft.targetId) { mutableStateOf(false) }
+    val calculationError = valueCalculationError || noteCalculationError
+    var calculationPlaces by remember(quickPreferences) {
+        mutableStateOf(quickPreferences.getInt("calculation_places", DEFAULT_CALCULATION_PLACES).coerceIn(0, 12))
+    }
+    var placesOpen by rememberSaveable { mutableStateOf(false) }
     var calculationNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     fun toggleCalculations() {
         automaticCalculations = !automaticCalculations
         quickPreferences.edit().putBoolean("automatic_calculations", automaticCalculations).apply()
-        if (!automaticCalculations) calculationError = false
+        if (!automaticCalculations) {
+            valueCalculationError = false
+            noteCalculationError = false
+        }
     }
     var quickSymbol by remember(quickPreferences) {
         mutableStateOf(validQuickSymbol(quickPreferences.getString("quick_symbol", "") ?: ""))
@@ -189,36 +198,47 @@ internal fun DimensionValueDialog(
         if (target != DimensionField.NOTE || edited.text.length <= MAX_DIMENSION_NOTE_LENGTH ||
             edited.text.length < previous.text.length
         ) {
-            if (target == DimensionField.VALUE) {
-                valueField = edited
-                val committed = edited.composition == null && edited.selection.collapsed &&
-                    edited.selection.end == edited.text.length
-                val previousText = if (previous.composition != null && committed &&
-                    previous.text == edited.text && edited.text.endsWith('=')) previous.text.dropLast(1)
-                    else previous.text
-                val calculate = committed && requestsDimensionCalculation(previousText, edited.text, automaticCalculations)
-                if (calculate) {
-                    calculationNeedsSave = true
-                    onChange { current ->
-                        val result = current.calculate(edited.text)
-                        calculationError = result == null
-                        showError = false
-                        if (result != null) {
-                            valueField = editableText(result.input)
-                            result
-                        } else current.type(edited.text)
+            val isNote = target == DimensionField.NOTE
+            if (isNote) noteField = edited else valueField = edited
+            val committed = edited.composition == null && edited.selection.collapsed &&
+                edited.selection.end == edited.text.length
+            val previousText = if (previous.composition != null && committed &&
+                previous.text == edited.text && edited.text.endsWith('=')) previous.text.dropLast(1)
+                else previous.text
+            val calculate = committed && requestsDimensionCalculation(
+                previousText, edited.text, automaticCalculations, note = isNote,
+            )
+            if (calculate) {
+                calculationNeedsSave = true
+                onChange { current ->
+                    val result = if (isNote) current.calculateNote(edited.text, calculationPlaces)
+                        else current.calculate(edited.text, calculationPlaces)
+                    if (isNote) noteCalculationError = result == null else valueCalculationError = result == null
+                    showError = false
+                    if (result != null) {
+                        if (isNote) noteField = editableText(result.note) else valueField = editableText(result.input)
+                        result
+                    } else if (isNote) current.withNote(edited.text) else current.type(edited.text)
+                }
+            } else if (previous.text != edited.text) {
+                if (isNote) noteCalculationError = false else valueCalculationError = false
+                onChange { current ->
+                    val next = if (isNote) current.editNote(edited.text) else current.type(edited.text)
+                    val actual = if (isNote) next.note else next.input
+                    if (actual != edited.text) {
+                        // Only an approximation marker is removed. Keep the user's cursor near
+                        // the edited position and end any stale IME composition.
+                        val removed = edited.text.length - actual.length
+                        val selection = TextRange(
+                            (edited.selection.start - removed).coerceIn(0, actual.length),
+                            (edited.selection.end - removed).coerceIn(0, actual.length),
+                        )
+                        val corrected = TextFieldValue(actual, selection)
+                        if (isNote) noteField = corrected else valueField = corrected
                     }
-                } else if (previous.text != edited.text) {
-                    calculationError = false
-                    onChange { it.type(edited.text) }
-                    showError = false
+                    next
                 }
-            } else {
-                noteField = edited
-                if (previous.text != edited.text) {
-                    onChange { it.withNote(edited.text) }
-                    showError = false
-                }
+                showError = false
             }
         }
     }
@@ -457,7 +477,7 @@ internal fun DimensionValueDialog(
                         onInkPosition = { valueInkOrigin = it },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
-                        isError = showError || calculationError,
+                        isError = showError || valueCalculationError,
                         compactLabel = !portrait,
                     )
                 }
@@ -513,6 +533,10 @@ internal fun DimensionValueDialog(
                                 text = { Text(stringResource(R.string.dimension_automatic_calculations)) },
                                 trailingIcon = { Switch(checked = automaticCalculations, onCheckedChange = null) },
                                 onClick = { toggleCalculations() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_calculation_places, calculationPlaces)) },
+                                onClick = { unitsOpen = false; placesOpen = true },
                             )
                             val conversionMode = stringResource(
                                 if (keepNumber) R.string.keep_number_on_unit_change else R.string.convert_number_on_unit_change,
@@ -581,6 +605,7 @@ internal fun DimensionValueDialog(
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
                             isNote = true,
+                            isError = noteCalculationError,
                             compactLabel = !portrait,
                         )
                         val notesState = stringResource(
@@ -613,8 +638,8 @@ internal fun DimensionValueDialog(
                                     when {
                                         calculationError -> R.string.dimension_calculation_error
                                         showError -> R.string.dimension_value_invalid
-                                        draft.isTextOnly() -> R.string.dimension_text_only
-                                        else -> R.string.dimension_approximate_display
+                                        draft.hasApproximateDisplay() -> R.string.dimension_calculation_approximate
+                                        else -> R.string.dimension_text_only
                                     },
                                 ),
                                 color = color,
@@ -743,6 +768,35 @@ internal fun DimensionValueDialog(
                     }
                 }
             }
+        }
+        if (placesOpen) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { placesOpen = false },
+                title = { Text(stringResource(R.string.dimension_calculation_places_title)) },
+                text = {
+                    Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        (0..12).forEach { places ->
+                            DropdownMenuItem(
+                                text = { Text(places.toString()) },
+                                leadingIcon = {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = places == calculationPlaces,
+                                        onClick = null,
+                                    )
+                                },
+                                onClick = {
+                                    calculationPlaces = places
+                                    quickPreferences.edit().putInt("calculation_places", places).apply()
+                                    placesOpen = false
+                                },
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { placesOpen = false }) { Text(stringResource(R.string.cancel_value)) }
+                },
+            )
         }
         InkLanguageDialogs(inkSettings)
     }
