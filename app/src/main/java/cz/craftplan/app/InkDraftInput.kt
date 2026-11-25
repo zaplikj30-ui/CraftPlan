@@ -192,12 +192,8 @@ internal fun Modifier.inkFieldInput(
                 val contactTime = change.uptimeMillis - down.uptimeMillis
                 if (!moved && contactTime >= viewConfiguration.longPressTimeoutMillis) break
                 if (distance > slop) moved = true
-                if ((ticket != null || missingModel) && (position.x !in 0f..size.width.toFloat() ||
-                        position.y !in 0f..size.height.toFloat())
-                ) {
-                    if (moved) change.consume()
-                    break
-                }
+                // Compose retains the original hit path for this contact. Once a pen
+                // starts here, keep that target even outside this field's capture bounds.
                 if (!change.pressed) {
                     val validUp = canFinishPenStroke(raw.actionMasked, false, event.changes.size)
                     if (validUp && moved && ticket != null && points.size >= 2) {

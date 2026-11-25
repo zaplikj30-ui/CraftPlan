@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -67,9 +68,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -271,6 +273,11 @@ internal fun DimensionValueDialog(
             keys = keys.open(target)
         }
 
+        var valueInkOrigin by remember { mutableStateOf<Offset?>(null) }
+        var noteInkOrigin by remember { mutableStateOf<Offset?>(null) }
+        var previewOrigin by remember { mutableStateOf<Offset?>(null) }
+        val inkColor = MaterialTheme.colorScheme.primary
+
         BoxWithConstraints(
             Modifier.fillMaxSize().safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
@@ -295,7 +302,7 @@ internal fun DimensionValueDialog(
                         focus = valueFocus,
                         handwritingEnabled = inkSettings.readyLanguage != null,
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
-                        inkPreview = { ink.previewFor(DimensionField.VALUE) },
+                        onInkPosition = { valueInkOrigin = it },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
                         onDone = hideKeyboard,
                         isError = showError,
@@ -413,7 +420,7 @@ internal fun DimensionValueDialog(
                             focus = noteFocus,
                             handwritingEnabled = inkSettings.readyLanguage != null,
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
-                            inkPreview = { ink.previewFor(DimensionField.NOTE) },
+                            onInkPosition = { noteInkOrigin = it },
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
                             onDone = hideKeyboard,
                             isNote = true,
@@ -488,7 +495,7 @@ internal fun DimensionValueDialog(
                             modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     valueInput(Modifier.weight(1f))
                                     unitControl()
@@ -499,7 +506,7 @@ internal fun DimensionValueDialog(
                             }
                             if (keypadVisible) keypad(62.dp)
                         }
-                        if (keypadVisible) Spacer(Modifier.height(4.dp))
+                        if (keypadVisible || keys.systemOpen || imeVisible) Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
@@ -527,6 +534,7 @@ internal fun DimensionValueDialog(
                                     keyboardControl()
                                 }
                             }
+                            if (keys.systemOpen || imeVisible) Spacer(Modifier.width(4.dp))
                             actions()
                         }
                         errorMessage()
@@ -541,6 +549,27 @@ internal fun DimensionValueDialog(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) { keypad(keyHeight) }
                             }
+                        }
+                    }
+                }
+            }
+            // Draw above the scrolling field containers so a captured pen stroke stays
+            // visible when it crosses the frame. This Canvas has no input handler.
+            Canvas(Modifier.matchParentSize().onGloballyPositioned { previewOrigin = it.positionInRoot() }) {
+                val origin = previewOrigin ?: return@Canvas
+                for ((field, fieldOrigin) in listOf(
+                    DimensionField.VALUE to valueInkOrigin, DimensionField.NOTE to noteInkOrigin,
+                )) {
+                    val translation = (fieldOrigin ?: continue) - origin
+                    for (stroke in ink.previewFor(field)) {
+                        for (index in 1 until stroke.size) {
+                            val start = stroke[index - 1]
+                            val end = stroke[index]
+                            drawLine(
+                                inkColor, Offset(start.x, start.y) + translation,
+                                Offset(end.x, end.y) + translation,
+                                strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round,
+                            )
                         }
                     }
                 }
@@ -560,7 +589,7 @@ private fun DimensionInputField(
     focus: FocusRequester,
     handwritingEnabled: Boolean,
     inkCallbacks: InkFieldCallbacks,
-    inkPreview: () -> List<List<PenPoint>>,
+    onInkPosition: (Offset) -> Unit,
     onValueChange: (TextFieldValue) -> Unit,
     onDone: () -> Unit,
     isNote: Boolean = false,
@@ -570,24 +599,12 @@ private fun DimensionInputField(
     val currentCallbacks by rememberUpdatedState(inkCallbacks)
     val scheme = MaterialTheme.colorScheme
     Box(
-        modifier.inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
+        modifier.onGloballyPositioned { onInkPosition(it.positionInRoot()) }
+            .inkFieldInput(handwritingEnabled, editable) { currentCallbacks }
             .semantics {
                 if (!editable) onClick(label) {
                     currentCallbacks.tap()
                     true
-                }
-            }
-            .drawWithContent {
-                drawContent()
-                for (stroke in inkPreview()) {
-                    for (index in 1 until stroke.size) {
-                        val start = stroke[index - 1]
-                        val end = stroke[index]
-                        drawLine(
-                            scheme.primary, Offset(start.x, start.y), Offset(end.x, end.y),
-                            strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round,
-                        )
-                    }
                 }
             },
     ) {
@@ -598,7 +615,10 @@ private fun DimensionInputField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp).focusRequester(focus)
+            modifier = Modifier.fillMaxWidth()
+                // Allocate non-overlapping capture margins inside each field's parent.
+                .padding(horizontal = 5.dp, vertical = if (compactLabel) 4.dp else 6.dp)
+                .heightIn(min = if (compactLabel) 54.dp else 58.dp).focusRequester(focus)
                 .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
             singleLine = true,
             readOnly = !editable,
