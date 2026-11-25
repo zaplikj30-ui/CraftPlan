@@ -8,6 +8,8 @@ internal enum class DiagnosticAction {
     CLEAR_BATCH, TOOLBAR, ORIENTATION, SCENE, PREPARATION, DRAW, HIT_TEST, FRAME,
 }
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
+internal enum class CalculationInputSource { FIELD, KEYPAD, INK }
+internal enum class CalculationInputDecision { CALCULATE, EDIT, UNCHANGED, INK_BLOCKED, LIMIT_BLOCKED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
 internal enum class PenWindowEvent { DOWN, MOVE, UP, CANCEL, POINTER_DOWN, POINTER_UP, HOVER_ENTER, HOVER_MOVE, HOVER_EXIT }
 internal enum class PenDiagnosticStage {
@@ -219,6 +221,37 @@ internal class EditorDiagnostics(
         append(time, "cold_start activity_on_create_before_content")
     }
 
+    // Only structural metadata, never the entered text, operands or results.
+    fun calculationInput(
+        field: DimensionField, source: CalculationInputSource, systemInput: Boolean,
+        enabled: Boolean, decision: CalculationInputDecision,
+        previous: String, next: String, selectionCollapsed: Boolean,
+        caretAtEnd: Boolean, composingBefore: Boolean, composingAfter: Boolean,
+    ) {
+        val time = recordingTime() ?: return
+        val before = previous.trimEnd(' ')
+        val after = next.trimEnd(' ')
+        append(time, "calculation_input field=${field.name} source=${source.name} system_input=$systemInput" +
+            " enabled=$enabled decision=${decision.name} changed=${previous != next}" +
+            " before_length=${previous.length} after_length=${next.length}" +
+            " before_equals=${previous.count { it == '=' }} after_equals=${next.count { it == '=' }}" +
+            " before_tail=${diagnosticCalculationTail(before)} after_tail=${diagnosticCalculationTail(after)}" +
+            " trailing_ascii_spaces=${next.length - after.length}" +
+            " trailing_other_space=${after.lastOrNull()?.isWhitespace() == true}" +
+            " next_is_shorter_prefix=${next.length < previous.length && previous.startsWith(next)}" +
+            " selection_collapsed=$selectionCollapsed caret_at_end=$caretAtEnd" +
+            " composing_before=$composingBefore composing_after=$composingAfter")
+    }
+
+    fun calculationResult(field: DimensionField, source: CalculationInputSource,
+        success: Boolean, draftMatchedPrevious: Boolean, resultLength: Int?, fieldMatchesResult: Boolean?,
+    ) {
+        val time = recordingTime() ?: return
+        append(time, "calculation_result field=${field.name} source=${source.name}" +
+            " success=$success draft_matched_previous=$draftMatchedPrevious" +
+            " result_length=${resultLength ?: "NA"} field_matches_result=${fieldMatchesResult ?: "NA"}")
+    }
+
     // Dialog frames must never pollute the main activity's aggregate FPS.
     fun keypadStage(stage: KeypadDiagnosticStage, detail: Number? = null) {
         val time = recordingTime() ?: return
@@ -384,6 +417,7 @@ internal class EditorDiagnostics(
         appendLine("keypad_isolation: opt-in only for current recording; model check waits for numeric reveal completion or native handoff; do not write with pen during comparison. input/animation/swap/gpu are Android frame metrics; vsync_delay is actual minus intended vsync, not presentation time. Metrics may overlap.")
         appendLine("pen_window: dialog Window.Callback touch/generic motion before delegation; tool=Android tool type, event/down times=Android uptime, MOVE/HOVER_MOVE sampled at 100 ms; hover or touch intercepted by OS/IME may be absent. pen_gesture: Compose route, classification, dispatch; displacement/path are aggregate dp, no coordinates or text; NA=unavailable.")
         appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character/non-space class, no raw text; join by sample_end_uptime_ms (last retained point, not necessarily UP) and field, strokes is batch size.")
+        appendLine("calculation_input: FIELD=editor callback (including IME, selection and clipboard), KEYPAD=custom keys, INK=recognized handwriting; system_input=system input permitted for that field. Tail is an allowlisted category after trimming ASCII spaces; lengths/counts only, no text. calculation_result records the actual draft calculation and field update; subsequent inputs may show a shorter prefix or other replacement, not proof of IME intent.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }
@@ -420,6 +454,21 @@ internal class EditorDiagnostics(
     }
 
     private data class Event(val ms: Long, val body: String)
+}
+
+/** Only a fixed category can leave the calculator text. */
+private fun diagnosticCalculationTail(text: String): String = when (val last = text.lastOrNull()) {
+    null -> "EMPTY"
+    '=' -> "ASCII_EQUALS"
+    '\uFF1D' -> "FULLWIDTH_EQUALS"
+    '\uFE66' -> "SMALL_EQUALS"
+    '≈', '≠', '≡', '⁼', '₌' -> "OTHER_EQUALS_LIKE"
+    else -> when {
+        last.isWhitespace() -> "SPACE"
+        last.isDigit() -> "DIGIT"
+        last.isLetter() -> "LETTER"
+        else -> "OTHER"
+    }
 }
 
 /** No arbitrary words, numbers or strings can enter the diagnostic report. */

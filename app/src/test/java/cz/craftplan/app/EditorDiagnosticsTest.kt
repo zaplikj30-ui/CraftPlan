@@ -8,6 +8,39 @@ import org.junit.Test
 
 class EditorDiagnosticsTest {
     @Test
+    fun calculatorDiagnosticsShowDecisionsAndPossibleReplacementWithoutText() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        fun input(previous: String, next: String, decision: CalculationInputDecision,
+            source: CalculationInputSource = CalculationInputSource.FIELD) {
+            recorder.calculationInput(DimensionField.NOTE, source, true, true, decision,
+                previous, next, false, false, true, true)
+        }
+        input("private 987654", "private 987654=", CalculationInputDecision.CALCULATE)
+        recorder.start()
+        input("private 987654", "private 987654=", CalculationInputDecision.CALCULATE)
+        recorder.calculationResult(DimensionField.NOTE, CalculationInputSource.FIELD, true, true, 24, true)
+        input("private 987654= 246810", "private 987654=", CalculationInputDecision.EDIT)
+        input("secret 123", "secret 123＝ ", CalculationInputDecision.EDIT)
+        input("secret 123", "secret 123= ", CalculationInputDecision.CALCULATE, CalculationInputSource.KEYPAD)
+        recorder.calculationResult(DimensionField.VALUE, CalculationInputSource.KEYPAD, false, false, null, null)
+        recorder.stop()
+        input("secret 123", "secret 123=", CalculationInputDecision.CALCULATE)
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(4, report.lineSequence().count { it.contains("\tcalculation_input ") })
+        assertEquals(2, report.lineSequence().count { it.contains("\tcalculation_result ") })
+        assertTrue(report.contains("field=NOTE source=FIELD system_input=true enabled=true decision=CALCULATE"))
+        assertTrue(report.contains("before_equals=0 after_equals=1 before_tail=DIGIT after_tail=ASCII_EQUALS"))
+        assertTrue(report.contains("next_is_shorter_prefix=true"))
+        assertTrue(report.contains("after_tail=FULLWIDTH_EQUALS trailing_ascii_spaces=1"))
+        assertTrue(report.contains("success=true draft_matched_previous=true result_length=24 field_matches_result=true"))
+        assertTrue(report.contains("success=false draft_matched_previous=false result_length=NA field_matches_result=NA"))
+        assertFalse(report.contains("private"))
+        assertFalse(report.contains("987654"))
+        assertFalse(report.contains("246810"))
+        assertFalse(report.contains("secret 123"))
+    }
+
+    @Test
     fun inkShapeAndCandidateDiagnosticsAreBoundedAndDoNotExportText() {
         val recorder = EditorDiagnostics(now = { 0L })
         assertEquals(null, recorder.inkCandidateObserver(DimensionField.VALUE, 1, 20, "secret"))

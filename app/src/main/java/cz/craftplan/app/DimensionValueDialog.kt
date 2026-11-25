@@ -230,9 +230,18 @@ internal fun DimensionValueDialog(
         val input = if (field == DimensionField.VALUE) valueField else noteField
         return InkDraftTarget(currentDraftId, field, language, input.copy(composition = null))
     }
-    val applyInput: (DimensionField, TextFieldValue) -> Unit = apply@{ target, edited ->
+    val applyInput: (DimensionField, TextFieldValue, CalculationInputSource) -> Unit = apply@{ target, edited, source ->
         val previous = if (target == DimensionField.VALUE) valueField else noteField
+        fun recordInput(decision: CalculationInputDecision) {
+            if (diagnostics?.recording == true) {
+                diagnostics.calculationInput(target, source, keys.allowsSystemInput(target),
+                    automaticCalculations, decision, previous.text, edited.text,
+                    edited.selection.collapsed, edited.selection.end == edited.text.length,
+                    previous.composition != null, edited.composition != null)
+            }
+        }
         if (ink.hasPendingInput) {
+            recordInput(CalculationInputDecision.INK_BLOCKED)
             if (previous != edited) waitForInk()
             return@apply
         }
@@ -247,6 +256,9 @@ internal fun DimensionValueDialog(
             val calculate = requestsCalculationFromEdit(
                 previous.text, edited.text, automaticCalculations, note = isNote,
             )
+            recordInput(if (calculate) CalculationInputDecision.CALCULATE
+                else if (previous.text != edited.text) CalculationInputDecision.EDIT
+                else CalculationInputDecision.UNCHANGED)
             if (calculate) {
                 calculationNeedsSave = true
                 onChange { current ->
@@ -256,8 +268,20 @@ internal fun DimensionValueDialog(
                     showError = false
                     if (result != null) {
                         if (isNote) noteField = editableText(result.note) else valueField = editableText(result.input)
+                        if (diagnostics?.recording == true) {
+                            val resultText = if (isNote) result.note else result.input
+                            diagnostics.calculationResult(target, source, true,
+                                (if (isNote) current.note else current.input) == previous.text,
+                                resultText.length, (if (isNote) noteField else valueField).text == resultText)
+                        }
                         result
-                    } else if (isNote) current.withNote(edited.text) else current.type(edited.text)
+                    } else {
+                        if (diagnostics?.recording == true) {
+                            diagnostics.calculationResult(target, source, false,
+                                (if (isNote) current.note else current.input) == previous.text, null, null)
+                        }
+                        if (isNote) current.withNote(edited.text) else current.type(edited.text)
+                    }
                 }
             } else if (previous.text != edited.text) {
                 if (isNote) noteCalculationError = false else valueCalculationError = false
@@ -279,6 +303,8 @@ internal fun DimensionValueDialog(
                 }
                 showError = false
             }
+        } else {
+            recordInput(CalculationInputDecision.LIMIT_BLOCKED)
         }
     }
     val liveInkCurrent by rememberUpdatedState<(DimensionField) -> InkDraftTarget?>({ currentInkTarget(it) })
@@ -288,7 +314,7 @@ internal fun DimensionValueDialog(
             showSymbols = false
             keys = if (keys.visible) keys.open(field) else DimensionKeyboard().open(field).hide()
         }
-        applyInput(field, edited)
+        applyInput(field, edited, CalculationInputSource.INK)
     })
     DisposableEffect(ink, inkOwner, diagnostics) {
         ink.attach(inkOwner, { liveInkCurrent(it) }, { field, edited -> liveInkApply(field, edited) },
@@ -602,7 +628,7 @@ internal fun DimensionValueDialog(
                         handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
                         onInkPosition = { origin, bounds -> valueInkOrigin = origin; valueInkBounds = bounds },
-                        onValueChange = { applyInput(DimensionField.VALUE, it) },
+                        onValueChange = { applyInput(DimensionField.VALUE, it, CalculationInputSource.FIELD) },
                         onDone = hideKeyboard,
                         isError = showError || valueCalculationError,
                         compactLabel = !portrait,
@@ -733,7 +759,7 @@ internal fun DimensionValueDialog(
                             handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
                             onInkPosition = { origin, bounds -> noteInkOrigin = origin; noteInkBounds = bounds },
-                            onValueChange = { applyInput(DimensionField.NOTE, it) },
+                            onValueChange = { applyInput(DimensionField.NOTE, it, CalculationInputSource.FIELD) },
                             onDone = hideKeyboard,
                             isNote = true,
                             isError = noteCalculationError,
@@ -804,7 +830,7 @@ internal fun DimensionValueDialog(
                             val field = if (editingNote) noteField else valueField
                             val limit = if (editingNote) MAX_DIMENSION_NOTE_LENGTH
                                 else ManualLengthMeasurement.MAX_INPUT_LENGTH
-                            applyInput(keys.field, editDimensionInput(field, key, limit))
+                            applyInput(keys.field, editDimensionInput(field, key, limit), CalculationInputSource.KEYPAD)
                             showSymbols = false
                         },
                     )
