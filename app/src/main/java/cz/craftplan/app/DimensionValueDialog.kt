@@ -235,19 +235,27 @@ internal fun DimensionValueDialog(
         val revealContent by remember(keypadReveal) { derivedStateOf { keypadReveal.value > 0f } }
         val keypadVisible = numericRequested && !imeVisible
         LaunchedEffect(numericRequested, keys.systemOpen, density) {
+            val baseline = maxOf(bars.getBottom(density), cutout.getBottom(density))
             if (keys.systemOpen && keypadReveal.value > 0f) {
-                // Keep the outgoing space until the native keyboard starts moving.
-                // A hardware/floating keyboard may never supply a bottom inset.
-                withTimeoutOrNull(500L) {
+                // Keep the old reservation while the native inset replaces it.
+                // Then animate any residual difference (e.g. a short/floating IME).
+                withTimeoutOrNull(700L) {
                     snapshotFlow {
-                        imeInsets.getBottom(density) > maxOf(bars.getBottom(density), cutout.getBottom(density))
+                        val bottom = imeInsets.getBottom(density)
+                        latestImeVisible && bottom > baseline && bottom == imeTarget.getBottom(density)
                     }.first { it }
                 }
             }
-            keypadReveal.animateTo(
-                if (numericRequested) 1f else 0f,
-                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-            )
+            if (numericRequested && imeInsets.getBottom(density) > baseline) {
+                // The native keyboard is still occupying space: reveal the replacement
+                // only as that space becomes available, using the native animation.
+                keypadReveal.snapTo(1f)
+            } else {
+                keypadReveal.animateTo(
+                    if (numericRequested) 1f else 0f,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                )
+            }
         }
         val keypadMotion = Modifier.clipToBounds().layout { measurable, constraints ->
             val placeable = measurable.measure(constraints.copy(minHeight = 0))
@@ -469,7 +477,7 @@ internal fun DimensionValueDialog(
                         )
                     }
                 }
-                 val noteInput: @Composable (Modifier) -> Unit = { modifier ->
+                val noteInput: @Composable (Modifier) -> Unit = { modifier ->
                     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
                         DimensionInputField(
                             modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
