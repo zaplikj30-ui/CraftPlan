@@ -70,6 +70,14 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private var lensContact: EditorPoint? = null
     private var ownsDimensionStream = false
     private val touchStream = EditorTouchStream()
+    // Relative to this View, stable even while the system bar is temporarily revealed.
+    var safeOverlayTopPx = 0
+        set(value) {
+            val next = value.coerceAtLeast(0)
+            if (field == next) return
+            field = next
+            invalidate()
+        }
     var diagnostics: EditorDiagnostics? = null
     var onDrawCounts: (Int, Int) -> Unit = { _, _ -> }
     private val activeDiagnostics get() = diagnostics?.takeIf { it.recording }
@@ -481,15 +489,16 @@ internal class PhotoEditorView(context: Context) : View(context) {
     private fun drawMagnifier(canvas: Canvas, target: EditorPoint, start: PhotoAnchor, end: PhotoAnchor?) {
         val contact = lensContact ?: return
         val margin = 8f * density
-        val size = minOf(136f * density, width - 2f * margin, height - 2f * margin)
+        val top = safeOverlayTopPx + margin
+        val size = minOf(136f * density, width - 2f * margin, height - top - margin)
         if (size <= 0f) return
         val onRight = magnifierOnRight(contact.x, width, lensOnRight)
         lensOnRight = onRight
         val oppositeX = if (onRight) width - margin - size else margin
         val otherX = if (onRight) margin else width - margin - size
         // Keep the magnifier above the hand: select only a top corner.
-        if (!positionLens(oppositeX, margin, size, target, contact) &&
-            !positionLens(otherX, margin, size, target, contact)
+        if (!positionLens(oppositeX, top, size, target, contact) &&
+            !positionLens(otherX, top, size, target, contact)
         ) return
 
         val centerX = lensBounds.centerX()
@@ -855,17 +864,22 @@ internal class PhotoEditorView(context: Context) : View(context) {
         invalidate()
     }
 
-    private fun autoPanVelocity(contact: EditorPoint): EditorPoint = EditorPoint(
-        edgePanSpeed(contact.x, width, 48f * density, 440f * density),
-        // Straight in the middle; progressively more diagonal toward top/bottom.
-        edgePanSpeed(
-            contact.y, height,
-            verticalAutoPanEdgeSize(
-                height, density, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+    private fun autoPanVelocity(contact: EditorPoint): EditorPoint {
+        // Keep the usable top edge reachable without requiring a system-bar gesture.
+        // The stable inset changes neither photo coordinates nor the actual viewport.
+        val top = safeOverlayTopPx.coerceIn(0, height.coerceAtLeast(0))
+        val usableHeight = height - top
+        return EditorPoint(
+            edgePanSpeed(contact.x, width, 48f * density, 440f * density),
+            edgePanSpeed(
+                contact.y - top, usableHeight,
+                verticalAutoPanEdgeSize(
+                    usableHeight, density, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+                ),
+                440f * density,
             ),
-            440f * density,
-        ),
-    )
+        )
+    }
 
     private fun resumeAutoPanIfDragging() {
         val contact = lensContact

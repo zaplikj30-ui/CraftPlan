@@ -1,26 +1,36 @@
 package cz.craftplan.app
 
+import android.content.res.Configuration
 import android.content.ContentResolver
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.view.Window
+import android.view.WindowInsets as AndroidWindowInsets
+import android.view.WindowInsetsController
+import android.view.ViewTreeObserver
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -33,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +52,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -223,6 +237,8 @@ internal class PhotoEditorState : ViewModel() {
         private set
     var labelsLocked by mutableStateOf(false)
         private set
+    var statusBarSettings by mutableStateOf(EditorStatusBarSettings())
+        private set
     private var preferences: SharedPreferences? = null
 
     fun restorePreferences(source: SharedPreferences) {
@@ -242,6 +258,17 @@ internal class PhotoEditorState : ViewModel() {
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         labelsLocked = source.getBoolean("labels_locked", false)
+        statusBarSettings = EditorStatusBarSettings(
+            portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
+            landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,
+        )
+    }
+
+    fun setStatusBarHidden(portrait: Boolean, hidden: Boolean) {
+        statusBarSettings = statusBarSettings.withHidden(portrait, hidden)
+        preferences?.edit()?.putBoolean(
+            if (portrait) "status_bar_hide_portrait" else "status_bar_hide_landscape", hidden,
+        )?.apply()
     }
 
     private fun recordToolbarState() {
@@ -358,6 +385,48 @@ internal class PhotoEditorState : ViewModel() {
     }
 }
 
+/**
+ * Only the active photo workspace owns the status bar policy. Modal dialogs and
+ * other screens use their normal system bars and retain their existing IME insets.
+ */
+@Composable
+private fun EditorStatusBarEffect(window: Window, active: Boolean, hidden: Boolean) {
+    DisposableEffect(window, active, hidden) {
+        val controller = window.insetsController
+        if (!active || controller == null) {
+            onDispose { }
+        } else {
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+            val previousAppearance = controller.systemBarsAppearance and mask
+            val previousBehavior = controller.systemBarsBehavior
+            fun applyPolicy() {
+                controller.setSystemBarsAppearance(0, mask)
+                if (hidden) {
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(AndroidWindowInsets.Type.statusBars())
+                } else {
+                    controller.show(AndroidWindowInsets.Type.statusBars())
+                }
+            }
+            applyPolicy()
+            val decor = window.decorView
+            val observer = decor.viewTreeObserver
+            val listener = ViewTreeObserver.OnWindowFocusChangeListener { focused ->
+                if (focused) applyPolicy()
+            }
+            observer.addOnWindowFocusChangeListener(listener)
+            onDispose {
+                if (observer.isAlive) observer.removeOnWindowFocusChangeListener(listener)
+                else decor.viewTreeObserver.removeOnWindowFocusChangeListener(listener)
+                controller.show(AndroidWindowInsets.Type.statusBars())
+                controller.systemBarsBehavior = previousBehavior
+                controller.setSystemBarsAppearance(previousAppearance, mask)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
@@ -372,11 +441,21 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
         photoOpen = false
     }
     BackHandler(enabled = photoOpen && editorState.valueDraft == null, onBack = closePhoto)
+    val configuration = LocalConfiguration.current
+    val portrait = configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+    val isTablet = configuration.smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP
+    val hideStatusBar = editorState.statusBarSettings.hidden(portrait, isTablet)
+    val workspaceActive = photoOpen && editorState.valueDraft == null
+    EditorStatusBarEffect(window, workspaceActive, hideStatusBar)
 
     // The entire editor toolbar can sit behind the transparent gesture navigation bar.
-    // Keep actual system buttons, display cutouts and the keyboard clear.
+    // Draw the photo beneath the status bar. Reserve stable horizontal insets,
+    // desktop caption controls and the existing bottom navigation/IME space.
     val contentInsets = if (photoOpen) {
-        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+            .union(WindowInsets.statusBarsIgnoringVisibility.only(WindowInsetsSides.Horizontal))
+            .union(WindowInsets.captionBar.only(WindowInsetsSides.Top))
+            .union(WindowInsets.navigationBars.only(WindowInsetsSides.Top))
             .union(WindowInsets.tappableElement.only(WindowInsetsSides.Bottom))
             .union(WindowInsets.displayCutout.only(WindowInsetsSides.Bottom))
             .union(WindowInsets.ime.only(WindowInsetsSides.Bottom))
@@ -387,11 +466,21 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
         val screen = Modifier.fillMaxSize().padding(insets)
         if (photoOpen) {
             val direction = LocalLayoutDirection.current
+            val density = LocalDensity.current
+            val statusTop = WindowInsets.statusBarsIgnoringVisibility.getTop(density)
+            val cutoutTop = WindowInsets.displayCutout.getTop(density)
+            val contentTop = with(density) { insets.calculateTopPadding().roundToPx() }
+            val safeOverlayTop = editorOverlayTop(statusTop, cutoutTop, contentTop)
+            val statusScrimHeight = if (workspaceActive && !hideStatusBar) {
+                (statusTop - contentTop).coerceAtLeast(0)
+            } else 0
             val repeatHintOffset = toolbarHintCenterOffset(
                 insets.calculateLeftPadding(direction), insets.calculateRightPadding(direction),
             )
             SamplePhoto(
                 modifier = screen,
+                safeOverlayTopPx = safeOverlayTop,
+                statusScrimHeightPx = statusScrimHeight,
                 scene = editorState.scene,
                 onCreateDimension = { editorState.applyDimensionChange(editorState.scene.create(it)) },
                 onChangeDimension = { old, new -> editorState.applyDimensionChange(editorState.scene.edit(old, new)) },
@@ -425,6 +514,9 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     },
                     showNotes = editorState.showNotes,
                     onToggleNotes = editorState::toggleNotes,
+                    hideStatusBarPortrait = editorState.statusBarSettings.hidden(true, isTablet),
+                    hideStatusBarLandscape = editorState.statusBarSettings.hidden(false, isTablet),
+                    onStatusBarHidden = editorState::setStatusBarHidden,
                     diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording },
                 )
             }
@@ -453,6 +545,8 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
 @Composable
 private fun SamplePhoto(
     modifier: Modifier,
+    safeOverlayTopPx: Int,
+    statusScrimHeightPx: Int,
     scene: DimensionScene,
     onCreateDimension: (PhotoDimension) -> Boolean,
     onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean,
@@ -471,11 +565,13 @@ private fun SamplePhoto(
             factory = { context ->
                 PhotoEditorView(context).apply {
                     this.diagnostics = diagnostics
+                    this.safeOverlayTopPx = safeOverlayTopPx
                     this.scene = scene
                 }
             },
             modifier = Modifier.fillMaxSize(),
             update = { view ->
+                view.safeOverlayTopPx = safeOverlayTopPx
                 view.onCreateDimension = onCreateDimension
                 view.onChangeDimension = onChangeDimension
                 view.onSelectDimension = onSelectDimension
@@ -487,7 +583,15 @@ private fun SamplePhoto(
                 view.fitRequest = fitRequest
             },
         )
+        // A translucent contrast layer only behind visible system icons. No hit target.
+        val density = LocalDensity.current
+        if (statusScrimHeightPx > 0) {
+            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                .height(with(density) { statusScrimHeightPx.toDp() })
+                .background(Color.Black.copy(alpha = 0.55f)))
+        }
         toolbar(Modifier.align(Alignment.BottomStart))
-        Box(Modifier.align(Alignment.TopEnd)) { overlays() }
+        Box(Modifier.align(Alignment.TopEnd)
+            .padding(top = with(density) { safeOverlayTopPx.toDp() })) { overlays() }
     }
 }

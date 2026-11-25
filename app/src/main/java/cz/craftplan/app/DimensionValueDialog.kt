@@ -152,6 +152,9 @@ internal fun DimensionValueDialog(
     onCancel: () -> Unit,
     showNotes: Boolean,
     onToggleNotes: () -> Unit,
+    hideStatusBarPortrait: Boolean,
+    hideStatusBarLandscape: Boolean,
+    onStatusBarHidden: (portrait: Boolean, hidden: Boolean) -> Unit,
     diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
@@ -214,6 +217,7 @@ internal fun DimensionValueDialog(
     val noteEcho = remember(draft.targetId) { CalculationEchoGuard<TextFieldValue>() }
     var unitsOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var statusBarSettingsOpen by rememberSaveable { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
         if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
@@ -762,6 +766,10 @@ internal fun DimensionValueDialog(
                                 text = { Text(stringResource(R.string.dimension_keypad_settings)) },
                                 onClick = { settingsOpen = false; keypadSettingsOpen = true },
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.editor_status_bar_settings)) },
+                                onClick = { settingsOpen = false; statusBarSettingsOpen = true },
+                            )
                         }
                     }
                 }
@@ -1079,6 +1087,28 @@ internal fun DimensionValueDialog(
                 },
                 confirmButton = {
                     TextButton(onClick = { keypadSettingsOpen = false }) { Text("OK") }
+                },
+            )
+        }
+        if (statusBarSettingsOpen) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { statusBarSettingsOpen = false },
+                title = { Text(stringResource(R.string.editor_status_bar_settings)) },
+                text = {
+                    Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        Text(stringResource(R.string.editor_status_bar_explanation))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.editor_status_bar_portrait), Modifier.weight(1f))
+                            Switch(checked = hideStatusBarPortrait, onCheckedChange = { onStatusBarHidden(true, it) })
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.editor_status_bar_landscape), Modifier.weight(1f))
+                            Switch(checked = hideStatusBarLandscape, onCheckedChange = { onStatusBarHidden(false, it) })
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { statusBarSettingsOpen = false }) { Text("OK") }
                 },
             )
         }

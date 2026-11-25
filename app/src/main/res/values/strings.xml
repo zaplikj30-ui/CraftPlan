@@ -122,6 +122,10 @@
     <string name="pen_paste">Vložit</string>
     <string name="pen_select_all">Vybrat vše</string>
     <string name="dimension_settings">Nastavení kóty</string>
+    <string name="editor_status_bar_settings">Horní systémová lišta</string>
+    <string name="editor_status_bar_explanation">Vypnuto: průhledná a viditelná. Zapnuto: automaticky skrývaná, dočasně ji vysune tah od horního okraje. Změna platí po zavření dialogu kóty.</string>
+    <string name="editor_status_bar_portrait">Na výšku – skrývat</string>
+    <string name="editor_status_bar_landscape">Na šířku – skrývat</string>
     <string name="dimension_keypad_settings">Nastavení numerické klávesnice</string>
     <string name="dimension_key_hold_ms">Doba podržení: %1$d ms</string>
     <string name="dimension_reset_hold">Obnovit výchozí dobu podržení</string>
