@@ -27,7 +27,7 @@ internal data class InkDraftTarget(
  * completed batch; only successful insertion or explicit discard clears it. */
 internal class InkDraftController(
     private val scope: CoroutineScope,
-    private val recognize: suspend (String, List<List<PenPoint>>) -> String? = InkModels::recognize,
+    private val recognize: suspend (String, List<List<PenPoint>>, InkRecognitionHints) -> String? = InkModels::recognize,
     private val settleDelayMs: Long = 650,
 ) {
     private data class Binding(
@@ -40,6 +40,7 @@ internal class InkDraftController(
     private var work: Job? = null
     private var revision = 0L
     private var target: InkDraftTarget? = null
+    private var recognitionHints = InkRecognitionHints("")
     private var completedStrokes = emptyList<List<PenPoint>>()
     private var contact: Long? = null
     private var candidate: String? = null
@@ -72,7 +73,7 @@ internal class InkDraftController(
         if (binding?.owner === owner) binding = null
     }
 
-    fun start(next: InkDraftTarget): Long? {
+    fun start(next: InkDraftTarget, area: InkWritingArea? = null): Long? {
         // Do not replace another target, an incomplete contact or a full batch.
         // The UI will offer waiting/retry instead of discarding old handwriting.
         if (literalDot || contact != null || (target != null && target != next) ||
@@ -81,6 +82,7 @@ internal class InkDraftController(
         work?.cancel()
         work = null
         candidate = null
+        if (target == null) recognitionHints = InkRecognitionHints(inkPreContext(next.input), area)
         target = next
         pendingField = next.field
         failed = false
@@ -134,13 +136,14 @@ internal class InkDraftController(
     private fun schedule() {
         val captured = target ?: return
         val request = completedStrokes
+        val hints = recognitionHints
         val ticket = ++revision
         failed = false
         work?.cancel()
         work = scope.launch {
             delay(settleDelayMs)
             val result = try {
-                withTimeoutOrNull(5_000) { recognize(captured.language, request) }
+                withTimeoutOrNull(5_000) { recognize(captured.language, request, hints) }
             } catch (_: CancellationException) {
                 currentCoroutineContext().ensureActive()
                 null
@@ -190,6 +193,7 @@ internal class InkDraftController(
     private fun clearInk() {
         work = null
         target = null
+        recognitionHints = InkRecognitionHints("")
         pendingField = null
         contact = null
         candidate = null
@@ -237,6 +241,12 @@ internal fun classifyFieldPenRelease(
     return if (!pending && canWrite && kind == PenContactKind.TAP &&
         durationMs in 200L..400L && displacementDp < 1.5f && pathDp < 3f)
         PenContactKind.DOT else kind
+}
+
+internal fun inkPreContext(input: TextFieldValue): String {
+    val tail = input.text.take(input.selection.min).takeLast(20)
+    // Do not split a supplementary Unicode character at the truncation point.
+    return if (tail.firstOrNull()?.isLowSurrogate() == true) tail.drop(1) else tail
 }
 
 internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candidate: String): TextFieldValue? {

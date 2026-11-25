@@ -134,6 +134,37 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun recognitionContextUsesOnlyTextBeforeSelectionAndLastTwentyCharacters() {
+        assertEquals("abc", inkPreContext(TextFieldValue("abcDEFghi", TextRange(3, 6))))
+        assertEquals("abc", inkPreContext(TextFieldValue("abcDEFghi", TextRange(6, 3))))
+        assertEquals("", inkPreContext(TextFieldValue("abc", TextRange(0))))
+        assertEquals("56789012345678901234",
+            inkPreContext(TextFieldValue("123456789012345678901234", TextRange(24))))
+        assertEquals("1234567890123456789", inkPreContext(
+            TextFieldValue("😀1234567890123456789", TextRange(21))))
+    }
+
+    @Test(timeout = 3000)
+    fun recognitionHintsStayWithOriginalBatchAcrossNewStrokeAndReattach() = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs",
+            TextFieldValue("Levá strana", TextRange(11)))
+        val firstArea = InkWritingArea(400f, 54f)
+        val result = CompletableDeferred<TextFieldValue>()
+        val controller = InkDraftController(this, recognize = { _, strokes, hints ->
+            assertEquals(2, strokes.size)
+            assertEquals(InkRecognitionHints("Levá strana", firstArea), hints)
+            ","
+        }, settleDelayMs = 0)
+        val old = Any()
+        controller.attach(old, { target }, { _, _ -> error("Old UI") }, {})
+        controller.finish(controller.start(target, firstArea)!!, stroke)
+        controller.finish(controller.start(target, InkWritingArea(800f, 60f))!!, stroke)
+        controller.detach(old)
+        controller.attach(Any(), { target }, { _, edited -> result.complete(edited) }, {})
+        assertEquals("Levá strana,", result.await().text)
+    }
+
+    @Test
     fun stationaryDotIsLimitedToFreshFieldReleaseAndDoesNotChangeTapsOrHolds() {
         fun kind(duration: Long, displacement: Float = 0.5f, path: Float = 0.7f,
                  pending: Boolean = false, writing: Boolean = false, enabled: Boolean = true) =
@@ -155,7 +186,7 @@ class InkDraftInputTest {
     fun explicitDotInsertsAtCapturedSelectionWithoutCallingRecognizer() = runBlocking {
         val initial = TextFieldValue("Text A", TextRange(4))
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs", initial)
-        val controller = InkDraftController(this, recognize = { _, _ -> error("Unexpected recognition") })
+        val controller = InkDraftController(this, recognize = { _, _, _ -> error("Unexpected recognition") })
         var result: TextFieldValue? = null
         controller.attach(Any(), { target }, { _, edited -> result = edited }, { error("Unexpected failure") })
         controller.finishDot(controller.start(target)!!, listOf(PenPoint(1f, 1f, 250)))
@@ -169,7 +200,7 @@ class InkDraftInputTest {
             TextFieldValue("12", TextRange(2)))
         var live = target.copy(input = TextFieldValue("34", TextRange(2)))
         var result: TextFieldValue? = null
-        val controller = InkDraftController(this, recognize = { _, _ -> error("Unexpected recognition") })
+        val controller = InkDraftController(this, recognize = { _, _, _ -> error("Unexpected recognition") })
         controller.attach(Any(), { live }, { _, edited -> result = edited }, {})
         controller.finishDot(controller.start(target)!!, listOf(PenPoint(1f, 1f, 250)))
         assertTrue(controller.failed)
@@ -226,7 +257,7 @@ class InkDraftInputTest {
     fun canceledContactPreservesEarlierStrokesAndAnotherFieldCannotReplaceTarget(): Unit = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue())
         val result = CompletableDeferred<TextFieldValue>()
-        val controller = InkDraftController(this, recognize = { _, strokes ->
+        val controller = InkDraftController(this, recognize = { _, strokes, _ ->
             assertEquals(listOf(stroke), strokes)
             "123"
         }, settleDelayMs = 0)
@@ -247,7 +278,7 @@ class InkDraftInputTest {
         val started = CompletableDeferred<Unit>()
         val recognized = CompletableDeferred<String>()
         val applied = CompletableDeferred<TextFieldValue>()
-        val controller = InkDraftController(this, recognize = { _, _ ->
+        val controller = InkDraftController(this, recognize = { _, _, _ ->
             started.complete(Unit)
             recognized.await()
         }, settleDelayMs = 0)
@@ -268,7 +299,7 @@ class InkDraftInputTest {
     fun recognitionUsesCapturedLanguageAndSelectionAcrossDetach() = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs",
             TextFieldValue("125", TextRange(1)))
-        val controller = InkDraftController(this, recognize = { language, _ ->
+        val controller = InkDraftController(this, recognize = { language, _, _ ->
             assertEquals("cs", language)
             "9"
         }, settleDelayMs = 0)
@@ -288,7 +319,7 @@ class InkDraftInputTest {
         val applied = CompletableDeferred<TextFieldValue>()
         val dot = listOf(PenPoint(12f, 15f, 40))
         var calls = 0
-        val controller = InkDraftController(this, recognize = { _, strokes ->
+        val controller = InkDraftController(this, recognize = { _, strokes, _ ->
             if (++calls == 1) {
                 firstStarted.complete(Unit)
                 withContext(NonCancellable) { firstResult.await() }
@@ -314,7 +345,7 @@ class InkDraftInputTest {
         val failure = CompletableDeferred<Unit>()
         val applied = CompletableDeferred<TextFieldValue>()
         var calls = 0
-        val controller = InkDraftController(this, recognize = { _, strokes ->
+        val controller = InkDraftController(this, recognize = { _, strokes, _ ->
             assertEquals(listOf(stroke), strokes)
             if (++calls == 1) null else "42"
         }, settleDelayMs = 0)
@@ -333,7 +364,7 @@ class InkDraftInputTest {
     fun sdkCancellationRetainsPreviousStrokes() = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue())
         val failure = CompletableDeferred<Unit>()
-        val controller = InkDraftController(this, recognize = { _, _ ->
+        val controller = InkDraftController(this, recognize = { _, _, _ ->
             throw kotlinx.coroutines.CancellationException("SDK task canceled")
         }, settleDelayMs = 0)
         controller.attach(Any(), { target }, { _, _ -> error("Unexpected result") }, { failure.complete(Unit) })
@@ -349,7 +380,7 @@ class InkDraftInputTest {
     fun staleTargetNeverReceivesTextAndRetainsInk(): Unit = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue("123"))
         val failure = CompletableDeferred<Unit>()
-        val controller = InkDraftController(this, recognize = { _, _ -> "4" }, settleDelayMs = 0)
+        val controller = InkDraftController(this, recognize = { _, _, _ -> "4" }, settleDelayMs = 0)
         controller.attach(Any(), { target.copy(input = TextFieldValue("124")) },
             { _, _ -> error("Stale result") }, { failure.complete(Unit) })
         controller.finish(controller.start(target)!!, stroke)

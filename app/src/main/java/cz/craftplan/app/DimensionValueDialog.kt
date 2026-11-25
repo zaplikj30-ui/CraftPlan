@@ -321,7 +321,10 @@ internal fun DimensionValueDialog(
                 val to = inkOrigin(target)
                 if (from == null || to == null) null else {
                     translation = from - to
-                    currentInkTarget(target)?.let(ink::start)
+                    val bounds = if (target == DimensionField.VALUE) valueInkBounds else noteInkBounds
+                    val area = bounds?.takeIf { it.width > 0f && it.height > 0f }
+                        ?.let { InkWritingArea(it.width, it.height) }
+                    currentInkTarget(target)?.let { ink.start(it, area) }
                 }
             },
             preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(points)) },

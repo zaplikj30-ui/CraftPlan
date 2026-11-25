@@ -10,6 +10,8 @@ import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModel
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognitionModelIdentifier
 import com.google.mlkit.vision.digitalink.recognition.DigitalInkRecognizerOptions
 import com.google.mlkit.vision.digitalink.recognition.Ink
+import com.google.mlkit.vision.digitalink.recognition.RecognitionContext
+import com.google.mlkit.vision.digitalink.recognition.WritingArea
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
@@ -20,6 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal data class PenPoint(val x: Float, val y: Float, val timeMs: Long)
+
+internal data class InkWritingArea(val width: Float, val height: Float)
+internal data class InkRecognitionHints(val preContext: String, val area: InkWritingArea? = null)
 
 internal fun isTextInkLanguage(tag: String): Boolean {
     val locale = Locale.forLanguageTag(tag)
@@ -128,7 +133,7 @@ internal object InkModels {
         manager(context).download(model(tag), DownloadConditions.Builder().build()).awaitInkTask()
     }
 
-    suspend fun recognize(tag: String, strokes: List<List<PenPoint>>): String? {
+    suspend fun recognize(tag: String, strokes: List<List<PenPoint>>, hints: InkRecognitionHints): String? {
         val ink = Ink.builder()
         for (points in strokes) {
             val stroke = Ink.Stroke.builder()
@@ -139,7 +144,12 @@ internal object InkModels {
             DigitalInkRecognizerOptions.builder(model(tag)).build(),
         )
         return try {
-            recognizer.recognize(ink.build()).awaitInkTask().candidates.firstOrNull()?.text
+            val context = RecognitionContext.builder().setPreContext(hints.preContext)
+            hints.area?.takeIf { it.width.isFinite() && it.height.isFinite() &&
+                it.width > 0f && it.height > 0f }?.let {
+                context.setWritingArea(WritingArea(it.width, it.height))
+            }
+            recognizer.recognize(ink.build(), context.build()).awaitInkTask().candidates.firstOrNull()?.text
         } finally {
             recognizer.close()
         }
