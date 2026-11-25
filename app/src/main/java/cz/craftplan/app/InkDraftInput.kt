@@ -61,6 +61,8 @@ internal class InkDraftController(
     var pendingField by mutableStateOf<DimensionField?>(null)
         private set
 
+    val pendingLanguage: String? get() = target?.language
+
     fun pendingInput(field: DimensionField): TextFieldValue? =
         target?.takeIf { it.field == field }?.input
 
@@ -240,7 +242,8 @@ internal fun canFinishPenStroke(action: Int?, canceled: Boolean, pointerCount: I
 /**
  * Stylus down is owned immediately so the native text toolbar cannot race ink.
  * Finger selection remains native. A stationary stylus release is classified
- * separately as a tap or intentional long hold; motion always wins over time.
+ * separately as a tap or intentional long hold; an active writing batch
+ * also accepts small contacts such as dots.
  */
 internal fun Modifier.inkFieldInput(
     enabled: Boolean,
@@ -277,7 +280,11 @@ internal fun Modifier.inkFieldInput(
                 if (!stylus) {
                     // Native finger selection remains available; a stationary
                     // release also lets the dialog open the intended field.
-                    if (!change.pressed && maximum <= viewConfiguration.touchSlop) actions.tap()
+                    if (!change.pressed && maximum <= viewConfiguration.touchSlop) {
+                        if (duration >= viewConfiguration.longPressTimeoutMillis)
+                            callbacks().fingerHold(origin)
+                        else callbacks().tap()
+                    }
                     if (!change.pressed || maximum > viewConfiguration.touchSlop) break
                     continue
                 }
@@ -324,6 +331,7 @@ internal data class InkFieldCallbacks(
     val tap: () -> Unit,
     val penTap: (Offset, Long) -> Unit = { _, _ -> },
     val penHold: (Offset) -> Unit = {},
+    val fingerHold: (Offset) -> Unit = {},
     val pending: () -> Boolean,
     val blocked: () -> Unit,
     val missingModel: () -> Unit,

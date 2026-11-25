@@ -60,6 +60,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -68,7 +69,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -79,9 +79,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.layout
@@ -95,6 +97,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -114,6 +119,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
@@ -211,7 +217,7 @@ internal fun DimensionValueDialog(
     val currentDraftId by rememberUpdatedState(draft.targetId)
     var inkNeedsSave by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     fun currentInkTarget(field: DimensionField): InkDraftTarget? {
-        val language = inkSettings.readyLanguage ?: return null
+        val language = ink.pendingLanguage ?: inkSettings.readyLanguage ?: return null
         val input = if (field == DimensionField.VALUE) valueField else noteField
         return InkDraftTarget(currentDraftId, field, language, input.copy(composition = null))
     }
@@ -282,18 +288,21 @@ internal fun DimensionValueDialog(
     }
     fun inkOrigin(field: DimensionField): Offset? =
         if (field == DimensionField.VALUE) valueInkOrigin else noteInkOrigin
-    fun routedPoints(field: DimensionField, points: List<PenPoint>): List<PenPoint> {
+    fun routedPoints(field: DimensionField, points: List<PenPoint>, sourceOrigin: () -> Offset?): List<PenPoint> {
         val target = ink.pendingField ?: field
-        if (target == field) return points
-        val from = inkOrigin(field) ?: return points
+        val from = sourceOrigin() ?: return points
         val to = inkOrigin(target) ?: return points
         val delta = from - to
         return points.map { it.copy(x = it.x + delta.x, y = it.y + delta.y) }
     }
-    fun inkCallbacks(field: DimensionField, tap: () -> Unit) = InkFieldCallbacks(
+    fun inkCallbacks(
+        field: DimensionField,
+        sourceOrigin: () -> Offset? = { inkOrigin(field) },
+        tap: () -> Unit,
+    ) = InkFieldCallbacks(
         begin = { currentInkTarget(ink.pendingField ?: field)?.let(ink::start) },
-        preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(field, points)) },
-        finish = { ticket, points -> ink.finish(ticket, routedPoints(field, points)) },
+        preview = { ticket, points -> ink.previewStroke(ticket, routedPoints(field, points, sourceOrigin)) },
+        finish = { ticket, points -> ink.finish(ticket, routedPoints(field, points, sourceOrigin)) },
         cancel = ink::cancel,
         tap = tap,
         pending = { ink.hasPendingInput },
@@ -487,15 +496,23 @@ internal fun DimensionValueDialog(
         }
 
         var previewOrigin by remember { mutableStateOf<Offset?>(null) }
+        var backdropOrigin by remember { mutableStateOf<Offset?>(null) }
+        val backdropField = ink.pendingField
+        val backdropCallbacks by rememberUpdatedState(
+            inkCallbacks(backdropField ?: keys.field, sourceOrigin = { backdropOrigin }) { outsideTap() },
+        )
         val inkColor = MaterialTheme.colorScheme.primary
 
         BoxWithConstraints(
             Modifier.fillMaxSize().safeDrawingPadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(Modifier.matchParentSize().pointerInput(Unit) {
-                detectTapGestures { outsideTap() }
-            })
+            Box(Modifier.matchParentSize().onGloballyPositioned { backdropOrigin = it.positionInRoot() }
+                .then(if (backdropField != null) {
+                    Modifier.inkFieldInput(enabled = true, editable = false) { backdropCallbacks }
+                } else Modifier.pointerInput(Unit) {
+                    detectTapGestures { outsideTap() }
+                }))
             Surface(
                 modifier = Modifier.padding(horizontal = 4.dp)
                     .then(if (portrait) Modifier.widthIn(max = 480.dp) else Modifier)
@@ -512,7 +529,7 @@ internal fun DimensionValueDialog(
                         allowSystemInput = keys.allowsSystemInput(DimensionField.VALUE),
                         active = (ink.pendingField ?: keys.field) == DimensionField.VALUE,
                         focus = valueFocus,
-                        handwritingEnabled = inkSettings.readyLanguage != null,
+                        handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                         inkCallbacks = inkCallbacks(DimensionField.VALUE) { openField(DimensionField.VALUE) },
                         onInkPosition = { valueInkOrigin = it },
                         onValueChange = { applyInput(DimensionField.VALUE, it) },
@@ -643,7 +660,7 @@ internal fun DimensionValueDialog(
                             allowSystemInput = keys.allowsSystemInput(DimensionField.NOTE),
                             active = (ink.pendingField ?: keys.field) == DimensionField.NOTE,
                             focus = noteFocus,
-                            handwritingEnabled = inkSettings.readyLanguage != null,
+                            handwritingEnabled = ink.pendingLanguage != null || inkSettings.readyLanguage != null,
                             inkCallbacks = inkCallbacks(DimensionField.NOTE) { openField(DimensionField.NOTE) },
                             onInkPosition = { noteInkOrigin = it },
                             onValueChange = { applyInput(DimensionField.NOTE, it) },
@@ -985,8 +1002,15 @@ private fun DimensionInputField(
             val offset = offsetAt(position)
             val selection = if (!value.selection.collapsed && offset in value.selection.min..value.selection.max)
                 value.selection else TextRange(offset)
+            inkCallbacks.tap()
             onValueChange(value.copy(selection = selection, composition = null))
             penMenu = true
+        },
+        fingerHold = {
+            if (!inkCallbacks.pending()) {
+                inkCallbacks.tap()
+                penMenu = true
+            }
         },
     ))
     Box(
@@ -1002,9 +1026,30 @@ private fun DimensionInputField(
             },
     ) {
         val interaction = remember { MutableInteractionSource() }
+        val border = if (active) scheme.primary else scheme.outline
+        val labelColor = if (active) scheme.primary else scheme.onSurfaceVariant
         val colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor = if (active) scheme.primary else scheme.outline,
+            focusedBorderColor = border,
+            unfocusedBorderColor = border,
+            focusedLabelColor = labelColor,
+            unfocusedLabelColor = labelColor,
         )
+        // Retain Compose's native selection handles but suppress its separate
+        // toolbar, especially the unrelated Autofill action. The shared menu
+        // is presented explicitly after the finger or pen release.
+        val nativeToolbar = LocalTextToolbar.current
+        val toolbar = remember(nativeToolbar) {
+            object : TextToolbar by nativeToolbar {
+                override val status: TextToolbarStatus get() = TextToolbarStatus.Hidden
+                override fun hide() = Unit
+                override fun showMenu(rect: Rect, onCopyRequested: (() -> Unit)?,
+                    onPasteRequested: (() -> Unit)?, onCutRequested: (() -> Unit)?,
+                    onSelectAllRequested: (() -> Unit)?) = Unit
+                override fun showMenu(rect: Rect, onCopyRequested: (() -> Unit)?,
+                    onPasteRequested: (() -> Unit)?, onCutRequested: (() -> Unit)?,
+                    onSelectAllRequested: (() -> Unit)?, onAutofillRequested: (() -> Unit)?) = Unit
+            }
+        }
         // Keep the actual text field editable for cursor/selection in numeric
         // mode. Block only the native IME connection, not Compose editing.
         val platformInput = remember(allowSystemInput) {
@@ -1013,7 +1058,8 @@ private fun DimensionInputField(
                 else awaitCancellation()
             }
         }
-        InterceptPlatformTextInput(interceptor = platformInput) {
+        CompositionLocalProvider(LocalTextToolbar provides toolbar) {
+            InterceptPlatformTextInput(interceptor = platformInput) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -1022,6 +1068,9 @@ private fun DimensionInputField(
                     // the pen contact beyond the field; vertical gaps need not grow for ink.
                     .padding(horizontal = 5.dp)
                     .heightIn(min = 54.dp).focusRequester(focus)
+                    .onFocusChanged { state ->
+                        if (state.isFocused && !editable && !currentCallbacks.pending()) currentCallbacks.tap()
+                    }
                     .semantics(mergeDescendants = true) { }.padding(top = 6.dp),
                 singleLine = true,
                 onTextLayout = { textLayout = it },
@@ -1057,9 +1106,10 @@ private fun DimensionInputField(
                 },
             )
         }
-        // Own the stylus-only menu; no Android Autofill action is exposed here.
-        // Open after release so no part of the initiating contact can choose an item.
-        DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false }) {
+        }
+        // One text menu for both input devices. Keep focus/selection while open.
+        DropdownMenu(expanded = penMenu, onDismissRequest = { penMenu = false },
+            properties = PopupProperties(focusable = false)) {
             val selected = value.text.substring(value.selection.min, value.selection.max)
             fun replaceSelection(insertion: String) {
                 val limit = if (isNote) MAX_DIMENSION_NOTE_LENGTH else ManualLengthMeasurement.MAX_INPUT_LENGTH

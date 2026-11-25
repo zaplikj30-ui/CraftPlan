@@ -135,6 +135,22 @@ class InkDraftInputTest {
     }
 
     @Test(timeout = 3000)
+    fun recognitionUsesCapturedLanguageAndSelectionAcrossDetach() = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs",
+            TextFieldValue("125", TextRange(1)))
+        val controller = InkDraftController(this, recognize = { language, _ ->
+            assertEquals("cs", language)
+            "9"
+        }, settleDelayMs = 0)
+        controller.finish(controller.start(target)!!, stroke)
+        assertEquals("cs", controller.pendingLanguage)
+        assertEquals(target.input, controller.pendingInput(DimensionField.VALUE))
+        val result = CompletableDeferred<TextFieldValue>()
+        controller.attach(Any(), { target }, { _, value -> result.complete(value) }, {})
+        assertEquals("1925", result.await().text)
+    }
+
+    @Test(timeout = 3000)
     fun nextStrokeAndDotRetainEarlierInkDespiteLateSdkResult(): Unit = runBlocking {
         val target = InkDraftTarget(UUID.randomUUID(), DimensionField.NOTE, "cs", TextFieldValue())
         val firstStarted = CompletableDeferred<Unit>()

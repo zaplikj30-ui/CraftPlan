@@ -310,12 +310,13 @@ internal class PhotoEditorState : ViewModel() {
 
     fun openValue(dimension: PhotoDimension) {
         val current = scene.find(dimension.id)
-        val opened = current == dimension
+        val opened = current == dimension && valueDraft == null && !inkController.hasPendingInput
         if (opened) valueDraft = DimensionValueDraft(checkNotNull(current))
         diagnostics.action(DiagnosticAction.OPEN_VALUE, if (opened) DiagnosticResult.APPLIED else DiagnosticResult.REJECTED, dimension.id)
     }
 
     fun confirmValue(): Boolean {
+        if (inkController.hasPendingInput) return false
         val draft = valueDraft ?: return false
         val current = scene.find(draft.targetId) ?: return false
         val confirmed = draft.confirm(current) ?: run {
