@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -21,6 +24,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -52,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,16 +77,21 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
@@ -93,6 +106,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
     save = { listOf(it.field.name, it.mode.name, it.visible) },
@@ -210,6 +225,46 @@ internal fun DimensionValueDialog(
         val noteBounds = remember { BringIntoViewRequester() }
         val imeVisible = WindowInsets.isImeVisible
         val latestImeVisible by rememberUpdatedState(imeVisible)
+        val density = LocalDensity.current
+        val imeInsets = WindowInsets.ime
+        val imeTarget = WindowInsets.imeAnimationTarget
+        val bars = WindowInsets.systemBars
+        val cutout = WindowInsets.displayCutout
+        val numericRequested = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC
+        val keypadReveal = remember { Animatable(0f) }
+        val revealContent by remember(keypadReveal) { derivedStateOf { keypadReveal.value > 0f } }
+        val keypadVisible = numericRequested && !imeVisible
+        LaunchedEffect(numericRequested, keys.systemOpen, density) {
+            if (keys.systemOpen && keypadReveal.value > 0f) {
+                // Keep the outgoing space until the native keyboard starts moving.
+                // A hardware/floating keyboard may never supply a bottom inset.
+                withTimeoutOrNull(500L) {
+                    snapshotFlow {
+                        imeInsets.getBottom(density) > maxOf(bars.getBottom(density), cutout.getBottom(density))
+                    }.first { it }
+                }
+            }
+            keypadReveal.animateTo(
+                if (numericRequested) 1f else 0f,
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+            )
+        }
+        val keypadMotion = Modifier.clipToBounds().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minHeight = 0))
+            val overlap = (imeInsets.getBottom(this) -
+                maxOf(bars.getBottom(this), cutout.getBottom(this))).coerceAtLeast(0)
+            // safeDrawingPadding already accounts for the native IME. Never add
+            // the full outgoing/incoming numeric height on top of that inset.
+            val height = keypadRevealHeight(placeable.height, keypadReveal.value, overlap)
+                .coerceIn(constraints.minHeight, constraints.maxHeight)
+            layout(placeable.width, height) { placeable.placeRelative(0, 0) }
+        }.then(if (keypadVisible) Modifier else Modifier.clearAndSetSemantics { }.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                }
+            }
+        })
         var imeHidePending by remember { mutableStateOf(false) }
         val hideKeyboard: () -> Unit = {
             keys = keys.hide()
@@ -250,8 +305,14 @@ internal fun DimensionValueDialog(
                 ime?.hide()
             }
         }
-        LaunchedEffect(keys.field, keys.systemOpen, imeVisible) {
+        LaunchedEffect(keys.field, keys.systemOpen, density) {
             if (keys.systemOpen) {
+                // Avoid a second scroll jump during the native keyboard animation.
+                withTimeoutOrNull(700L) {
+                    snapshotFlow {
+                        latestImeVisible && imeInsets.getBottom(density) == imeTarget.getBottom(density)
+                    }.first { it }
+                }
                 if (keys.field == DimensionField.VALUE) valueBounds.bringIntoView() else noteBounds.bringIntoView()
             }
         }
@@ -408,8 +469,7 @@ internal fun DimensionValueDialog(
                         )
                     }
                 }
-                val keypadVisible = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC && !imeVisible
-                val noteInput: @Composable (Modifier) -> Unit = { modifier ->
+                 val noteInput: @Composable (Modifier) -> Unit = { modifier ->
                     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
                         DimensionInputField(
                             modifier = Modifier.weight(1f).bringIntoViewRequester(noteBounds),
@@ -465,9 +525,10 @@ internal fun DimensionValueDialog(
                         showSymbols = showSymbols,
                         keyHeight = keyHeight,
                         quickSymbol = quickSymbol,
-                        onQuickSymbolChange = setQuickSymbol,
-                        onToggleSymbols = { showSymbols = !showSymbols },
-                        onKey = { key ->
+                        onQuickSymbolChange = { if (keypadVisible) setQuickSymbol(it) },
+                        onToggleSymbols = { if (keypadVisible) showSymbols = !showSymbols },
+                        onKey = keyAction@{ key ->
+                            if (!keypadVisible) return@keyAction
                             val editingNote = keys.field == DimensionField.NOTE
                             val field = if (editingNote) noteField else valueField
                             val limit = if (editingNote) MAX_DIMENSION_NOTE_LENGTH
@@ -493,7 +554,7 @@ internal fun DimensionValueDialog(
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                         Column(
                             modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -504,7 +565,11 @@ internal fun DimensionValueDialog(
                                 noteInput(Modifier.fillMaxWidth())
                                 errorMessage()
                             }
-                            if (keypadVisible) keypad(62.dp)
+                            if (numericRequested || revealContent) {
+                                Column(keypadMotion.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    keypad(62.dp)
+                                }
+                            }
                         }
                         // Reserve the gap throughout keyboard show/hide, including the closed state.
                         Spacer(Modifier.height(4.dp))
@@ -539,10 +604,10 @@ internal fun DimensionValueDialog(
                             actions()
                         }
                         errorMessage()
-                        if (keypadVisible) {
+                        if (numericRequested || revealContent) {
                             BoxWithConstraints(
                                 Modifier.weight(1f, fill = false).widthIn(max = 480.dp).fillMaxWidth()
-                                    .align(Alignment.CenterHorizontally),
+                                    .align(Alignment.CenterHorizontally).then(keypadMotion),
                             ) {
                                 val keyHeight = landscapeKeyHeight(maxHeight.value).dp
                                 Column(

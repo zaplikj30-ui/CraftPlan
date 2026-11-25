@@ -75,6 +75,16 @@ class DimensionKeyboardTest {
     }
 
     @Test
+    fun keypadRevealDoesNotStackOnNativeIme() {
+        assertEquals(0, keypadRevealHeight(260, 0f, 0))
+        assertEquals(130, keypadRevealHeight(260, 0.5f, 0))
+        assertEquals(260, keypadRevealHeight(260, 1f, 0))
+        assertEquals(160, keypadRevealHeight(260, 1f, 100))
+        assertEquals(30, keypadRevealHeight(260, 0.5f, 100))
+        assertEquals(0, keypadRevealHeight(260, 1f, 300))
+    }
+
+    @Test
     fun numericNoteEntryUsesNoteLimit() {
         val text = "a".repeat(100)
         val edited = editDimensionInput(TextFieldValue(text, TextRange(100)), '7', MAX_DIMENSION_NOTE_LENGTH)
