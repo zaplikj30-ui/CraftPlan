@@ -357,6 +357,7 @@ internal fun DimensionValueDialog(
         val cutout = WindowInsets.displayCutout
         val numericRequested = keys.visible && keys.mode == DimensionKeyboardMode.NUMERIC
         val keypadReveal = remember { Animatable(0f) }
+        var keypadPrepared by remember { mutableStateOf(false) }
         val revealContent by remember(keypadReveal) { derivedStateOf { keypadReveal.value > 0f } }
         val keypadVisible = numericRequested && !imeVisible
         LaunchedEffect(numericRequested, keys.systemOpen, density) {
@@ -371,9 +372,17 @@ internal fun DimensionValueDialog(
                     }.first { it }
                 }
             }
+            if (numericRequested && !keypadPrepared && imeInsets.getBottom(density) <= baseline) {
+                // Compose/measure the clipped keypad before starting the first
+                // visible animation. No extra delay on later reveals or IME handoffs.
+                withFrameNanos { }
+                withFrameNanos { }
+                keypadPrepared = true
+            }
             if (numericRequested && imeInsets.getBottom(density) > baseline) {
                 // The native keyboard is still occupying space: reveal the replacement
                 // only as that space becomes available, using the native animation.
+                keypadPrepared = true
                 keypadReveal.snapTo(1f)
             } else {
                 keypadReveal.animateTo(

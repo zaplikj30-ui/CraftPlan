@@ -91,6 +91,7 @@ class InkDraftInputTest {
         assertEquals("455 Ahoj", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "Ahoj")?.text)
         assertEquals("45520", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "20")?.text)
         assertEquals("455x", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "x")?.text)
+        assertEquals("455 Xyl", insertInkResult(DimensionField.VALUE, TextFieldValue("455", TextRange(3)), "Xyl")?.text)
     }
 
     @Test(timeout = 3000)
@@ -198,6 +199,22 @@ class InkDraftInputTest {
         controller.retry()
         assertEquals("42", applied.await().text)
         assertFalse(controller.hasPendingInput)
+    }
+
+    @Test(timeout = 3000)
+    fun sdkCancellationRetainsPreviousStrokes() = runBlocking {
+        val target = InkDraftTarget(UUID.randomUUID(), DimensionField.VALUE, "cs", TextFieldValue())
+        val failure = CompletableDeferred<Unit>()
+        val controller = InkDraftController(this, recognize = { _, _ ->
+            throw kotlinx.coroutines.CancellationException("SDK task canceled")
+        }, settleDelayMs = 0)
+        controller.attach(Any(), { target }, { _, _ -> error("Unexpected result") }, { failure.complete(Unit) })
+        controller.finish(controller.start(target)!!, stroke)
+        failure.await()
+        assertTrue(controller.failed)
+        assertTrue(controller.hasPendingInput)
+        assertEquals(listOf(stroke), controller.preview)
+        controller.interrupt()
     }
 
     @Test(timeout = 3000)

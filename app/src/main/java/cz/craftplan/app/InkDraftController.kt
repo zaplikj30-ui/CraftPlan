@@ -221,7 +221,8 @@ internal fun insertInkResult(field: DimensionField, value: TextFieldValue, candi
     val first = candidate.first()
     val separateWords = append && previous?.isLetterOrDigit() == true && first.isLetterOrDigit() &&
         (if (field == DimensionField.NOTE) previous.isLetter() || first.isLetter()
-        else previous.isDigit() && first.isLetter() && first !in "xX")
+        else previous.isDigit() && first.isLetter() &&
+            !(first in "xX" && (candidate.length == 1 || candidate.drop(1).trimStart().firstOrNull()?.isDigit() == true)))
     val insertion = if (separateWords) " $candidate" else candidate
     if (insertion.length > limit - (value.text.length - (end - start))) return null
     val text = value.text.replaceRange(start, end, insertion)
