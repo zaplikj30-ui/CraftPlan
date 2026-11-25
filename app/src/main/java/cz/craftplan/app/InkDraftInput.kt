@@ -202,11 +202,13 @@ internal fun Modifier.inkFieldInput(
                 // starts here, keep that target even outside this field's capture bounds.
                 if (!change.pressed) {
                     val validUp = canFinishPenStroke(raw.actionMasked, false, event.changes.size)
-                    if (validUp && moved && ticket != null && points.size >= 2) {
+                    if (validUp && moved && ticket != null) {
                         change.consume()
                         points.append(PenPoint(position.x, position.y, change.uptimeMillis))
-                        actions.finish(ticket, points.snapshot())
-                        delivered = true
+                        if (points.size >= 2) {
+                            actions.finish(ticket, points.snapshot())
+                            delivered = true
+                        }
                     } else if (validUp && moved && missingModel) {
                         change.consume()
                         actions.missingModel()

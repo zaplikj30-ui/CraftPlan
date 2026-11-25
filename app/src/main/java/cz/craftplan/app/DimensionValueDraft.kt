@@ -184,9 +184,18 @@ internal class DimensionValueDraft private constructor(
         val prefix = segment.prefix + formatCalculatedExpression(segment.expression)
         val text = prefix + " " + result.markedNumber
         if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
-        // A calculation in a description must not replace a preceding measurement.
-        if (segment.contextual) {
-            val previous = segment.prefix.trimEnd()
+        // A contextual calculation (including a continuation of its result)
+        // is descriptive: never replace a preceding measured length with it.
+        val firstEquals = expression.indexOf('=')
+        val firstSegment = if (firstEquals == expression.lastIndex) segment
+            else findCalculationSegment(expression.substring(0, firstEquals + 1))
+        val contextPrefix = when {
+            firstSegment.contextual -> firstSegment.prefix
+            segment.contextual -> segment.prefix
+            else -> null
+        }
+        if (contextPrefix != null) {
+            val previous = contextPrefix.trimEnd()
             // A prior executed equation cannot be silently replaced by a separate
             // calculation. Keep the already established measure if unambiguous.
             if ('=' in previous && (unchangedEntry != null || target.measurement != null)) return null
@@ -201,7 +210,7 @@ internal class DimensionValueDraft private constructor(
                 }
                 existing ?: parseDimensionEntry(previous, unit) as? DimensionEntry.Measured
             } else null
-            val suffix = formatCalculatedExpression(segment.expression) + " " + result.markedNumber
+            val suffix = text.substring(contextPrefix.length)
             val entry = measuredPrefix?.copy(suffix =
                 listOf(measuredPrefix.suffix, suffix).filter(String::isNotBlank).joinToString(" "))
             return DimensionValueDraft(target, text, unit, entry, note, showUnit,

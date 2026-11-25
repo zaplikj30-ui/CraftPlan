@@ -96,6 +96,12 @@ class DimensionCalculationTest {
         val measured = draft.calculate("46641 text 40x50=", 3)!!
         assertEquals("46641 text 40 × 50 = 2000", measured.input)
         assertEquals("46641", measured.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        val chained = measured.calculate(measured.input + " / 2=")!!
+        assertEquals("46641 text 40 × 50 = 2000 ÷ 2 = 1000", chained.input)
+        assertEquals("46641", chained.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        val chainedLabel = label.calculate(label.input + " / 2=")!!
+        assertNull(chainedLabel.confirm(dimension)!!.measurement)
+        assertEquals("Kuchyň 40 × 50 = 2000 ÷ 2 = 1000", chainedLabel.confirm(dimension)!!.displayLabel())
         assertEquals("Kuchyň 100 ÷ 5 = 20", draft.calculateNote("Kuchyň 100/5=")!!.note)
         assertEquals("123 40 × 50 = 2000", draft.calculateNote("123 40X50=")!!.note)
         assertTrue(requestsDimensionCalculation("Text 10/0", "Text 10/0=", true))

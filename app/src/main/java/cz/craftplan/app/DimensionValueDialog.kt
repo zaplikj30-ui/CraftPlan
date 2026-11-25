@@ -702,9 +702,9 @@ internal fun DimensionValueDialog(
                                 }
                             }
                         }
-                        // Material button already has a 4dp inset above its visible shape.
-                        // Keep that same visible gap below either the note or the keypad.
-                        Spacer(Modifier.height(0.dp))
+                        // Shared gap: the fields no longer add outer vertical padding.
+                        // Preserve the reference numeric-keypad spacing when either keyboard closes.
+                        Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
@@ -859,6 +859,10 @@ private fun DimensionInputField(
         return layout.getOffsetForPosition(position + fieldOrigin - textOrigin).coerceIn(0, value.text.length)
     }
     val currentCallbacks by rememberUpdatedState(inkCallbacks.copy(
+        preview = { ticket, points ->
+            lastPenTapTime = -1L
+            inkCallbacks.preview(ticket, points)
+        },
         penTap = { position, time ->
             val doubleTap = lastPenTapTime >= 0L && time - lastPenTapTime in 1L..300L &&
                 (position - lastPenTapPosition).getDistance() <= with(density) { 24.dp.toPx() }
