@@ -49,7 +49,7 @@ internal data class PhotoDimension(
         val shown = measured.length.displayNumberForUi(displayUnit)
         return listOfNotNull(
             labelPrefix.takeIf { it.isNotBlank() },
-            if (shown.approximate) "≈" + shown.text else shown.text,
+            if (shown.approximate || measured.calculationRounded) "≈" + shown.text else shown.text,
             displayUnit.symbol.takeIf { showUnit },
             labelSuffix.takeIf { it.isNotBlank() },
         ).joinToString(" ")

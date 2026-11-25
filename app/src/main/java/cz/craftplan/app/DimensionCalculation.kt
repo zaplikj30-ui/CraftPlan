@@ -2,6 +2,7 @@ package cz.craftplan.app
 
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.RoundingMode
 
 /** Exact, bounded arithmetic for the editable value field. No evaluation of arbitrary code. */
 @ConsistentCopyVisibility
@@ -20,6 +21,13 @@ internal data class DimensionCalculation private constructor(
     operator fun div(other: DimensionCalculation) = of(
         bound(numerator * other.denominator), bound(denominator * other.numerator),
     )
+
+    fun rounded(places: Int): DisplayLengthNumber {
+        require(places in 0..12)
+        val number = BigDecimal(numerator).divide(BigDecimal(denominator), places, RoundingMode.HALF_UP)
+        val exact = number.unscaledValue() * denominator == numerator * BigInteger.TEN.pow(places)
+        return DisplayLengthNumber(number.stripTrailingZeros().toPlainString().replace('.', ','), !exact)
+    }
 
     fun editableText(): String {
         val exact = try {
@@ -114,6 +122,46 @@ private class CalculationParser(private val text: String) {
 internal fun isLiteralCalculationLabel(input: String): Boolean =
     input.endsWith('=') && calculationCharacters.matches(input.dropLast(1))
 
-/** Only a newly entered final equals in a numeric expression triggers evaluation. */
-internal fun requestsDimensionCalculation(previous: String, next: String, enabled: Boolean): Boolean =
-    enabled && previous != next && !previous.endsWith('=') && isLiteralCalculationLabel(next)
+internal const val DEFAULT_CALCULATION_PLACES = 3
+
+/** The last segment after an earlier equals is the next calculation.
+ * A note can also start an expression after a colon or semicolon. */
+internal fun calculationSegment(input: String, note: Boolean = false): Pair<String, String> {
+    val beforeEquals = input.dropLast(1)
+    val previousEquals = beforeEquals.lastIndexOf('=')
+    val separator = if (note) maxOf(previousEquals, beforeEquals.lastIndexOf(':'), beforeEquals.lastIndexOf(';'))
+        else previousEquals
+    val start = separator + 1
+    val raw = input.substring(start)
+    val leading = raw.takeWhile { it == ' ' }
+    val marker = if (raw.drop(leading.length).startsWith('≈')) 1 else 0
+    return input.substring(0, start) + leading to raw.drop(leading.length + marker)
+}
+
+/** An insertion of a final equals, not backspace, selection or cursor movement. */
+internal fun requestsDimensionCalculation(
+    previous: String, next: String, enabled: Boolean, note: Boolean = false,
+): Boolean = enabled && previous != next && next.endsWith('=') &&
+    next.count { it == '=' } > previous.count { it == '=' } &&
+    isLiteralCalculationLabel(calculationSegment(next, note).second)
+
+/** Replayable result of a single equals action. The typed expression remains
+ * editable; the rounded decimal is the authoritative new calculation result. */
+internal data class RoundedCalculation(
+    val expression: String,
+    val number: String,
+    val approximate: Boolean,
+    val places: Int,
+) {
+    val markedNumber: String get() = (if (approximate) "≈" else "") + number
+}
+
+internal fun roundedCalculation(expression: String, places: Int): RoundedCalculation? {
+    if (places !in 0..12) return null
+    val result = evaluateDimensionCalculation(expression) ?: return null
+    val shown = result.rounded(places)
+    // Never disguise a nonzero length as a measured zero; keep a marked text
+    // result instead, and let the user raise precision or type their own number.
+    if (shown.text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) return null
+    return RoundedCalculation(expression, shown.text, shown.approximate, places)
+}

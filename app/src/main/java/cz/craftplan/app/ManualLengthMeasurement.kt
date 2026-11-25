@@ -17,6 +17,8 @@ internal data class ManualLengthMeasurement private constructor(
     val originalInput: String,
     val originalUnit: OriginalLengthUnit,
     val source: LengthSource = LengthSource.MANUAL,
+    val calculationPlaces: Int? = null,
+    val calculationRounded: Boolean = false,
 ) {
 
     companion object {
@@ -63,21 +65,14 @@ internal data class ManualLengthMeasurement private constructor(
             }
         }
 
-        /** Calculation provenance is replayable: the original expression and unit
-         * must reproduce the exact canonical value before a length is accepted. */
-        fun calculate(input: String, unit: LengthUnit): ManualLengthMeasurement? {
-            val result = evaluateDimensionCalculation(input) ?: return null
-            if (result.numerator.signum() < 0) return null
-            return try {
-                val mm = LengthFraction.of(result.numerator, result.denominator) *
-                    LengthFraction.of(unit.mmNumerator, unit.mmDenominator)
-                ManualLengthMeasurement(
-                    ExactLengthMm.fromMillimeters(mm), input, OriginalLengthUnit.Single(unit),
-                    LengthSource.CALCULATED,
-                )
-            } catch (_: IllegalArgumentException) {
-                null
-            }
+        /** The confirmed decimal, not hidden fractional digits, is the length.
+         * The expression and rounding setting allow exact replay of that decimal. */
+        fun calculate(input: String, unit: LengthUnit, places: Int = DEFAULT_CALCULATION_PLACES): ManualLengthMeasurement? {
+            val result = roundedCalculation(input, places) ?: return null
+            if (result.number.startsWith('-') || (result.approximate && result.number == "0")) return null
+            val measured = parse(result.number, unit) ?: return null
+            return measured.copy(originalInput = input, source = LengthSource.CALCULATED,
+                calculationPlaces = places, calculationRounded = result.approximate)
         }
 
         private fun millimeters(number: String, unit: LengthUnit): LengthFraction {
