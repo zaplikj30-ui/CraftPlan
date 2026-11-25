@@ -230,18 +230,35 @@ internal fun classifyPenContact(
     else -> PenContactKind.TAP
 }
 
-/** Only a real release inside a field may turn a stationary first contact
- * into a literal dot. A tap on any other dialog control stays a tap. */
-internal fun classifyFieldPenRelease(
-    pending: Boolean, writing: Boolean, canWrite: Boolean,
+internal const val PEN_DOT_MIN_MS = 150L
+internal const val PEN_DOT_RADIUS_DP = 4f
+
+/** Reserve a compact fresh contact until UP. Maximum distance from DOWN,
+ * not accumulated travel, determines whether it is still a possible dot.
+ * Existing ink, non-field starts and unavailable models keep their old rules. */
+internal fun classifyFieldPenContact(
+    pending: Boolean, writing: Boolean, canWrite: Boolean, released: Boolean,
     durationMs: Long, displacementDp: Float, pathDp: Float,
 ): PenContactKind {
     if (writing) return PenContactKind.INK
-    val kind = classifyPenContact(pending, durationMs, displacementDp, pathDp)
-    return if (!pending && canWrite && kind == PenContactKind.TAP &&
-        durationMs in 200L..400L && displacementDp < 1.5f && pathDp < 3f)
-        PenContactKind.DOT else kind
+    if (!pending && canWrite && displacementDp <= PEN_DOT_RADIUS_DP &&
+        durationMs < PEN_HOLD_MS) {
+        // Preserve the original rapid-tap rule including its path threshold.
+        if (durationMs <= 120L && pathDp >= 12f && released)
+            return classifyPenContact(false, durationMs, displacementDp, pathDp)
+        // Between 121 and 149 ms a compact contact is still a tap.
+        // Do not latch ink for tiny motion or insert a dot before real UP.
+        return if (released && durationMs >= PEN_DOT_MIN_MS)
+            PenContactKind.DOT else PenContactKind.TAP
+    }
+    return classifyPenContact(pending, durationMs, displacementDp, pathDp)
 }
+
+internal fun classifyFieldPenRelease(
+    pending: Boolean, writing: Boolean, canWrite: Boolean,
+    durationMs: Long, displacementDp: Float, pathDp: Float,
+): PenContactKind = classifyFieldPenContact(pending, writing, canWrite, true,
+    durationMs, displacementDp, pathDp)
 
 internal fun inkPreContext(input: TextFieldValue): String {
     val tail = input.text.take(input.selection.min).takeLast(20)

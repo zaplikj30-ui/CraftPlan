@@ -90,15 +90,12 @@ internal fun Modifier.inkFieldInput(
                 }
                 change.consume()
                 if (ticket != null) points.append(PenPoint(position.x, position.y, change.uptimeMillis))
-                val classified = classifyPenContact(pending, duration,
-                    maximum / density, travel / density)
-                // Once a new stroke is shown as ink it cannot open the keyboard
-                // or selection menu even if the user pauses before lifting.
-                if (!pending && classified == PenContactKind.INK) writing = true
-                val kind = if (!change.pressed)
-                    classifyFieldPenRelease(pending, writing, ticket != null, duration,
-                        maximum / density, travel / density)
-                    else if (writing) PenContactKind.INK else classified
+                val kind = classifyFieldPenContact(pending, writing, ticket != null,
+                    released = !change.pressed, durationMs = duration,
+                    displacementDp = maximum / density, pathDp = travel / density)
+                // Compact candidates stay undecided until UP. Once actual ink
+                // is shown, a later pause cannot turn it into a tap or dot.
+                if (!pending && kind == PenContactKind.INK) writing = true
                 if (!change.pressed) {
                     actions.diagnostics?.penGesture(PenDiagnosticStage.FIELD_RELEASE, actions.field,
                         eventMs = change.uptimeMillis, pending = pending, enabled = enabled, ticket = ticket != null,
