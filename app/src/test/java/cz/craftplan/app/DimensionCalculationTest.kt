@@ -158,12 +158,38 @@ class DimensionCalculationTest {
     fun explicitEqualsFromImeAndKeypadUsesSameTrigger() {
         val before = "kuchyň 40x50"
         val after = "$before="
-        assertTrue(requestsCalculationFromEdit(before, after, after.length, after.length, true, true))
-        assertTrue(requestsCalculationFromEdit(before, "$after ", after.length + 1, after.length + 1, true, true))
-        assertFalse(requestsCalculationFromEdit(after, after, after.length, after.length, true, true))
-        assertFalse(requestsCalculationFromEdit(before, after, 1, after.length, true, true))
-        assertFalse(requestsCalculationFromEdit(before, after, after.length, after.length, false, true))
+        for (note in listOf(false, true)) {
+            assertTrue(requestsCalculationFromEdit(before, after, true, note))
+            assertTrue(requestsCalculationFromEdit(before, "$after ", true, note))
+            assertFalse(requestsCalculationFromEdit(after, after, true, note))
+            assertFalse(requestsCalculationFromEdit(after, "$after ", true, note))
+            assertFalse(requestsCalculationFromEdit("$after ", after, true, note))
+            assertFalse(requestsCalculationFromEdit(before, after, false, note))
+            assertFalse(requestsCalculationFromEdit("40x50=", "40=50x50=", true, note))
+            assertFalse(requestsCalculationFromEdit("40x50= 2000", "40x50=", true, note))
+            assertFalse(requestsCalculationFromEdit("40x50=", "50x50=", true, note))
+            assertFalse(requestsCalculationFromEdit("40x50", "40=x50", true, note))
+        }
         assertEquals("kuchyň 40 × 50 = 2000", DimensionValueDraft(dimension).calculateNote(after)!!.note)
+    }
+
+    @Test
+    fun reportedSwiftKeyExpressionsAndChainedResults() {
+        val first = "40x50="
+        val draft = DimensionValueDraft(dimension)
+        for (note in listOf(false, true)) {
+            assertTrue(requestsCalculationFromEdit("40x50", first, true, note))
+            val calculated = if (note) draft.calculateNote(first)!! else draft.calculate(first)!!
+            val text = if (note) calculated.note else calculated.input
+            assertEquals("40 × 50 = 2000", text)
+            val continuation = "$text + 500"
+            assertTrue(requestsCalculationFromEdit(continuation, "$continuation=", true, note))
+            assertTrue(requestsCalculationFromEdit(continuation, "$continuation= ", true, note))
+            val edited = if (note) calculated.editNote(continuation) else calculated.type(continuation)
+            val result = if (note) edited.calculateNote("$continuation=")!! else edited.calculate("$continuation=")!!
+            assertEquals("40 × 50 = 2000 + 500 = 2500", if (note) result.note else result.input)
+            if (!note) assertEquals("2500", result.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
+        }
     }
 
     @Test

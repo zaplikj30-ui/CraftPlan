@@ -204,18 +204,15 @@ internal fun formatCalculatedExpression(expression: String): String {
 /** An insertion of a final equals, not backspace, selection or cursor movement. */
 internal fun requestsDimensionCalculation(
     previous: String, next: String, enabled: Boolean, note: Boolean = false,
-): Boolean = enabled && previous != next && next.endsWith('=') &&
+): Boolean = enabled && previous != next && next.endsWith('=') && !previous.endsWith('=') &&
     next.count { it == '=' } > previous.count { it == '=' } &&
     isLiteralCalculationLabel(calculationSegment(next, note).second)
 
-/** A final, newly inserted equals is explicit even if the IME still reports
- * an active composing region. Require the caret after it and never evaluate
- * selection changes or an unchanged final equals. */
+/** A new final equals is a text edit, independent of the IME's transient
+ * caret, selection or composition. Trailing spaces do not count as edits. */
 internal fun requestsCalculationFromEdit(
-    previous: String, next: String, selectionStart: Int, selectionEnd: Int,
-    enabled: Boolean, note: Boolean = false,
-): Boolean = selectionStart == selectionEnd && selectionEnd == next.length &&
-    requestsDimensionCalculation(previous, next.trimEnd(' '), enabled, note)
+    previous: String, next: String, enabled: Boolean, note: Boolean = false,
+): Boolean = requestsDimensionCalculation(previous.trimEnd(' '), next.trimEnd(' '), enabled, note)
 
 /** Preserve an earlier approximation while the user extends its visible result.
  * Only an edit to the actual rounded number removes its marker. */

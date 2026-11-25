@@ -241,17 +241,11 @@ internal fun DimensionValueDialog(
         ) {
             val isNote = target == DimensionField.NOTE
             if (isNote) noteField = edited else valueField = edited
-            // SwiftKey may retain composition when inserting punctuation.
-            // A newly inserted final '=' with the caret after it is the explicit action.
+            // All input sources share the actual text transition. Transient IME
+            // selection/composition must neither suppress nor repeat a calculation.
             val calculationText = edited.text.trimEnd(' ')
-            // Some IMEs first insert the symbol with a composing selection and
-            // only later commit it with a collapsed caret.
-            val previousText = if (previous.composition != null && edited.composition == null &&
-                previous.text == edited.text && calculationText.endsWith('='))
-                calculationText.dropLast(1) else previous.text
             val calculate = requestsCalculationFromEdit(
-                previousText, edited.text, edited.selection.start, edited.selection.end,
-                automaticCalculations, note = isNote,
+                previous.text, edited.text, automaticCalculations, note = isNote,
             )
             if (calculate) {
                 calculationNeedsSave = true
