@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,37 +53,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-
-internal const val QUICK_KEY = "_"
-internal const val SYMBOL_RETURN = "↩"
-
-internal val dimensionKeyRows = listOf(
-    listOf("7", "8", "9", "\b"),
-    listOf("4", "5", "6", "C"),
-    listOf("1", "2", "3", "◷"),
-    listOf("⋯", "0", ",", QUICK_KEY),
-)
-internal val dimensionSymbolRows = listOf(
-    listOf("+", "−", "×", "÷"),
-    listOf("±", "/", "=", "%"),
-    listOf("°", "Ø", "m²", "m³"),
-    listOf(".", " ", SYMBOL_RETURN, "R"),
-)
-internal val dimensionAlternateSymbols = mapOf(
-    "7" to "+", "8" to "−", "9" to "×",
-    "4" to "÷", "5" to "=", "6" to "%",
-    "1" to "/", "2" to "±", "3" to "°",
-    "0" to "Ø", "," to ".",
-)
-internal val dimensionQuickSymbolOptions = dimensionSymbolRows.flatten().filter { it != SYMBOL_RETURN }
-
-internal fun validQuickSymbol(symbol: String): String =
-    symbol.takeIf { it in dimensionQuickSymbolOptions } ?: ""
-
-internal fun displayedDimensionKeyRows(showSymbols: Boolean): List<List<String>> =
-    if (showSymbols) dimensionSymbolRows else dimensionKeyRows
-
-internal fun isDimensionKeyEnabled(key: String): Boolean = key != "◷"
+import kotlinx.coroutines.delay
 
 private fun keyLabel(key: String): String = when (key) {
     "\b" -> "⌫"
@@ -107,21 +78,38 @@ internal fun DimensionKeypad(
 ) {
     var chooserOpen by remember { mutableStateOf(false) }
     val dropBounds = remember(showSymbols) { mutableMapOf<Int, Rect>() }
-    var dragging by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
-    var dragOverTarget by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
+    var symbolPage by remember(showSymbols) { mutableStateOf(0) }
+    var dragging by remember(showSymbols) { mutableStateOf<String?>(null) }
+    var dragOverTarget by remember(showSymbols) { mutableStateOf<String?>(null) }
+    var hoveringPage by remember(showSymbols) { mutableStateOf(false) }
     var selectedForSwap by remember(symbolLayout, showSymbols) { mutableStateOf<String?>(null) }
-    val rows = if (showSymbols) symbolLayout.rows() else dimensionKeyRows
+    val rows = if (showSymbols) symbolLayout.rows(symbolPage) else dimensionKeyRows
+    val pageLabel = "${symbolPage + 1}/$SYMBOL_PAGE_COUNT"
+
     fun targetAt(point: Offset?): String? = point?.let { p ->
         dropBounds.entries.firstOrNull { it.value.contains(p) }?.key
             ?.let { rows[it / 4][it % 4] }
+            ?.takeIf { it in dimensionQuickSymbolOptions }
+    }
+
+    // One flip per entry into the page button. A stationary held pointer can
+    // change pages without lifting, and leaving the button rearms it.
+    LaunchedEffect(dragging, hoveringPage) {
+        if (dragging != null && hoveringPage) {
+            delay(450)
+            symbolPage = (symbolPage + 1) % SYMBOL_PAGE_COUNT
+            dragOverTarget = null
+        }
     }
     val colors = MaterialTheme.colorScheme
 
     for ((rowIndex, row) in rows.withIndex()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((columnIndex, key) in row.withIndex()) {
+                val slot = rowIndex * 4 + columnIndex
                 val quick = key == QUICK_KEY
                 val target = showSymbols && key in dimensionQuickSymbolOptions
+                val pageButton = key == SYMBOL_PAGE
                 val alternate = if (showSymbols) null else symbolLayout.alternate(key)
                 val gesture = when {
                     quick -> KeyGesture.QUICK
@@ -135,6 +123,7 @@ internal fun DimensionKeypad(
                     "◷" -> stringResource(R.string.dimension_key_history)
                     "⋯" -> stringResource(R.string.dimension_key_symbols)
                     SYMBOL_RETURN -> stringResource(R.string.use_dimension_keypad)
+                    SYMBOL_PAGE -> stringResource(R.string.dimension_symbol_page, symbolPage + 1, SYMBOL_PAGE_COUNT)
                     QUICK_KEY -> if (quickSymbol.isEmpty()) stringResource(R.string.dimension_quick_key_empty)
                         else stringResource(R.string.dimension_quick_key_value, keyLabel(quickSymbol))
                     " " -> stringResource(R.string.dimension_key_space)
@@ -147,6 +136,7 @@ internal fun DimensionKeypad(
                         onSwapSymbols(selected, key)
                     } else when (key) {
                         "⋯", SYMBOL_RETURN -> onToggleSymbols()
+                        SYMBOL_PAGE -> symbolPage = (symbolPage + 1) % SYMBOL_PAGE_COUNT
                         "◷" -> Unit
                         QUICK_KEY -> if (quickSymbol.isEmpty()) chooserOpen = true else onKey(quickSymbol)
                         else -> onKey(key)
@@ -162,18 +152,21 @@ internal fun DimensionKeypad(
                     }
                 }
                 Box(Modifier.weight(1f).height(keyHeight)) {
-                    val activeTarget = target && (dragging == key || selectedForSwap == key || dragOverTarget == key)
+                    val activeTarget = (target && (dragging == key || selectedForSwap == key || dragOverTarget == key)) ||
+                        (pageButton && hoveringPage)
                     val label = when {
                         quick -> keyLabel(quickSymbol)
+                        pageButton -> pageLabel
                         else -> keyLabel(key)
                     }
                     DimensionKeypadKey(
+                        slot = slot,
                         key = key,
                         label = label,
                         alternate = alternate,
                         gesture = gesture,
                         holdMs = holdMs,
-                        enabled = isDimensionKeyEnabled(key),
+                        enabled = isDimensionKeyEnabled(key) || alternate != null,
                         description = description,
                         longDescription = when (gesture) {
                             KeyGesture.ALTERNATE -> stringResource(R.string.dimension_key_insert_alternate, alternate.orEmpty())
@@ -182,17 +175,31 @@ internal fun DimensionKeypad(
                             KeyGesture.TAP -> null
                         },
                         modifier = Modifier.fillMaxSize().then(
-                            if (target) Modifier.onGloballyPositioned { dropBounds[rowIndex * 4 + columnIndex] = it.boundsInRoot() }
+                            if (target || pageButton) Modifier.onGloballyPositioned { dropBounds[slot] = it.boundsInRoot() }
                             else Modifier,
                         ),
                         activeTarget = activeTarget,
                         overTarget = dragOverTarget == key,
                         onTap = tap,
                         onLongAction = longAction,
-                        onDragStart = { dragging = key; dragOverTarget = null },
-                        onDragMove = { point -> dragOverTarget = targetAt(point) },
-                        onDragFinish = { point -> targetAt(point)?.let { onSwapSymbols(key, it) } },
-                        onDragEnd = { dragging = null; dragOverTarget = null },
+                        onDragStart = {
+                            dragging = key
+                            selectedForSwap = null
+                            dragOverTarget = null
+                            hoveringPage = false
+                        },
+                        onDragMove = { point ->
+                            hoveringPage = point != null && dropBounds[SYMBOL_PAGE_SLOT]?.contains(point) == true
+                            dragOverTarget = targetAt(point)
+                        },
+                        onDragFinish = { point ->
+                            // Source identity is captured at long press, NOT the
+                            // new symbol displayed at the original slot after paging.
+                            val source = dragging
+                            val destination = targetAt(point)
+                            if (source != null && destination != null) onSwapSymbols(source, destination)
+                        },
+                        onDragEnd = { dragging = null; dragOverTarget = null; hoveringPage = false },
                     )
                     if (quick) {
                         DropdownMenu(
@@ -236,6 +243,7 @@ internal fun DimensionKeypad(
 
 @Composable
 private fun DimensionKeypadKey(
+    slot: Int,
     key: String,
     label: String,
     alternate: String?,
@@ -254,7 +262,7 @@ private fun DimensionKeypadKey(
     onDragFinish: (Offset?) -> Unit,
     onDragEnd: () -> Unit,
 ) {
-    var held by remember(key, gesture) { mutableStateOf(false) }
+    var held by remember(slot, gesture) { mutableStateOf(false) }
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val tap by rememberUpdatedState(onTap)
     val longAction by rememberUpdatedState(onLongAction)
@@ -271,7 +279,9 @@ private fun DimensionKeypadKey(
             role = Role.Button
             onClick { tap(); true }
             onLongClick(label = longDescription) { longAction(); true }
-        }.pointerInput(key, gesture, holdMs) {
+        // Do not restart the pointer coroutine when a symbol page changes.
+        // The physical slot remains composed until this contact is released.
+        }.pointerInput(slot, gesture, holdMs) {
             awaitEachGesture {
                 val down = awaitFirstDown()
                 down.consume()
@@ -346,11 +356,12 @@ private fun DimensionKeypadKey(
             Icon(painterResource(R.drawable.ic_dimension_keypad), contentDescription = null, tint = contentColor)
         } else {
             // The alternative has its own independent alignment; it cannot offset the main glyph.
-            Text(label, style = MaterialTheme.typography.headlineSmall, color = contentColor)
+            Text(label, style = MaterialTheme.typography.headlineSmall,
+                color = if (key == "◷") contentColor.copy(alpha = 0.38f) else contentColor)
         }
         if (alternate != null) {
             Text(
-                alternate,
+                keyLabel(alternate),
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 5.dp, bottom = 3.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
@@ -367,7 +378,7 @@ private fun DimensionKeypadKey(
             ) {
                 Surface(shape = RoundedCornerShape(6.dp), color = colors.primary, shadowElevation = 3.dp) {
                     Box(Modifier.width(46.dp).height(42.dp), contentAlignment = Alignment.Center) {
-                        Text(alternate, style = MaterialTheme.typography.headlineSmall, color = colors.onPrimary)
+                        Text(keyLabel(alternate), style = MaterialTheme.typography.headlineSmall, color = colors.onPrimary)
                     }
                 }
             }

@@ -16,12 +16,13 @@ class DimensionInputTest {
             listOf("1", "2", "3", "◷"), listOf("⋯", "0", ",", QUICK_KEY),
         ), dimensionKeyRows)
         assertEquals(listOf(
-            listOf("+", "−", "×", "÷"), listOf("±", "/", "=", "%"),
-            listOf("°", "Ø", "m²", "m³"), listOf(".", " ", SYMBOL_RETURN, "R"),
+            listOf("+", "−", "×", "R"), listOf("÷", "=", "%", " "),
+            listOf("/", "±", "°", "m²"), listOf(SYMBOL_RETURN, "Ø", ".", SYMBOL_PAGE),
         ), dimensionSymbolRows)
         assertEquals(mapOf(
             "7" to "+", "8" to "−", "9" to "×", "4" to "÷", "5" to "=", "6" to "%",
             "1" to "/", "2" to "±", "3" to "°", "0" to "Ø", "," to ".",
+            "\b" to "R", "C" to " ", "◷" to "m²",
         ), dimensionAlternateSymbols)
     }
 
@@ -32,11 +33,11 @@ class DimensionInputTest {
         assertEquals(List(4) { 4 }, numbers.map { it.size })
         assertEquals(numbers.map { it.size }, symbols.map { it.size })
         assertEquals(QUICK_KEY, numbers.last().last())
-        assertEquals("R", symbols.last().last())
+        assertEquals(SYMBOL_PAGE, symbols.last().last())
         assertFalse(isDimensionKeyEnabled("◷"))
-        assertEquals(15, dimensionQuickSymbolOptions.distinct().size)
+        assertEquals(28, dimensionQuickSymbolOptions.distinct().size)
         for (symbol in dimensionQuickSymbolOptions) assertEquals(symbol, validQuickSymbol(symbol))
-        for (invalid in listOf("", QUICK_KEY, SYMBOL_RETURN, "C", "7")) assertEquals("", validQuickSymbol(invalid))
+        for (invalid in listOf("", QUICK_KEY, SYMBOL_RETURN, SYMBOL_PAGE, "C", "7")) assertEquals("", validQuickSymbol(invalid))
     }
 
     @Test
@@ -47,7 +48,8 @@ class DimensionInputTest {
         assertEquals("+", swapped.rows()[0][2])
         assertEquals("×", swapped.alternate("7"))
         assertEquals("+", swapped.alternate("9"))
-        assertEquals(SYMBOL_RETURN, swapped.rows()[3][2])
+        assertEquals(SYMBOL_RETURN, swapped.rows()[3][0])
+        assertEquals(SYMBOL_PAGE, swapped.rows()[3][3])
         assertEquals(swapped, KeySymbolLayout.decode(swapped.encode()))
         assertEquals(original, KeySymbolLayout.decode("0,0"))
         assertEquals(original, original.swap("+", SYMBOL_RETURN))
@@ -55,6 +57,40 @@ class DimensionInputTest {
         assertEquals(150, keyHoldMs(0))
         assertEquals(350, keyHoldMs(337))
         assertEquals(1000, keyHoldMs(2000))
+    }
+
+    @Test
+    fun all28SymbolsSwapAcrossPagesWithoutLossOrMovingControls() {
+        val base = KeySymbolLayout.default()
+        val numeric = dimensionKeyRows.flatten()
+        for (first in base.symbols) for (second in base.symbols) {
+            val swapped = base.swap(first, second)
+            assertEquals(base.symbols.toSet(), swapped.symbols.toSet())
+            assertEquals(28, swapped.symbols.size)
+            assertEquals(base, swapped.swap(second, first))
+            assertEquals(swapped, KeySymbolLayout.decode(swapped.encode()))
+            for (page in 0..1) {
+                assertEquals(SYMBOL_RETURN, swapped.rows(page)[3][0])
+                assertEquals(SYMBOL_PAGE, swapped.rows(page)[3][3])
+            }
+            for ((slot, key) in numeric.withIndex()) {
+                assertEquals(
+                    if (slot == 12 || slot == 15) null else swapped.rows()[slot / 4][slot % 4],
+                    swapped.alternate(key),
+                )
+            }
+        }
+        val crossPage = base.swap("%", "m³")
+        assertEquals("m³", crossPage.alternate("6"))
+        assertEquals("%", crossPage.rows(1)[0][0])
+        assertEquals("R", base.alternate("\b"))
+        assertEquals(" ", base.alternate("C"))
+        assertEquals("m²", base.alternate("◷"))
+        assertEquals(base, KeySymbolLayout.decode((0..14).joinToString(",")))
+        assertEquals(base, KeySymbolLayout.decode("v2:0,0"))
+        assertEquals(base, base.swap("%", SYMBOL_PAGE))
+        assertNull(base.alternate(QUICK_KEY))
+        assertEquals("m³", validQuickSymbol("m³"))
     }
 
     @Test

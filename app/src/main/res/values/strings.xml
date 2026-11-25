@@ -118,6 +118,7 @@
     <string name="dimension_reset_hold">Obnovit výchozí dobu podržení</string>
     <string name="dimension_reset_symbols">Obnovit výchozí rozmístění symbolů</string>
     <string name="dimension_swap_symbol">Vybrat symbol k přesunutí</string>
+    <string name="dimension_symbol_page">Stránka symbolů %1$d z %2$d, přepnout stránku</string>
     <string name="ink_retained">Rukopis zůstal zachován. Zopakujte rozpoznání nebo jej vědomě zahoďte.</string>
     <string name="ink_retry">Zopakovat rozpoznání</string>
     <string name="ink_discard">Zahodit rukopis</string>
