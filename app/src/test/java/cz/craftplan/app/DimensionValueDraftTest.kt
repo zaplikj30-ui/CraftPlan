@@ -39,7 +39,6 @@ class DimensionValueDraftTest {
         assertSame(original.measurement, micrometers.confirm(original)!!.measurement)
         assertEquals("966505,6", micrometers.selectUnit(LengthUnit.CM).input)
         assertEquals("9665056 mm", original.measurement!!.originalInput)
-
     }
 
     @Test
@@ -268,6 +267,9 @@ class DimensionValueDraftTest {
         assertEquals("1250", cm.confirm(dimension)!!.measurement!!.length.displayNumber(LengthUnit.MM))
         assertEquals("1250 mm", cm.selectUnit(LengthUnit.MM).confirm(dimension)!!.displayLabel())
         assertEquals("2,5 m", DimensionValueDraft(dimension).type("2,5 m").confirm(dimension)!!.displayLabel())
+        val hidden = DimensionValueDraft(dimension).withUnitVisibility(false).type("125 cm")
+        assertEquals("125 cm", hidden.confirm(dimension)!!.displayLabel())
+        assertEquals("125", hidden.withUnitVisibility(false).confirm(dimension)!!.displayLabel())
         val diameter = DimensionValueDraft(dimension).type("Ø 50 mm").confirm(dimension)!!
         assertEquals("Ø 50 mm", diameter.displayLabel())
         assertEquals("Ø 50", DimensionValueDraft(diameter).input)

@@ -7,6 +7,7 @@ internal sealed interface DimensionEntry {
         val suffix: String,
         val displayUnit: LengthUnit,
         val prefix: String = "",
+        val explicitlyTypedUnit: Boolean = false,
     ) : DimensionEntry {
         fun inputText(unit: LengthUnit): String = listOf(prefix, value.length.displayNumberForUi(unit).text, suffix)
             .filter(String::isNotBlank).joinToString(" ")
@@ -77,7 +78,7 @@ internal fun parseDimensionEntry(input: String, unit: LengthUnit): DimensionEntr
         val explicit = ManualLengthMeasurement.parse(number)
         if (explicit != null) {
             val display = (explicit.originalUnit as? OriginalLengthUnit.Single)?.unit ?: unit
-            return DimensionEntry.Measured(explicit, "", display, prefix)
+            return DimensionEntry.Measured(explicit, "", display, prefix, explicitlyTypedUnit = true)
         }
         val implicit = ManualLengthMeasurement.parse(number, unit) ?: return null
         return DimensionEntry.Measured(implicit, "", unit, prefix)
@@ -126,14 +127,17 @@ internal class DimensionValueDraft private constructor(
             val number = listOf(entry.prefix, entry.value.length.displayNumberForUi(unit).text)
                 .filter(String::isNotBlank).joinToString(" ")
             val trimmed = text.trim()
-            if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH) null
+            if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH ||
+                text.any { it == '\r' || it == '\n' || it == '\u0000' }) null
             else if (trimmed == number) entry.copy(suffix = "")
             else if (trimmed.startsWith(number) && trimmed.getOrNull(number.length)?.isWhitespace() == true) {
                 val suffix = trimmed.drop(number.length).trimStart()
                 entry.copy(suffix = suffix).takeIf { isLabelSuffix(suffix) && !isNonLengthTail(suffix) }
             } else null
         }
-        return DimensionValueDraft(target, text, unit, preserved, note, showUnit)
+        val explicit = preserved == null &&
+            (parseDimensionEntry(text, unit) as? DimensionEntry.Measured)?.explicitlyTypedUnit == true
+        return DimensionValueDraft(target, text, unit, preserved, note, showUnit || explicit)
     }
 
     fun withNote(text: String): DimensionValueDraft =
@@ -147,16 +151,16 @@ internal class DimensionValueDraft private constructor(
         )
 
     fun selectUnit(newUnit: LengthUnit, keepNumber: Boolean = false): DimensionValueDraft {
-        if (newUnit == unit && showUnit && (keepNumber || unchangedEntry != null)) return this
-        if (newUnit == unit && !showUnit) return withUnitVisibility(true)
         val parsed = entry()
+        if (newUnit == effectiveDisplayUnit() && (keepNumber || unchangedEntry != null)) return withUnitVisibility(true)
+        if (newUnit == effectiveDisplayUnit() && !showUnit) return withUnitVisibility(true)
         if (parsed is DimensionEntry.TextOnly) return this // No length to convert or reinterpret.
         if (keepNumber) {
             // Keep the raw input. An explicitly typed length unit still wins.
             return DimensionValueDraft(target, input, newUnit, null, note, true)
         }
         if (input.isNotBlank() && parsed == null) return this
-        val measured = (parsed as? DimensionEntry.Measured)?.copy(displayUnit = newUnit)
+        val measured = (parsed as? DimensionEntry.Measured)?.copy(displayUnit = newUnit, explicitlyTypedUnit = false)
         return DimensionValueDraft(
             target, measured?.inputText(newUnit) ?: input, newUnit, measured, note, true,
         )
@@ -169,7 +173,8 @@ internal class DimensionValueDraft private constructor(
 
     fun effectiveDisplayUnit(): LengthUnit = (entry() as? DimensionEntry.Measured)?.displayUnit ?: unit
 
-    private fun entry(): DimensionEntry? = unchangedEntry ?: parseDimensionEntry(input, unit)
+    private val parsedEntry by lazy { unchangedEntry ?: parseDimensionEntry(input, unit) }
+    private fun entry(): DimensionEntry? = parsedEntry
 
     fun confirm(current: PhotoDimension): PhotoDimension? {
         if (target.id != current.id || target.photoId != current.photoId ||

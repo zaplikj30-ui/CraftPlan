@@ -561,8 +561,8 @@ internal fun DimensionValueDialog(
                             val color = if (showError) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             if (showError || draft.hasApproximateDisplay()) {
-                            Text(if (showError) "⚠ " else "≈ ", color = color)
-                        }
+                                Text(if (showError) "⚠ " else "≈ ", color = color)
+                            }
                             Text(
                                 stringResource(
                                     when {
