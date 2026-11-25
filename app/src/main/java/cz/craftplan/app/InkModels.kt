@@ -153,7 +153,10 @@ internal object InkModels {
                 context.setWritingArea(WritingArea(it.width, it.height))
             }
             val candidates = recognizer.recognize(ink.build(), context.build()).awaitInkTask().candidates
-            hints.diagnosticCandidates?.invoke(candidates.map { it.text })
+            // A diagnostic failure must not discard a valid recognition result.
+            try {
+                hints.diagnosticCandidates?.invoke(candidates.map { it.text })
+            } catch (_: RuntimeException) { /* Diagnostics are best effort. */ }
             candidates.firstOrNull()?.text
         } finally {
             recognizer.close()
