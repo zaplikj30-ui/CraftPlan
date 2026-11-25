@@ -324,18 +324,17 @@ internal fun DimensionValueDialog(
                 }
             } else {
                 imeHidePending = true
-                fun hideNative() {
-                    if (!isCurrent()) return
-                    ime?.hide()
-                    view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
-                }
-                hideNative()
+                if (ime != null) ime.hide()
+                else view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
                 focusManager.clearFocus(force = true)
                 delay(120)
-                if (latestImeVisible) hideNative()
-                // If the previous show reaches Android late, hide it while
-                // this request is still current, not after a newer switch.
-                visibility.collect { if (it) hideNative() }
+                // If the previous show reaches Android late, retry via native
+                // insets while this request is current, never after a newer switch.
+                visibility.collect {
+                    if (it && isCurrent()) {
+                        view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
+                    }
+                }
             }
         }
         LaunchedEffect(keys.field, keys.systemOpen, density) {
@@ -364,11 +363,12 @@ internal fun DimensionValueDialog(
         val openField: (DimensionField) -> Unit = { target ->
             // Normal taps inside an already focused editable field still only
             // move the cursor. A missing IME, however, gets a fresh show request.
-            if (!keys.systemOpen || keys.field != target || !latestImeVisible) {
+            val next = keys.open(target)
+            if (next != keys || (next.systemOpen && !latestImeVisible)) {
                 ink.interrupt()
                 val previousField = keys.field
                 keyboardRequest++
-                keys = keys.open(target)
+                keys = next
                 if (previousField != target) showSymbols = false
             }
         }
