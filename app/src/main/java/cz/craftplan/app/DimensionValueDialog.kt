@@ -418,7 +418,12 @@ internal fun DimensionValueDialog(
                 }
             }
         }
-        val keypadMotion = Modifier.then(
+        var keypadInkBounds by remember { mutableStateOf<Rect?>(null) }
+        val keypadMotion = Modifier.onGloballyPositioned { coordinates ->
+            // Observe the outside of the clipped/revealed layout, not its
+            // full measured child height. Both orientations use this modifier.
+            keypadInkBounds = coordinates.boundsInRoot()
+        }.then(
             if (diagnostics != null) Modifier.onSizeChanged { diagnostics.keypadHeight(it.height) } else Modifier,
         ).clipToBounds().layout { measurable, constraints ->
             val placeable = measurable.measure(constraints.copy(minHeight = 0))
@@ -555,7 +560,8 @@ internal fun DimensionValueDialog(
             val origin = dialogInkOrigin
             val start = origin?.let {
                 dialogInkStart(local + it, ink.pendingField, keys.field, valueInkBounds, noteInkBounds,
-                    with(density) { INK_START_MARGIN_DP.dp.toPx() })
+                    with(density) { INK_START_MARGIN_DP.dp.toPx() },
+                    visibleKeypadBounds = if (numericRequested || revealContent) keypadInkBounds else null)
             }
             start?.let {
                 DialogInkContact(it.continuing,

@@ -46,6 +46,36 @@ class InkDraftInputTest {
     }
 
     @Test
+    fun keypadTopLimitsNewInkButNeverAnActiveBatch() {
+        val value = Rect(10f, 10f, 110f, 30f)
+        val note = Rect(10f, 40f, 110f, 60f)
+        val portrait = Rect(0f, 64f, 120f, 200f)
+        val landscape = Rect(35f, 64f, 90f, 160f)
+        fun route(x: Float, y: Float, keypad: Rect?, pending: DimensionField? = null) =
+            dialogInkStart(Offset(x, y), pending, DimensionField.VALUE,
+                value, note, 32f, visibleKeypadBounds = keypad)
+        for (keypad in listOf(portrait, landscape)) {
+            assertEquals(DialogInkStart(DimensionField.VALUE, false), route(40f, 0f, keypad))
+            assertEquals(DialogInkStart(DimensionField.NOTE, false), route(40f, 63.9f, keypad))
+            assertNull(route(40f, 64f, keypad))
+            assertNull(route(40f, 65f, keypad))
+            assertNull(route(15f, 65f, keypad)) // Same boundary on narrow landscape keypad.
+            for (field in DimensionField.entries) {
+                assertEquals(DialogInkStart(field, true), route(40f, 65f, keypad, field))
+                assertEquals(DialogInkStart(field, true), route(40f, 150f, keypad, field))
+            }
+        }
+        // Hidden or fully clipped keypad does not restrict the original margin.
+        for (keypad in listOf(null, Rect.Zero, Rect(0f, 64f, 120f, 64f))) {
+            assertEquals(DialogInkStart(DimensionField.NOTE, false), route(40f, 65f, keypad))
+        }
+        // Boundary follows actual layout, rather than a fixed distance from the note.
+        assertEquals(DialogInkStart(DimensionField.NOTE, false),
+            route(40f, 65f, Rect(0f, 70f, 120f, 200f)))
+        assertNull(route(40f, 65f, Rect(0f, 62f, 120f, 200f)))
+    }
+
+    @Test
     fun insertsUnmodifiedTextInSelectionAndRejectsOversizeOrMultiline() {
         val value = TextFieldValue("99", TextRange(0, 2))
         assertEquals("1/3", insertInkResult(DimensionField.VALUE, value, "1/3")?.text)

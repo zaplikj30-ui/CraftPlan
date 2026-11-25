@@ -147,9 +147,14 @@ internal fun dialogInkStart(
     valueBounds: Rect?,
     noteBounds: Rect?,
     marginPx: Float,
+    visibleKeypadBounds: Rect? = null,
 ): DialogInkStart? {
     if (!position.x.isFinite() || !position.y.isFinite()) return null
     if (pending != null) return DialogInkStart(pending, continuing = true)
+    // A new batch must never claim a key. Use the current clipped keyboard's
+    // top edge across the dialog, not a fixed offset from the note field.
+    if (visibleKeypadBounds != null && visibleKeypadBounds.width > 0f &&
+        visibleKeypadBounds.height > 0f && position.y >= visibleKeypadBounds.top) return null
     val fields = listOf(
         DimensionField.VALUE to valueBounds,
         DimensionField.NOTE to noteBounds,
