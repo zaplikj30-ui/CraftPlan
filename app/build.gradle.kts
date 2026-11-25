@@ -88,5 +88,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
 
+    implementation("com.google.mlkit:digital-ink-recognition:19.0.0")
+
     testImplementation("junit:junit:4.13.2")
 }
