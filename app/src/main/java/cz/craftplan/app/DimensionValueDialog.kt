@@ -94,6 +94,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.platform.PlatformTextInputInterceptor
+import androidx.compose.ui.platform.PlatformTextInputMethodRequest
+import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -400,6 +402,14 @@ internal fun DimensionValueDialog(
         EditorDialogStatusBarEffect(hideStatusBar)
         KeypadWindowDiagnostics(diagnostics)
         val view = LocalView.current
+        // Both fields share this dialog's AndroidComposeView. CraftPlan owns
+        // their pen gestures; do not let the platform auto-start handwriting.
+        // This API is available from our minSdk 33. Never change device settings.
+        DisposableEffect(view) {
+            val previous = view.isAutoHandwritingEnabled
+            view.setAutoHandwritingEnabled(false)
+            onDispose { view.setAutoHandwritingEnabled(previous) }
+        }
         val ime = LocalSoftwareKeyboardController.current
         val focusManager = LocalFocusManager.current
         val valueFocus = remember { FocusRequester() }
@@ -1251,8 +1261,15 @@ private fun DimensionInputField(
         // mode. Block only the native IME connection, not Compose editing.
         val platformInput = remember(allowSystemInput) {
             PlatformTextInputInterceptor { request, next ->
-                if (allowSystemInput) next.startInputMethod(request)
-                else awaitCancellation()
+                if (allowSystemInput) {
+                    // Preserve the original input connection and all text/IME
+                    // options; only advertise that these custom editors own ink.
+                    next.startInputMethod(PlatformTextInputMethodRequest { attributes ->
+                        val connection = request.createInputConnection(attributes)
+                        EditorInfoCompat.setStylusHandwritingEnabled(attributes, false)
+                        connection
+                    })
+                } else awaitCancellation()
             }
         }
         CompositionLocalProvider(LocalTextToolbar provides toolbar) {
