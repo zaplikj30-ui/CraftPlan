@@ -32,11 +32,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun DiagnosticsOverlay(state: PhotoEditorState, window: Window) {
+internal fun DiagnosticsRecordingEffects(state: PhotoEditorState, window: Window) {
     if (!state.diagnosticsRecording) return
     val diagnostics = state.diagnostics
     val context = LocalContext.current
-    var seconds by remember { mutableLongStateOf(0L) }
     DisposableEffect(window, diagnostics) {
         val listener = Window.OnFrameMetricsAvailableListener { _, frame, dropped ->
             diagnostics.frame(
@@ -59,7 +58,6 @@ internal fun DiagnosticsOverlay(state: PhotoEditorState, window: Window) {
     }
     LaunchedEffect(diagnostics) {
         while (true) {
-            seconds = diagnostics.elapsedMs() / 1_000
             if (diagnostics.expired()) {
                 state.stopDiagnostics()
                 break
@@ -76,6 +74,19 @@ internal fun DiagnosticsOverlay(state: PhotoEditorState, window: Window) {
                 runtime.totalMemory() - runtime.freeMemory(), pssKb, context.display.refreshRate,
             )
             delay(2_000)
+        }
+    }
+}
+
+@Composable
+internal fun DiagnosticsOverlay(state: PhotoEditorState) {
+    if (!state.diagnosticsRecording) return
+    val diagnostics = state.diagnostics
+    var seconds by remember { mutableLongStateOf(diagnostics.elapsedMs() / 1_000) }
+    LaunchedEffect(diagnostics) {
+        while (true) {
+            seconds = diagnostics.elapsedMs() / 1_000
+            delay(250)
         }
     }
     Surface(Modifier.padding(8.dp), color = MaterialTheme.colorScheme.errorContainer) {
@@ -120,6 +131,20 @@ internal fun DiagnosticActions(state: PhotoEditorState, export: () -> Unit, clos
     DropdownMenuItem(
         text = { Text(stringResource(if (state.diagnosticsEnabled) R.string.diagnostic_disable else R.string.diagnostic_enable)) },
         onClick = { state.toggleDiagnostics(); closeMenu() },
+    )
+    DropdownMenuItem(
+        text = {
+            Text(stringResource(if (state.diagnosticsColdStartArmed) R.string.diagnostic_disarm_cold_start
+                else R.string.diagnostic_arm_cold_start))
+        },
+        onClick = {
+            val changed = state.toggleColdStartDiagnostics()
+            val message = if (!changed) R.string.diagnostic_cold_start_error
+                else if (state.diagnosticsColdStartArmed) R.string.diagnostic_cold_start_armed
+                else R.string.diagnostic_cold_start_disarmed
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            closeMenu()
+        },
     )
     if (state.diagnosticsEnabled) {
         DropdownMenuItem(

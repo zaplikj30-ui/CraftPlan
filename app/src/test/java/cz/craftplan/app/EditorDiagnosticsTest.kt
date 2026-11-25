@@ -115,6 +115,34 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun coldStartRequestIsConsumedOnlyOnceAndRequiresSuccessfulClear() {
+        var armed = true
+        var clears = 0
+        fun consume() = consumeColdStartDiagnosticRequest(armed) {
+            clears++
+            armed = false
+            true
+        }
+        assertTrue(consume())
+        assertFalse(consume())
+        assertEquals(1, clears)
+        assertFalse(consumeColdStartDiagnosticRequest(true) { false })
+    }
+
+    @Test
+    fun coldStartMarkerIsRecordedOnlyDuringSession() {
+        val recorder = EditorDiagnostics(now = { 0L })
+        recorder.coldStart()
+        assertFalse(recorder.hasSession)
+        recorder.start()
+        recorder.coldStart()
+        recorder.stop()
+        recorder.coldStart()
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(1, report.lineSequence().count { it.contains("cold_start activity_on_create_before_content") })
+    }
+
+    @Test
     fun keypadFramesRemainSeparateAndIgnorePreRecordingFrames() {
         var now = 100_000_000L
         val recorder = EditorDiagnostics(now = { now })

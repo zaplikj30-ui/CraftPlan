@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Consume a user-armed recording before setContent, once per new ViewModel.
         editorState.restorePreferences(getSharedPreferences("editor_preferences", MODE_PRIVATE))
         editorState.diagnosticGripBounds = null
         editorState.diagnosticSharedGripBounds = null
@@ -132,6 +133,18 @@ internal class PhotoEditorState : ViewModel() {
         private set
     var diagnosticsRecording by mutableStateOf(false)
         private set
+    var diagnosticsColdStartArmed by mutableStateOf(false)
+        private set
+
+    fun toggleColdStartDiagnostics(): Boolean {
+        if (!BuildConfig.ENABLE_STRESS_TOOLS) return false
+        val source = preferences ?: return false
+        val next = !diagnosticsColdStartArmed
+        // Persist before confirming the request: the user may force-stop immediately.
+        if (!source.edit().putBoolean(COLD_START_DIAGNOSTICS_KEY, next).commit()) return false
+        diagnosticsColdStartArmed = next
+        return true
+    }
 
     fun toggleDiagnostics() {
         if (diagnosticsEnabled) stopDiagnostics()
@@ -215,6 +228,17 @@ internal class PhotoEditorState : ViewModel() {
     fun restorePreferences(source: SharedPreferences) {
         if (preferences != null) return
         preferences = source
+        if (BuildConfig.ENABLE_STRESS_TOOLS) {
+            diagnosticsColdStartArmed = source.getBoolean(COLD_START_DIAGNOSTICS_KEY, false)
+            if (consumeColdStartDiagnosticRequest(diagnosticsColdStartArmed) {
+                    source.edit().remove(COLD_START_DIAGNOSTICS_KEY).commit()
+                }) {
+                diagnosticsColdStartArmed = false
+                diagnosticsEnabled = true
+                startDiagnostics()
+                diagnostics.coldStart()
+            }
+        }
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         labelsLocked = source.getBoolean("labels_locked", false)
@@ -337,6 +361,7 @@ internal class PhotoEditorState : ViewModel() {
 @Composable
 private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     var photoOpen by rememberSaveable { mutableStateOf(false) }
+    if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsRecordingEffects(editorState, window)
     val closePhoto = {
         editorState.cancelStressGeneration()
         editorState.stopDiagnostics()
@@ -379,7 +404,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     editorState.lastDrawnObjects = drawn
                     editorState.visibleDrawCandidates = visible
                 },
-                overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState, window) },
+                overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState) },
                 toolbar = { modifier ->
                     EditorToolbar(
                         editorState, repeatHintOffset,
@@ -409,6 +434,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
+                if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState)
                 Button(onClick = { photoOpen = true }) {
                     Text(stringResource(R.string.open_sample))
                 }

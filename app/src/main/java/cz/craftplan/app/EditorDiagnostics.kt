@@ -9,6 +9,12 @@ internal enum class DiagnosticAction {
 }
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
 internal enum class DiagnosticTouch { DOWN, MOVE, UP, POINTER_DOWN, POINTER_UP, CANCEL }
+internal const val COLD_START_DIAGNOSTICS_KEY = "diagnostics_next_cold_start"
+
+// Clear before recording so an Activity recreation cannot re-arm a one-shot request.
+internal fun consumeColdStartDiagnosticRequest(armed: Boolean, clear: () -> Boolean): Boolean =
+    armed && clear()
+
 internal enum class KeypadDiagnosticStage {
     SETTINGS_START, SETTINGS_END, MODEL_CHECK_START, MODEL_CHECK_END,
     MODEL_TASK_START, MODEL_TASK_CREATED, WINDOW_ATTACHED, WINDOW_UNAVAILABLE, WINDOW_DETACHED,
@@ -182,6 +188,11 @@ internal class EditorDiagnostics(
                 slow(time, DiagnosticAction.FRAME, totalNs)
             }
         }
+    }
+
+    fun coldStart() {
+        val time = recordingTime() ?: return
+        append(time, "cold_start activity_on_create_before_content")
     }
 
     // Dialog frames must never pollute the main activity's aggregate FPS.

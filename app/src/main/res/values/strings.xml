@@ -85,6 +85,11 @@
     <string name="diagnostic_enable">Zapnout diagnostiku</string>
     <string name="diagnostic_disable">Vypnout diagnostiku</string>
     <string name="diagnostic_start">Zahájit záznam</string>
+    <string name="diagnostic_arm_cold_start">Zaznamenat příští studený start</string>
+    <string name="diagnostic_disarm_cold_start">Zrušit záznam příštího startu</string>
+    <string name="diagnostic_cold_start_armed">Záznam je připraven. Úplně ukončete aplikaci a znovu ji otevřete.</string>
+    <string name="diagnostic_cold_start_disarmed">Záznam příštího startu zrušen.</string>
+    <string name="diagnostic_cold_start_error">Nastavení záznamu se nepodařilo uložit.</string>
     <string name="diagnostic_stop">Ukončit záznam</string>
     <string name="diagnostic_reset">Vymazat měření a záznam</string>
     <string name="diagnostic_copy">Kopírovat souhrn</string>
