@@ -1,0 +1,115 @@
+package cz.craftplan.app
+
+import java.math.BigDecimal
+import java.math.BigInteger
+
+/** Exact, bounded arithmetic for the editable value field. No evaluation of arbitrary code. */
+internal data class DimensionCalculation private constructor(
+    val numerator: BigInteger,
+    val denominator: BigInteger,
+) {
+    operator fun plus(other: DimensionCalculation) = of(
+        bound(bound(numerator * other.denominator) + bound(other.numerator * denominator)),
+        bound(denominator * other.denominator),
+    )
+    operator fun minus(other: DimensionCalculation) = this + of(-other.numerator, other.denominator)
+    operator fun times(other: DimensionCalculation) = of(
+        bound(numerator * other.numerator), bound(denominator * other.denominator),
+    )
+    operator fun div(other: DimensionCalculation) = of(
+        bound(numerator * other.denominator), bound(denominator * other.numerator),
+    )
+
+    fun editableText(): String {
+        val exact = try {
+            BigDecimal(numerator).divide(BigDecimal(denominator)).stripTrailingZeros().toPlainString()
+                .replace('.', ',')
+        } catch (_: ArithmeticException) {
+            "$numerator/$denominator"
+        }
+        require(exact.length <= ManualLengthMeasurement.MAX_INPUT_LENGTH)
+        return exact
+    }
+
+    companion object {
+        private fun bound(value: BigInteger): BigInteger {
+            require(value.bitLength() <= 256)
+            return value
+        }
+        private fun of(n: BigInteger, d: BigInteger): DimensionCalculation {
+            require(d.signum() != 0)
+            val divisor = bound(n).gcd(bound(d))
+            val sign = BigInteger.valueOf(d.signum().toLong())
+            return DimensionCalculation(n / divisor * sign, d / divisor * sign)
+        }
+        fun decimal(text: String): DimensionCalculation {
+            val decimal = BigDecimal(text.replace(',', '.'))
+            return of(decimal.unscaledValue(), bound(BigInteger.TEN.pow(decimal.scale())))
+        }
+    }
+}
+
+private val calculationCharacters = Regex("""[0-9., +\-−×xX*÷/]+""")
+private val calculationNumber = Regex("""[0-9]{1,18}(?:[.,][0-9]{1,18})?""")
+
+/** Returns null for non-math, malformed input, zero division, or resource limits. */
+internal fun evaluateDimensionCalculation(input: String): DimensionCalculation? {
+    if (input.length > ManualLengthMeasurement.MAX_INPUT_LENGTH || !input.endsWith('=')) return null
+    val body = input.dropLast(1)
+    if (!calculationCharacters.matches(body)) return null
+    return try {
+        val parser = CalculationParser(body)
+        parser.parse()
+    } catch (_: IllegalArgumentException) {
+        null
+    } catch (_: ArithmeticException) {
+        null
+    }
+}
+
+private class CalculationParser(private val text: String) {
+    private var index = 0
+    private var terms = 0
+    private fun skipSpace() { while (text.getOrNull(index) == ' ') index++ }
+    private fun next(): Char? { skipSpace(); return text.getOrNull(index) }
+    private fun number(): DimensionCalculation {
+        require(++terms <= 24)
+        val sign = when (next()) {
+            '-', '−' -> { index++; "-" }
+            '+' -> { index++; "" }
+            else -> ""
+        }
+        skipSpace()
+        val token = calculationNumber.find(text, index)
+        require(token != null && token.range.first == index)
+        index = token.range.last + 1
+        return DimensionCalculation.decimal(sign + token.value)
+    }
+    private fun product(): DimensionCalculation {
+        var result = number()
+        while (true) {
+            val operator = next()
+            if (operator !in listOf('×', 'x', 'X', '*', '÷', '/')) return result
+            index++
+            val right = number()
+            result = if (operator == '÷' || operator == '/') result / right else result * right
+        }
+    }
+    fun parse(): DimensionCalculation {
+        var result = product()
+        while (true) {
+            val operator = next() ?: break
+            require(operator == '+' || operator == '-' || operator == '−')
+            index++
+            val right = product()
+            result = if (operator == '+') result + right else result - right
+        }
+        require(index == text.length)
+        return result
+    }
+}
+
+/** Only a newly entered final equals in a numeric expression triggers evaluation. */
+internal fun requestsDimensionCalculation(previous: String, next: String, enabled: Boolean): Boolean =
+    enabled && previous != next && !previous.endsWith('=') && next.endsWith('=') &&
+        calculationCharacters.matches(next.dropLast(1))

@@ -9,15 +9,15 @@ internal sealed interface OriginalLengthUnit {
     data object FeetAndInches : OriginalLengthUnit
 }
 
-internal enum class LengthSource { MANUAL }
+internal enum class LengthSource { MANUAL, CALCULATED }
 
 @ConsistentCopyVisibility
 internal data class ManualLengthMeasurement private constructor(
     val length: ExactLengthMm,
     val originalInput: String,
     val originalUnit: OriginalLengthUnit,
+    val source: LengthSource = LengthSource.MANUAL,
 ) {
-    val source = LengthSource.MANUAL
 
     companion object {
         const val MAX_INPUT_LENGTH = 96
@@ -58,6 +58,23 @@ internal data class ManualLengthMeasurement private constructor(
                 if ('/' in number && unit != LengthUnit.IN) return null
                 val mm = millimeters(number, unit)
                 ManualLengthMeasurement(ExactLengthMm.fromMillimeters(mm), input, OriginalLengthUnit.Single(unit))
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
+
+        /** Calculation provenance is replayable: the original expression and unit
+         * must reproduce the exact canonical value before a length is accepted. */
+        fun calculate(input: String, unit: LengthUnit): ManualLengthMeasurement? {
+            val result = evaluateDimensionCalculation(input) ?: return null
+            if (result.numerator.signum() < 0) return null
+            return try {
+                val mm = LengthFraction.of(result.numerator, result.denominator) *
+                    LengthFraction.of(unit.mmNumerator, unit.mmDenominator)
+                ManualLengthMeasurement(
+                    ExactLengthMm.fromMillimeters(mm), input, OriginalLengthUnit.Single(unit),
+                    LengthSource.CALCULATED,
+                )
             } catch (_: IllegalArgumentException) {
                 null
             }

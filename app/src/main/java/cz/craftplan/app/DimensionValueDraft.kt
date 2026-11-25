@@ -125,8 +125,8 @@ internal class DimensionValueDraft private constructor(
     fun type(text: String): DimensionValueDraft {
         if (text == input) return this
         val preserved = unchangedEntry?.let { entry ->
-            val number = listOf(entry.prefix, entry.value.length.displayNumberForUi(unit).text)
-                .filter(String::isNotBlank).joinToString(" ")
+            val number = if (entry.suffix.isEmpty()) input.trim()
+                else input.trim().removeSuffix(entry.suffix).trimEnd()
             val trimmed = text.trim()
             if (text.length > ManualLengthMeasurement.MAX_INPUT_LENGTH ||
                 text.any { it == '\r' || it == '\n' || it == '\u0000' }) null
@@ -139,6 +139,19 @@ internal class DimensionValueDraft private constructor(
         val explicit = preserved == null &&
             (parseDimensionEntry(text, unit) as? DimensionEntry.Measured)?.explicitlyTypedUnit == true
         return DimensionValueDraft(target, text, unit, preserved, note, showUnit || explicit)
+    }
+
+    /** Replace only the draft; the user must still confirm the dimension. */
+    fun calculate(expression: String): DimensionValueDraft? {
+        val result = evaluateDimensionCalculation(expression) ?: return null
+        val text = try { result.editableText() } catch (_: IllegalArgumentException) { return null }
+        if (result.numerator.signum() < 0) {
+            return DimensionValueDraft(target, text, unit, null, note, showUnit)
+        }
+        val measured = ManualLengthMeasurement.calculate(expression, unit) ?: return null
+        return DimensionValueDraft(
+            target, text, unit, DimensionEntry.Measured(measured, "", unit), note, showUnit,
+        )
     }
 
     fun withNote(text: String): DimensionValueDraft =
@@ -157,6 +170,16 @@ internal class DimensionValueDraft private constructor(
         if (newUnit == effectiveDisplayUnit() && (keepNumber || unchangedEntry != null)) return withUnitVisibility(true)
         if (newUnit == effectiveDisplayUnit() && !showUnit) return withUnitVisibility(true)
         if (keepNumber) {
+            // A calculated exact fraction may not be valid ordinary metric input.
+            // Reinterpret only an explicitly retained exact number, not the old expression.
+            if (parsed is DimensionEntry.Measured && parsed.value.source == LengthSource.CALCULATED &&
+                '/' in input && parsed.prefix.isEmpty()) {
+                val number = input.removeSuffix(parsed.suffix).trim()
+                val measured = ManualLengthMeasurement.calculate("$number=", newUnit) ?: return this
+                return DimensionValueDraft(
+                    target, input, newUnit, parsed.copy(value = measured, displayUnit = newUnit), note, true,
+                )
+            }
             // Keep the raw input. An explicitly typed length unit still wins.
             return DimensionValueDraft(target, input, newUnit, null, note, true)
         }
@@ -168,7 +191,9 @@ internal class DimensionValueDraft private constructor(
     }
 
     fun hasApproximateDisplay(): Boolean =
-        unchangedEntry?.value?.length?.displayNumberForUi(unit)?.approximate == true
+        unchangedEntry?.let {
+            it.value.length.displayNumberForUi(unit).approximate && input == it.inputText(unit)
+        } == true
 
     fun isTextOnly(): Boolean = entry() is DimensionEntry.TextOnly
 
