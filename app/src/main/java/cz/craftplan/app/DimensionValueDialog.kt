@@ -107,6 +107,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 private val keyboardSaver = listSaver<DimensionKeyboard, Any>(
@@ -273,44 +275,67 @@ internal fun DimensionValueDialog(
                 }
             }
         })
+        var keyboardRequest by remember { mutableStateOf(0L) }
         var imeHidePending by remember { mutableStateOf(false) }
-        val hideKeyboard: () -> Unit = {
-            keys = keys.hide()
+        fun requestKeyboard(next: DimensionKeyboard) {
+            keyboardRequest++
+            keys = next
             showSymbols = false
         }
-        LaunchedEffect(imeVisible, keys.systemOpen) {
-            // Finish an app-requested hide if the IME becomes visible late.
-            if (imeVisible && !keys.systemOpen) {
-                imeHidePending = true
-                ime?.hide()
-            }
-        }
-        LaunchedEffect(keys.systemOpen, keys.field) {
+        val hideKeyboard: () -> Unit = { requestKeyboard(keys.hide()) }
+
+        // Exactly one cancellable owner of native IME show/hide commands. Even
+        // a repeated request for the same field gets a fresh request identity.
+        LaunchedEffect(keys, keyboardRequest) {
             val requested = keys
+            val requestId = keyboardRequest
+            fun isCurrent() = keys == requested && keyboardRequest == requestId
+            val visibility = snapshotFlow { latestImeVisible }
             if (requested.systemOpen) {
-                // A delayed close from the previous mode must not close this request.
-                val previousHideSettled = !imeHidePending || !latestImeVisible ||
-                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
-                imeHidePending = false
-                if (keys != requested) return@LaunchedEffect
-                if (requested.field == DimensionField.VALUE) valueFocus.requestFocus() else noteFocus.requestFocus()
-                withFrameNanos { } // Let the focused editor establish its input connection.
-                if (keys != requested) return@LaunchedEffect
-                ime?.show()
-                if (!previousHideSettled) {
-                    // A late hide may still arrive. Retry showing, but never wait without a deadline.
-                    awaitSystemImeHidden(snapshotFlow { latestImeVisible })
-                    if (keys != requested) return@LaunchedEffect
-                    ime?.show()
+                if (imeHidePending && latestImeVisible) {
+                    awaitSystemImeHidden(visibility)
                 }
-                // Native Back can close the IME itself; only observe dismissal after showing this session.
-                awaitSystemImeDismissal(snapshotFlow { latestImeVisible })
-                if (keys == requested) hideKeyboard()
+                if (!isCurrent()) return@LaunchedEffect
+                val focus = if (requested.field == DimensionField.VALUE) valueFocus else noteFocus
+                var shown = false
+                // A late hide or focus handoff can invalidate the first show.
+                // Retry once; never loop indefinitely with a hardware keyboard.
+                repeat(2) {
+                    if (!shown) {
+                        if (!isCurrent()) return@LaunchedEffect
+                        focus.requestFocus()
+                        withFrameNanos { }
+                        if (!isCurrent()) return@LaunchedEffect
+                        ime?.show()
+                        if (it > 0) view.windowInsetsController?.show(AndroidWindowInsets.Type.ime())
+                        shown = withTimeoutOrNull(800L) {
+                            awaitStableImeVisibility(visibility, true, stableMs = 180L)
+                            true
+                        } ?: false
+                    }
+                }
+                if (!isCurrent()) return@LaunchedEffect
+                imeHidePending = false
+                // An absent keyboard is not an acknowledged open/close session.
+                // Keep the requested mode so an explicit tap can retry.
+                if (shown) {
+                    awaitStableImeVisibility(visibility, false, stableMs = 120L)
+                    if (isCurrent()) hideKeyboard()
+                }
             } else {
-                focusManager.clearFocus()
-                imeHidePending = imeHidePending || latestImeVisible ||
-                    view.rootWindowInsets?.isVisible(AndroidWindowInsets.Type.ime()) == true
-                ime?.hide()
+                imeHidePending = true
+                fun hideNative() {
+                    if (!isCurrent()) return
+                    ime?.hide()
+                    view.windowInsetsController?.hide(AndroidWindowInsets.Type.ime())
+                }
+                hideNative()
+                focusManager.clearFocus(force = true)
+                delay(120)
+                if (latestImeVisible) hideNative()
+                // If the previous show reaches Android late, hide it while
+                // this request is still current, not after a newer switch.
+                visibility.collect { if (it) hideNative() }
             }
         }
         LaunchedEffect(keys.field, keys.systemOpen, density) {
@@ -337,9 +362,15 @@ internal fun DimensionValueDialog(
         SideEffect { handleBack = dispatchBack }
         val outsideTap by rememberUpdatedState(hideKeyboard)
         val openField: (DimensionField) -> Unit = { target ->
-            ink.interrupt()
-            if (keys.field != target) showSymbols = false
-            keys = keys.open(target)
+            // Normal taps inside an already focused editable field still only
+            // move the cursor. A missing IME, however, gets a fresh show request.
+            if (!keys.systemOpen || keys.field != target || !latestImeVisible) {
+                ink.interrupt()
+                val previousField = keys.field
+                keyboardRequest++
+                keys = keys.open(target)
+                if (previousField != target) showSymbols = false
+            }
         }
 
         var valueInkOrigin by remember { mutableStateOf<Offset?>(null) }
@@ -465,7 +496,7 @@ internal fun DimensionValueDialog(
                         else R.string.use_system_keyboard,
                     )
                     IconButton(
-                        onClick = { ink.interrupt(); keys = keys.switch(); showSymbols = false },
+                        onClick = { ink.interrupt(); requestKeyboard(keys.switch()) },
                         modifier = Modifier.semantics { contentDescription = switchLabel },
                     ) {
                         Icon(

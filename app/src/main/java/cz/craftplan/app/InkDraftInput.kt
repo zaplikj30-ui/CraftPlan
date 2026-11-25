@@ -203,7 +203,9 @@ internal fun Modifier.inkFieldInput(
                     } else if (validUp && moved && missingModel) {
                         change.consume()
                         actions.missingModel()
-                    } else if (validUp && !moved && !editable) {
+                    } else if (validUp && !moved) {
+                        // The dialog decides whether to open/retry the keyboard.
+                        // Do not consume ordinary editable-field taps.
                         actions.tap()
                     } else if (moved && ownsPenMotion) {
                         change.consume()

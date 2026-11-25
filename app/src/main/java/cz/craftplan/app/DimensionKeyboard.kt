@@ -1,7 +1,8 @@
 package cz.craftplan.app
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
@@ -39,9 +40,19 @@ internal suspend fun awaitSystemImeHidden(visibility: Flow<Boolean>, timeoutMs: 
         true
     } ?: false
 
-// Observes the user dismissing an already opened system keyboard; cancelled on mode change.
-internal suspend fun awaitSystemImeDismissal(visibility: Flow<Boolean>) {
-    visibility.dropWhile { !it }.first { !it }
+// Ignore short-lived insets during a focus or keyboard handoff.
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+internal suspend fun awaitStableImeVisibility(
+    visibility: Flow<Boolean>,
+    expected: Boolean,
+    stableMs: Long,
+) {
+    visibility.transformLatest { visible ->
+        if (visible == expected) {
+            delay(stableMs)
+            emit(Unit)
+        }
+    }.first()
 }
 
 // The system IME already occupies its own animated bottom inset.

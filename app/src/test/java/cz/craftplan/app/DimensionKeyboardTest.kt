@@ -4,7 +4,9 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,10 +61,41 @@ class DimensionKeyboardTest {
     }
 
     @Test
-    fun systemDismissalIgnoresHiddenInsetsBeforeImeAppears() = runBlocking {
+    fun systemShowIgnoresTransientVisibilityFromPreviousRequest() = runBlocking {
         val seen = mutableListOf<Boolean>()
-        awaitSystemImeDismissal(flowOf(false, false, true, false, true).onEach { seen.add(it) })
-        assertEquals(listOf(false, false, true, false), seen)
+        awaitStableImeVisibility(flow {
+            seen += true
+            emit(true)
+            seen += false
+            emit(false)
+            delay(40)
+            seen += true
+            emit(true)
+        }, true, stableMs = 20)
+        assertEquals(listOf(true, false, true), seen)
+    }
+
+    @Test
+    fun systemDismissalIgnoresTransientHideDuringHandoff() = runBlocking {
+        val seen = mutableListOf<Boolean>()
+        awaitStableImeVisibility(flow {
+            seen += false
+            emit(false)
+            seen += true
+            emit(true)
+            delay(40)
+            seen += false
+            emit(false)
+        }, false, stableMs = 20)
+        assertEquals(listOf(false, true, false), seen)
+    }
+
+    @Test
+    fun missingNativeKeyboardDoesNotAcknowledgeAnOpenSession() = runBlocking {
+        assertEquals(null, withTimeoutOrNull(40L) {
+            awaitStableImeVisibility(MutableStateFlow(false), true, stableMs = 10)
+            true
+        })
     }
 
     @Test
