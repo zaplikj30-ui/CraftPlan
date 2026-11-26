@@ -7,6 +7,24 @@ import org.junit.Test
 
 class DocumentSnapshotTest {
     @Test
+    fun nativeOrientationRecordsRoundTripWithoutRewritingLegacyMaps() {
+        val legacy = StoredPhoto.synthetic.copy(
+            id = PhotoId(UUID.randomUUID().toString()), sourceExifOrientation = 2, storedOrientation = 2,
+        )
+        val oldSnapshot = DocumentSnapshot(emptyList(), true, legacy)
+        val oldBytes = SnapshotCodec.encode(oldSnapshot)
+        assertEquals(2, oldBytes[3].toInt())
+        assertEquals(oldSnapshot, SnapshotCodec.decode(oldBytes))
+
+        val newSnapshot = oldSnapshot.copy(photo = legacy.copy(anchorMapVersion = 2))
+        val newBytes = SnapshotCodec.encode(newSnapshot)
+        assertEquals(3, newBytes[3].toInt())
+        assertEquals(newSnapshot, SnapshotCodec.decode(newBytes))
+        newBytes[3] = 2
+        assertThrows(IllegalArgumentException::class.java) { SnapshotCodec.decode(newBytes) }
+    }
+
+    @Test
     fun legacySnapshotStaysReadableAndPhotoIdentityIsValidated() {
         val legacy = DocumentSnapshot(emptyList(), false)
         val oldBytes = SnapshotCodec.encode(legacy).also { it[3] = 1 }
@@ -53,7 +71,7 @@ class DocumentSnapshotTest {
             SnapshotCodec.encode(DocumentSnapshot(listOf(dimension, dimension), true))
         }
         val bytes = SnapshotCodec.encode(DocumentSnapshot(emptyList(), true))
-        bytes[3] = 3
+        bytes[3] = 4
         assertThrows(IllegalArgumentException::class.java) { SnapshotCodec.decode(bytes) }
     }
 }

@@ -70,7 +70,7 @@ internal class ImportStaging(
         val bytes = file.inputStream().use { it.readNBytes(MAX_PHOTO_BYTES + 1) }
         if (bytes.size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
         if (sha256(bytes) != candidate.digest) throw ImportValidationFailure(ImportRejection.STAGED_INTEGRITY)
-        validateJpegStructure(bytes)
+        if (bytes.isEmpty()) throw ImportValidationFailure(ImportRejection.JPEG_DECODE_FAILED)
         return bytes
     }
 

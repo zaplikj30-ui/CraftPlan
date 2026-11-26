@@ -67,11 +67,15 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
                 text = {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
                         state.importPreview?.let {
+                            if (it.sourceDamaged) Text(stringResource(R.string.import_damage_warning))
                             Image(it.bitmap.asImageBitmap(), stringResource(R.string.import_preview),
                                 Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
                         }
                         if (state.importBusy) Text(stringResource(R.string.import_working))
-                        state.importDiagnostic?.let { Text(stringResource(R.string.document_storage_diagnostic, it)) }
+                        state.importDiagnostic?.let {
+                            if (state.importPreview == null) Text(stringResource(R.string.import_failed))
+                            Text(stringResource(R.string.document_storage_diagnostic, it))
+                        }
                         TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
                             Text(stringResource(R.string.import_discard))
                         }
@@ -79,7 +83,10 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
                 },
                 confirmButton = {
                     TextButton(onClick = state::confirmImport, enabled = enabled && state.importPreview != null) {
-                        Text(stringResource(R.string.import_confirm))
+                        val label = if (state.importPreview?.sourceDamaged == true) {
+                            R.string.import_confirm_damaged
+                        } else R.string.import_confirm
+                        Text(stringResource(label))
                     }
                 },
                 dismissButton = {

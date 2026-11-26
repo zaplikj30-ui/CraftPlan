@@ -11,11 +11,9 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 /** Maps raw JPEG axes into the canonical top-left photo coordinates. */
-internal data class PhotoAxes(val xx: Int, val xy: Int, val yx: Int, val yy: Int) {
-    val swapsAxes get() = xx == 0
-}
+private data class PhotoAxes(val xx: Int, val xy: Int, val yx: Int, val yy: Int)
 
-internal fun photoAxes(orientation: Int): PhotoAxes = when (orientation) {
+private fun photoAxes(orientation: Int): PhotoAxes = when (orientation) {
     1 -> PhotoAxes(1, 0, 0, 1)
     2 -> PhotoAxes(-1, 0, 0, 1)
     3 -> PhotoAxes(-1, 0, 0, -1)
@@ -29,31 +27,85 @@ internal fun photoAxes(orientation: Int): PhotoAxes = when (orientation) {
 
 // Android ExifInterface supplies "0" for a missing tag.
 internal fun sourceOrientation(tag: String?): Int? =
-    tag?.let { requireNotNull(it.toIntOrNull()).takeUnless { value -> value == 0 }?.also(::photoAxes) }
+    tag?.let {
+        val value = requireNotNull(it.toIntOrNull())
+        require(value in 0..8)
+        value.takeUnless { it == 0 }
+    }
 
-internal fun inspectImportedJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPhoto {
-    val bounds = jpegBounds(bytes)
-    val exif = ExifInterface(ByteArrayInputStream(bytes))
-    val orientation = sourceOrientation(exif.getAttribute(ExifInterface.TAG_ORIENTATION))
-    return StoredPhoto(candidate.photoId, UUID.nameUUIDFromBytes("craftplan-photo:${candidate.photoId.name}".toByteArray(Charsets.US_ASCII)),
-        candidate.digest, bytes.size, bounds.outWidth, bounds.outHeight, orientation, 1, orientation ?: 1, "full", "image/jpeg")
+internal enum class ImportRejection {
+    PHOTO_SIZE_LIMIT, PHOTO_PIXEL_LIMIT, STAGED_INTEGRITY, JPEG_SIGNATURE, JPEG_TRUNCATED,
+    JPEG_DECODE_MALFORMED, JPEG_DECODE_FAILED, JPEG_METADATA_INVALID,
 }
 
-/** Reject decoder-reported partial images during import. The decoded probe does
- * not supply the editor bitmap, so the existing explicit EXIF map stays authoritative. */
-internal fun validateJpegWithAndroid(bytes: ByteArray) {
-    try {
+internal class ImportValidationFailure(val reason: ImportRejection) : IllegalArgumentException()
+
+private data class DecodedJpeg(val bitmap: Bitmap, val partial: Boolean)
+
+internal fun previewJpeg(candidate: ImportCandidate, bytes: ByteArray, existing: StoredPhoto?): ImportPreview {
+    val photo = existing ?: inspectJpeg(candidate, bytes)
+    require(photo.id == candidate.photoId && photo.sha256 == candidate.digest && photo.size == bytes.size)
+    val decoded = if (photo.anchorMapVersion == 1) {
+        // A resumed legacy import can still need approval for partial content.
+        // Keep its catalogued orientation and use the native decode only as a probe.
+        val probe = decodeJpeg(bytes, photo, minimumSample = 8)
+        probe.bitmap.recycle()
+        DecodedJpeg(decodeLegacyPhoto(bytes, photo), probe.partial)
+    } else decodeJpeg(bytes, photo)
+    return ImportPreview(candidate, photo, decoded.bitmap, decoded.partial)
+}
+
+private fun inspectJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPhoto {
+    // Header-only probe supplies raw dimensions. ImageDecoder returns oriented dimensions.
+    val bounds = jpegBounds(bytes)
+    val orientation = try {
+        val exif = ExifInterface(ByteArrayInputStream(bytes))
+        sourceOrientation(exif.getAttribute(ExifInterface.TAG_ORIENTATION))
+    } catch (_: IOException) {
+        throw ImportValidationFailure(ImportRejection.JPEG_METADATA_INVALID)
+    } catch (_: IllegalArgumentException) {
+        throw ImportValidationFailure(ImportRejection.JPEG_METADATA_INVALID)
+    }
+    val mediaId = UUID.nameUUIDFromBytes("craftplan-photo:${candidate.photoId.name}".toByteArray(Charsets.US_ASCII))
+    return StoredPhoto(candidate.photoId, mediaId, candidate.digest, bytes.size, bounds.outWidth, bounds.outHeight,
+        orientation, 2, orientation ?: 1, "full", "image/jpeg")
+}
+
+internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap =
+    if (photo.anchorMapVersion == 1) decodeLegacyPhoto(bytes, photo) else decodeJpeg(bytes, photo).bitmap
+
+/** Maps extents between the raw JPEG axes and the canonical editor axes in either direction. */
+internal fun photoDimensions(width: Int, height: Int, orientation: Int): Pair<Int, Int> {
+    require(orientation in 1..8)
+    return if (orientation >= 5) height to width else width to height
+}
+
+/** Source errors are not consent to keep a partially decoded image. */
+internal fun canShowPartialJpeg(error: Int): Boolean =
+    error == ImageDecoder.DecodeException.SOURCE_INCOMPLETE ||
+        error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA
+
+private fun decodeJpeg(bytes: ByteArray, photo: StoredPhoto, minimumSample: Int = 1): DecodedJpeg {
+    val expectedSize = photoDimensions(photo.width, photo.height, photo.storedOrientation)
+    var partial = false
+    val bitmap = try {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
             if (info.mimeType != "image/jpeg") throw ImportValidationFailure(ImportRejection.JPEG_SIGNATURE)
-            val size = info.size
-            if (size.width.toLong() * size.height > MAX_PHOTO_PIXELS) {
+            val width = info.size.width
+            val height = info.size.height
+            if (photo.anchorMapVersion == 2 && expectedSize != (width to height)) {
+                throw ImportValidationFailure(ImportRejection.JPEG_METADATA_INVALID)
+            }
+            if (width.toLong() * height > MAX_PHOTO_PIXELS) {
                 throw ImportValidationFailure(ImportRejection.PHOTO_PIXEL_LIMIT)
             }
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
-            decoder.setTargetSampleSize(8)
-            decoder.setOnPartialImageListener { false }
-        }.recycle()
+            decoder.setTargetSampleSize(maxOf(minimumSample, jpegSampleSize(width, height)))
+            decoder.setOnPartialImageListener { error ->
+                canShowPartialJpeg(error.error).also { partial = it }
+            }
+        }
     } catch (error: ImageDecoder.DecodeException) {
         val reason = when (error.error) {
             ImageDecoder.DecodeException.SOURCE_INCOMPLETE -> ImportRejection.JPEG_TRUNCATED
@@ -62,16 +114,13 @@ internal fun validateJpegWithAndroid(bytes: ByteArray) {
         }
         throw ImportValidationFailure(reason)
     }
+    return DecodedJpeg(bitmap, partial)
 }
 
-internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap {
+private fun decodeLegacyPhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap {
     val bounds = jpegBounds(bytes)
     require(bounds.outWidth == photo.width && bounds.outHeight == photo.height)
-    var sample = 1
-    // Limit the reconstructed bitmap only. Original JPEG bytes remain unchanged.
-    val longEdge = maxOf(photo.width, photo.height)
-    while ((longEdge.toLong() + sample - 1) / sample > 2048) sample *= 2
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val options = BitmapFactory.Options().apply { inSampleSize = jpegSampleSize(photo.width, photo.height) }
     val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         ?: throw IOException("JPEG cannot be decoded")
     if (photo.storedOrientation == 1) return raw
@@ -86,6 +135,13 @@ internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap {
     return Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, false).also {
         if (it !== raw) raw.recycle()
     }
+}
+
+private fun jpegSampleSize(width: Int, height: Int): Int {
+    var sample = 1
+    val longEdge = maxOf(width, height).toLong()
+    while ((longEdge + sample - 1) / sample > 2048) sample *= 2
+    return sample
 }
 
 private fun jpegBounds(bytes: ByteArray): BitmapFactory.Options {

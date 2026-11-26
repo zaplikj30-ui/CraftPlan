@@ -27,7 +27,7 @@ internal data class StoredPhoto(
         require(sourceExifOrientation == null || sourceExifOrientation in 1..8)
         // Full-quality JPEG is preserved byte-for-byte. Its stored orientation
         // therefore matches the source orientation, with normal as the default.
-        require(anchorMapVersion == 1 && storedOrientation == (sourceExifOrientation ?: 1))
+        require(anchorMapVersion in 1..2 && storedOrientation == (sourceExifOrientation ?: 1))
         require(quality == "full" && mimeType == "image/jpeg")
     }
 
@@ -56,7 +56,8 @@ internal const val MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 /** Versioned, length-bounded snapshot. Geometry uses the editor's Float coordinates.
  * Measurements use only their tagged exact representation and validated provenance. */
 internal object SnapshotCodec {
-    private const val FORMAT_VERSION = 2
+    private const val LEGACY_FORMAT_VERSION = 2
+    private const val NATIVE_ORIENTATION_FORMAT_VERSION = 3
     private const val MEASUREMENT_VERSION = 1
     private const val MAX_DIMENSIONS = 20_000
 
@@ -64,7 +65,8 @@ internal object SnapshotCodec {
         validate(snapshot)
         val buffer = ByteArrayOutputStream()
         DataOutputStream(buffer).use { out ->
-            out.writeInt(FORMAT_VERSION)
+            out.writeInt(if (snapshot.photo.anchorMapVersion == 1) LEGACY_FORMAT_VERSION
+                else NATIVE_ORIENTATION_FORMAT_VERSION)
             out.writeInt(MEASUREMENT_VERSION)
             out.writePhoto(snapshot.photo)
             out.writeBoolean(snapshot.showNotes)
@@ -81,10 +83,11 @@ internal object SnapshotCodec {
         require(bytes.size <= MAX_SNAPSHOT_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val version = input.readInt()
-            require(version == 1 || version == FORMAT_VERSION)
+            require(version in 1..NATIVE_ORIENTATION_FORMAT_VERSION)
             require(input.readInt() == MEASUREMENT_VERSION)
             val photo = input.readPhoto()
             require(version != 1 || photo == StoredPhoto.synthetic)
+            require((version == NATIVE_ORIENTATION_FORMAT_VERSION) == (photo.anchorMapVersion == 2))
             val showNotes = input.readFlag()
             val count = input.readInt()
             require(count in 0..MAX_DIMENSIONS)

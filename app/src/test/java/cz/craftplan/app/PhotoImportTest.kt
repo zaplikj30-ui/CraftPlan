@@ -1,5 +1,6 @@
 package cz.craftplan.app
 
+import android.graphics.ImageDecoder.DecodeException
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -49,8 +50,8 @@ class PhotoImportTest {
         }
         assertThrows(IOException::class.java) { staging(dir).receive(broken) }
         assertEquals(emptyList<ImportCandidate>(), staging(dir).candidates())
-        assertThrows(IllegalArgumentException::class.java) {
-            staging(dir).receive(bundledSyntheticPhoto().dropLast(2).toByteArray().inputStream())
+        assertThrows(ImportValidationFailure::class.java) {
+            staging(dir).receive(byteArrayOf().inputStream())
         }
         assertEquals(emptyList<ImportCandidate>(), staging(dir).candidates())
 
@@ -116,29 +117,23 @@ class PhotoImportTest {
     }
 
     @Test
-    fun structureRejectsPayloadEoiAndIncompleteOrInvalidSegments() {
-        val jpeg = bundledSyntheticPhoto()
-        val fakeEoiInApp = byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 5, 0xff.toByte(), 0xd9.toByte(), 0x11)
-        val embedded = jpeg.copyOfRange(0, 2) + fakeEoiInApp + jpeg.copyOfRange(2, jpeg.size)
-        validateJpegStructure(embedded)
-
-        val cases = listOf(
-            byteArrayOf(1, 2, 3) to ImportRejection.JPEG_SIGNATURE,
-            embedded.copyOf(embedded.size - 2) to ImportRejection.JPEG_TRUNCATED,
-            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 1) to
-                ImportRejection.JPEG_INVALID_STRUCTURE,
-            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 9, 0xff.toByte(), 0xd9.toByte()) to
-                ImportRejection.JPEG_TRUNCATED,
-            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xd9.toByte()) to
-                ImportRejection.JPEG_INVALID_STRUCTURE,
-        )
+    fun stagingPreservesInputForDecoderWithoutInterpretingEndMarkers() {
         val dir = folder.newFolder()
         val files = staging(dir)
-        for ((bytes, reason) in cases) {
-            val error = assertThrows(ImportValidationFailure::class.java) { files.receive(bytes.inputStream()) }
-            assertEquals("IMPORT_STAGE / ${reason.name}", storageFailureCode(error, StoragePhase.IMPORT_STAGE))
-            assertEquals(emptyList<ImportCandidate>(), files.candidates())
-        }
+        val jpeg = bundledSyntheticPhoto()
+        val missingEoi = jpeg.copyOf(jpeg.size - 2)
+        val candidate = files.receive(missingEoi.inputStream())
+        assertArrayEquals(missingEoi, staging(dir).read(candidate))
+        assertEquals(sha256(missingEoi), candidate.digest)
+        assertEquals(listOf(candidate), files.candidates())
+    }
+
+    @Test
+    fun partialPolicyAllowsOnlyDecoderReportedContentDamage() {
+        assertEquals(true, canShowPartialJpeg(DecodeException.SOURCE_INCOMPLETE))
+        assertEquals(true, canShowPartialJpeg(DecodeException.SOURCE_MALFORMED_DATA))
+        assertFalse(canShowPartialJpeg(DecodeException.SOURCE_EXCEPTION))
+        assertFalse(canShowPartialJpeg(Int.MAX_VALUE))
     }
 
     @Test
@@ -153,14 +148,13 @@ class PhotoImportTest {
     }
 
     @Test
-    fun mapsAllEightExifOrientationsIncludingMirrors() {
-        val expected = listOf(
-            PhotoAxes(1, 0, 0, 1), PhotoAxes(-1, 0, 0, 1), PhotoAxes(-1, 0, 0, -1), PhotoAxes(1, 0, 0, -1),
-            PhotoAxes(0, 1, 1, 0), PhotoAxes(0, -1, 1, 0), PhotoAxes(0, -1, -1, 0), PhotoAxes(0, 1, -1, 0),
-        )
-        assertEquals(expected, (1..8).map(::photoAxes))
-        assertEquals(listOf(false, false, false, false, true, true, true, true), expected.map { it.swapsAxes })
-        assertThrows(IllegalArgumentException::class.java) { photoAxes(9) }
+    fun keepsCanonicalAndStoredDimensionsCompatibleForAllExifOrientations() {
+        for (orientation in 1..8) {
+            val canonical = photoDimensions(1200, 800, orientation)
+            assertEquals(if (orientation <= 4) 1200 to 800 else 800 to 1200, canonical)
+            assertEquals(1200 to 800, photoDimensions(canonical.first, canonical.second, orientation))
+        }
+        assertThrows(IllegalArgumentException::class.java) { photoDimensions(1200, 800, 9) }
         assertNull(sourceOrientation(null))
         assertNull(sourceOrientation("0"))
         assertEquals(6, sourceOrientation("6"))

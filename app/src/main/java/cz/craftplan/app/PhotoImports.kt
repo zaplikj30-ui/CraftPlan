@@ -6,7 +6,9 @@ import java.io.InputStream
 import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 
-internal data class ImportPreview(val candidate: ImportCandidate, val photo: StoredPhoto, val bitmap: Bitmap)
+internal data class ImportPreview(
+    val candidate: ImportCandidate, val photo: StoredPhoto, val bitmap: Bitmap, val sourceDamaged: Boolean,
+)
 internal data class PhotoList(val confirmed: List<PhotoId>, val pending: List<ImportCandidate>)
 
 internal class PhotoImports(
@@ -27,11 +29,11 @@ internal class PhotoImports(
         staging.receive(input)
     }
 
-    fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
+    suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         val bytes = staging.read(candidate)
-        val photo = inspectImportedJpeg(candidate, bytes)
-        validateJpegWithAndroid(bytes)
-        ImportPreview(candidate, photo, decodePhoto(bytes, photo))
+        // Earlier versions could write the catalog before finishing the first revision.
+        val existing = transactions.read { catalogPhoto(candidate.photoId) }
+        previewJpeg(candidate, bytes, existing)
     }
 
     suspend fun confirm(candidate: ImportCandidate, photo: StoredPhoto): OpenDocument {

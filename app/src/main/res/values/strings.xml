@@ -25,6 +25,8 @@
     <string name="import_preview">Náhled importu · Plná</string>
     <string name="import_discard">Zahodit import</string>
     <string name="import_discard_warning">Odstraní se pouze rozpracovaný import. Zdrojový soubor zůstane beze změny.</string>
+    <string name="import_damage_warning">Soubor je poškozený nebo neúplný. Část fotografie může chybět nebo se zobrazit nesprávně. Pokud import potvrdíš, uloží se původní soubor.</string>
+    <string name="import_confirm_damaged">Přesto importovat</string>
     <string name="import_confirm">Potvrdit import</string>
     <string name="import_later">Později</string>
     <string name="import_failed">Import se nepodařilo dokončit.</string>
