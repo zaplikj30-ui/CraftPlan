@@ -68,6 +68,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **GO vlastníka – pevný text 15 sp (26. 11. 2026):** po praktické zkoušce APK 94 se vrací výhradně změna škálování popisků 14–16 sp z commitu `53c0288ea3cab5e1db1e8f7fe38b98cd639cc122`. `PhotoViewport.kt`, `PhotoEditorView.kt` a `PhotoViewportTest.kt` obnoveny přesně na obsah před tímto dílčím commitem (`599272aafc7a85ae9d3bd28d937d88270252bf76`); před obnovou ověřena shoda jejich současného obsahu s dílčím commitem. Pevná velikost 15 sp v běžném editoru při všech zoomech, respektuje systémové měřítko písma; původní společné metriky vykreslení a výběru popisku. Lupa zůstává beze změny. Odstraněn pouze test zrušeného chování 14–16 sp; ostatní testy zachovány. Kroužky kolem rysek, spodní auto-pan, metr, šipky, kotvy, hodnoty a ukládání nezměněny. Statická kontrola obsahu; JVM/lint/build a fyzické ověření NOT RUN, bez GO k sestavení. Ověřit stejnou čitelnost na obou krajních zoomech a posun popisku. Pouze nahraditelná data.
 
+**Schválená testovací publikace APK 95 (26. 11. 2026):** výslovný GO vlastníka pro podepsané sestavení ze zdrojové revize `dba9522bae2600b3046c5fc5bfdb163d57369c06` přes stávající M1 Actions. Rozsah: pevná velikost popisků 15 sp nezávislá na zoomu; ostatní úpravy APK 94 zachovány. JVM/lint/build a fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
