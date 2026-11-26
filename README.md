@@ -78,6 +78,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **GO vlastníka – oprava směru textu (26. 11. 2026):** po APK 96 potvrzen požadavek: při přibližování čísla rostou, při oddalování se zmenšují. Pouze změna vzorce na `12f + 6f * dimensionZoomProgress` (fit 12 sp, 8× 15 sp, maximum 64× 18 sp). Regresní test aktualizován pro oba směry a krajní hodnoty. Vykreslení, geometrie výběru, šipky, kroužky, auto-pan a ukládání nezměněny. Dříve uvedená rizika delších popisků a praktických překryvů zůstávají. Statická kontrola; JVM/lint/build/fyzické ověření před publikací NOT RUN. Vlastník současně výslovně schválil podepsané sestavení APK 97 přes stávající Actions. Pouze nahraditelná data.
 
+**Schválená testovací publikace APK 97 (26. 11. 2026):** výslovný GO vlastníka pro podepsané sestavení ze zdrojové revize `e71f88ea65d4f67d8acd7b8ae9f0158a9c52cbab` přes stávající M1 Actions. Rozsah: čísla rostou s přiblížením fotografie od 12 přes 15 do 18 sp; ostatní úpravy zachovány. JVM/lint/build a fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
