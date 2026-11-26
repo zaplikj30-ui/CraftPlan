@@ -54,16 +54,16 @@ class PhotoViewportTest {
         viewport.fit(600, 600)
         for (step in 0..6) {
             if (step > 0) viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
-            assertEquals(1f + step / 6f, viewport.dimensionStrokeScale, 0.00001f)
+            assertEquals(0.8f + 0.2f * step, viewport.dimensionStrokeScale, 0.00001f)
         }
         viewport.transform(300f, 300f, 300f, 300f, factor = 100f)
         assertEquals(32f, viewport.scale, 0.001f)
         assertEquals(2f, viewport.dimensionStrokeScale, 0f)
         viewport.fit(600, 600)
         viewport.transform(300f, 300f, 300f, 300f, factor = 3f)
-        assertTrue(viewport.dimensionStrokeScale in (1f + 1f / 6f)..(1f + 2f / 6f))
+        assertTrue(viewport.dimensionStrokeScale in 1f..1.2f)
         viewport.fit(600, 600)
-        assertEquals(1f, viewport.dimensionStrokeScale, 0f)
+        assertEquals(0.8f, viewport.dimensionStrokeScale, 0f)
     }
 
     @Test

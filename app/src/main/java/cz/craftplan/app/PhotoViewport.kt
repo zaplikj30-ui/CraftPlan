@@ -49,9 +49,9 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     var top = 0f
         private set
 
-    /** Visual stroke size only: at photo fit 1x, at maximum zoom 2x. */
+    /** Visual stroke size only: at photo fit 0.8x, at maximum zoom the unchanged 2x. */
     val dimensionStrokeScale: Float
-        get() = 1f + log2((scale / photoFitScale).coerceIn(1f, MAX_ZOOM)) / log2(MAX_ZOOM)
+        get() = 0.8f + 1.2f * (log2((scale / photoFitScale).coerceIn(1f, MAX_ZOOM)) / log2(MAX_ZOOM))
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale
