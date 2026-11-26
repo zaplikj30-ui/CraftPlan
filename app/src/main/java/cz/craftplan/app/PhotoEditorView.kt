@@ -478,15 +478,15 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
         }
         writeDimensionSegments(dimensionSegments, length, strokeDensity)
-        // Keep the existing contrast outline and cap styles, scaled with the visible stroke.
+        // Matching square caps keep a contrasting border on the ends without round bulges.
         overlayPaint.color = Color.BLACK
         overlayPaint.strokeWidth = 4f * strokeDensity
-        overlayPaint.strokeCap = Paint.Cap.ROUND
+        overlayPaint.strokeCap = Paint.Cap.SQUARE
         canvas.drawLines(dimensionSegments, overlayPaint)
-        overlayPaint.strokeCap = Paint.Cap.BUTT
         overlayPaint.color = Color.rgb(247, 220, 39)
         overlayPaint.strokeWidth = 2f * strokeDensity
         canvas.drawLines(dimensionSegments, overlayPaint)
+        overlayPaint.strokeCap = Paint.Cap.BUTT
         canvas.restore()
     }
 
