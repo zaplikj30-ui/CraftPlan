@@ -14,10 +14,11 @@ internal class PrivatePhotoStore(
     private val rename: (File, File) -> Unit = { staged, final ->
         Files.move(staged.toPath(), final.toPath(), StandardCopyOption.ATOMIC_MOVE)
     },
+    val photo: StoredPhoto = StoredPhoto.synthetic,
     private val bundledBytes: () -> ByteArray,
 ) {
-    private val photo = StoredPhoto.synthetic
-    private val finalFile = File(directory, "photo-${photo.sha256}.jpg")
+    private val finalFile = File(directory, photo.mediaFileName())
+
 
     /** Only the serialized database writer may publish a photo. It holds the writer
      * transaction across the absence check, rename, media barriers and revision publication. */
@@ -79,4 +80,10 @@ internal class PrivatePhotoStore(
         }
         return bytes
     }
+}
+
+internal fun StoredPhoto.mediaFileName(): String = if (id == PhotoId.SYNTHETIC_WORKBENCH) {
+    "photo-$sha256.jpg"
+} else {
+    "photo-${id.name}-$sha256.jpg"
 }

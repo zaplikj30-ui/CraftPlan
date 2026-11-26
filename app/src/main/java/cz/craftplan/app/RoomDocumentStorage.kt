@@ -28,6 +28,7 @@ private fun openDocumentRepository(context: Context): DocumentRepository {
         context, File(privateDirectory, "m1-documents.db").absolutePath,
     )
         .setDriver(BundledSQLiteDriver())
+        .addMigrations(PHOTO_CATALOG_MIGRATION)
         .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()

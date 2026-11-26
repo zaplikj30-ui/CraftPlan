@@ -818,7 +818,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap) : Vi
             return
         }
         if (draft != null && scene.tool != DimensionTool.SELECT) {
-            val result = DimensionPlacement.Ready(PhotoId.SYNTHETIC_WORKBENCH)
+            val result = DimensionPlacement.Ready(scene.photoId)
                 .finishDrag(draft.start, viewport.dragEnd(draft.start, contact.x, contact.y, touchSlop))
             if (result != null) {
                 val applied = onCreateDimension(result.dimension)

@@ -20,6 +20,15 @@ internal data class StoredPhoto(
     val quality: String,
     val mimeType: String,
 ) {
+    init {
+        require(sha256.length == 64 && sha256.all { it in '0'..'9' || it in 'a'..'f' })
+        require(size in 1..MAX_PHOTO_BYTES && width > 0 && height > 0 &&
+            width.toLong() * height <= MAX_PHOTO_PIXELS)
+        require(sourceExifOrientation == null || sourceExifOrientation in 1..8)
+        require(anchorMapVersion == 1 && storedOrientation in 1..8)
+        require(quality == "full" && mimeType == "image/jpeg")
+    }
+
     companion object {
         val synthetic = StoredPhoto(
             PhotoId.SYNTHETIC_WORKBENCH, UUID.fromString("deb69e1d-b85e-494e-bad5-e06ed3899037"),
@@ -38,12 +47,14 @@ internal data class DocumentSnapshot(
 internal fun sha256(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+internal const val MAX_PHOTO_BYTES = 32 * 1024 * 1024
+internal const val MAX_PHOTO_PIXELS = 120_000_000L
 internal const val MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 
 /** Versioned, length-bounded snapshot. Geometry uses the editor's Float coordinates.
  * Measurements use only their tagged exact representation and validated provenance. */
 internal object SnapshotCodec {
-    private const val FORMAT_VERSION = 1
+    private const val FORMAT_VERSION = 2
     private const val MEASUREMENT_VERSION = 1
     private const val MAX_DIMENSIONS = 20_000
 
@@ -67,10 +78,11 @@ internal object SnapshotCodec {
     fun decode(bytes: ByteArray): DocumentSnapshot {
         require(bytes.size <= MAX_SNAPSHOT_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-            require(input.readInt() == FORMAT_VERSION)
+            val version = input.readInt()
+            require(version == 1 || version == FORMAT_VERSION)
             require(input.readInt() == MEASUREMENT_VERSION)
             val photo = input.readPhoto()
-            require(photo == StoredPhoto.synthetic)
+            require(version != 1 || photo == StoredPhoto.synthetic)
             val showNotes = input.readFlag()
             val count = input.readInt()
             require(count in 0..MAX_DIMENSIONS)
@@ -81,7 +93,7 @@ internal object SnapshotCodec {
     }
 
     private fun validate(snapshot: DocumentSnapshot) {
-        require(snapshot.photo == StoredPhoto.synthetic)
+        if (snapshot.photo.id == PhotoId.SYNTHETIC_WORKBENCH) require(snapshot.photo == StoredPhoto.synthetic)
         require(snapshot.dimensions.size <= MAX_DIMENSIONS)
         val ids = HashSet<UUID>()
         for (dimension in snapshot.dimensions) {
@@ -104,7 +116,7 @@ internal object SnapshotCodec {
     }
 
     private fun DataInputStream.readPhoto() = StoredPhoto(
-        PhotoId.valueOf(readUTF()), readUuid(), readUTF(), readInt(), readInt(), readInt(),
+        PhotoId(readUTF()), readUuid(), readUTF(), readInt(), readInt(), readInt(),
         readInt().takeUnless { it == 0 }, readInt(), readInt(), readUTF(), readUTF(),
     )
 
@@ -128,7 +140,7 @@ internal object SnapshotCodec {
 
     private fun DataInputStream.readDimension(): PhotoDimension {
         val id = readUuid()
-        val photoId = PhotoId.valueOf(readUTF())
+        val photoId = PhotoId(readUTF())
         val start = readAnchor()
         val end = readAnchor()
         val unit = LengthUnit.valueOf(readUTF())

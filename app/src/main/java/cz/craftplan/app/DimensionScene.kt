@@ -8,6 +8,7 @@ internal data class DimensionScene(
     val dimensions: List<PhotoDimension> = emptyList(),
     val selectedId: UUID? = null,
     val tool: DimensionTool = DimensionTool.SELECT,
+    val photoId: PhotoId = PhotoId.SYNTHETIC_WORKBENCH,
 ) {
     fun find(id: UUID?): PhotoDimension? = dimensions.firstOrNull { it.id == id }
 
@@ -49,7 +50,7 @@ internal data class DimensionScene(
         return copy(dimensions = manual + batch, selectedId = selectedId?.takeIf { id -> manual.any { it.id == id } })
     }
 
-    private fun accepts(dimension: PhotoDimension): Boolean = dimension.photoId == PhotoId.SYNTHETIC_WORKBENCH
+    private fun accepts(dimension: PhotoDimension): Boolean = dimension.photoId == photoId
 }
 
 internal data class DimensionTarget(

@@ -35,18 +35,21 @@ internal class DocumentRepository(
     private val photos: PrivatePhotoStore,
     private val syncStorage: () -> Unit,
 ) {
+    private val photo = photos.photo
+    private val documentId = photo.id.documentId
+
     suspend fun open(): OpenDocument {
         val exists = transactions.read { checkedHead(allowRecovery = true) != null }
         if (!exists) transactions.write {
             if (checkedHead() == null) {
-                insertHead(DocumentHead(SYNTHETIC_DOCUMENT_ID, UUID.randomUUID().toString(), null, null))
+                insertHead(DocumentHead(documentId, UUID.randomUUID().toString(), null, null))
             }
         }
         return transactions.read {
             val head = checkNotNull(checkedHead(allowRecovery = true))
             val latest = head.revisionId
             if (latest == null) {
-                OpenDocument(head.version(), DocumentSnapshot(emptyList(), true), photos.readBundled())
+                OpenDocument(head.version(), DocumentSnapshot(emptyList(), true, photo), photos.readBundled())
             } else {
                 val current = if (isUuid(latest) && latest != head.previousRevisionId) revision(latest) else null
                 val snapshot = validatedSnapshot(current, head, latest)
@@ -76,10 +79,11 @@ internal class DocumentRepository(
         val proposed = storagePhase(StoragePhase.SNAPSHOT) {
             require(request.editGeneration > 0 && isUuid(request.operationId) && isUuid(request.targetId))
             require(request.targetId != request.base.revisionId)
+            require(request.snapshot.photo == photo)
             val bytes = SnapshotCodec.encode(request.snapshot)
             require(SnapshotCodec.decode(bytes) == request.snapshot)
             DocumentRevision(
-                request.targetId, SYNTHETIC_DOCUMENT_ID, request.base.storageGeneration,
+                request.targetId, documentId, request.base.storageGeneration,
                 request.base.revisionId, request.operationId, request.editGeneration, sha256(bytes), bytes,
             )
         }
@@ -145,11 +149,11 @@ internal class DocumentRepository(
     }
 
     private suspend fun DocumentDao.checkedHead(allowRecovery: Boolean = false): DocumentHead? {
-        val head = head(SYNTHETIC_DOCUMENT_ID)
-        if (head?.revisionId == null && hasRevisions(SYNTHETIC_DOCUMENT_ID)) {
+        val head = head(documentId)
+        if (head?.revisionId == null && hasRevisions(documentId)) {
             throw IOException("Missing revision pointer")
         }
-        if (head != null && (head.documentId != SYNTHETIC_DOCUMENT_ID || !isUuid(head.storageGeneration) ||
+        if (head != null && (head.documentId != documentId || !isUuid(head.storageGeneration) ||
             (head.revisionId == null && head.previousRevisionId != null) ||
             (!allowRecovery && head.revisionId != null &&
                 (!isUuid(head.revisionId) || head.revisionId == head.previousRevisionId)) ||
@@ -171,7 +175,7 @@ internal class DocumentRepository(
             sha256(row.snapshot) != row.snapshotDigest
         ) return null
         return try {
-            SnapshotCodec.decode(row.snapshot)
+            SnapshotCodec.decode(row.snapshot).takeIf { it.photo == photo }
         } catch (_: IOException) {
             null
         } catch (_: IllegalArgumentException) {

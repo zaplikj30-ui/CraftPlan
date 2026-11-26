@@ -8,6 +8,9 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 
 internal const val SYNTHETIC_DOCUMENT_ID = "craftplan-synthetic-workbench"
 
@@ -64,7 +67,22 @@ internal interface DocumentDao {
     suspend fun publish(documentId: String, generation: String, expected: String?, target: String): Int
 }
 
-@Database(entities = [DocumentHead::class, DocumentRevision::class], version = 1)
+@Entity(tableName = "photo_import")
+internal data class PhotoImportRow(
+    @PrimaryKey val photoId: String,
+    val metadata: ByteArray,
+)
+
+internal val PHOTO_CATALOG_MIGRATION = object : Migration(1, 2) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(PHOTO_CATALOG_SCHEMA)
+    }
+}
+
+internal const val PHOTO_CATALOG_SCHEMA =
+    "CREATE TABLE IF NOT EXISTS `photo_import` (`photoId` TEXT NOT NULL, `metadata` BLOB NOT NULL, PRIMARY KEY(`photoId`))"
+
+@Database(entities = [DocumentHead::class, DocumentRevision::class, PhotoImportRow::class], version = 2)
 internal abstract class DocumentDatabase : RoomDatabase() {
     abstract fun documents(): DocumentDao
 }

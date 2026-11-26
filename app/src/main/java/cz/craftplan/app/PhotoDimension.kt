@@ -2,8 +2,17 @@ package cz.craftplan.app
 
 import java.util.UUID
 
-internal enum class PhotoId {
-    SYNTHETIC_WORKBENCH,
+internal data class PhotoId(val name: String) {
+    init {
+        require(name == "SYNTHETIC_WORKBENCH" ||
+            (name.length == 36 && UUID.fromString(name).toString() == name))
+    }
+
+    val documentId: String get() = if (this == SYNTHETIC_WORKBENCH) SYNTHETIC_DOCUMENT_ID else name
+
+    companion object {
+        val SYNTHETIC_WORKBENCH = PhotoId("SYNTHETIC_WORKBENCH")
+    }
 }
 
 /** In-memory editor coordinates relative to the canonical photo. */

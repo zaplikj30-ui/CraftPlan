@@ -7,6 +7,22 @@ import org.junit.Test
 
 class DocumentSnapshotTest {
     @Test
+    fun legacySnapshotStaysReadableAndPhotoIdentityIsValidated() {
+        val legacy = DocumentSnapshot(emptyList(), false)
+        val oldBytes = SnapshotCodec.encode(legacy).also { it[3] = 1 }
+        assertEquals(legacy, SnapshotCodec.decode(oldBytes))
+        val id = PhotoId(UUID.randomUUID().toString())
+        val photo = StoredPhoto.synthetic.copy(id = id, mediaId = UUID.randomUUID())
+        val imported = DocumentSnapshot(emptyList(), true, photo)
+        assertEquals(imported, SnapshotCodec.decode(SnapshotCodec.encode(imported)))
+        val mismatched = PhotoDimension(UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f))
+        assertThrows(IllegalArgumentException::class.java) {
+            SnapshotCodec.encode(imported.copy(dimensions = listOf(mismatched)))
+        }
+    }
+
+    @Test
     fun preservesExactValuesAndEveryEditorField() {
         val base = PhotoDimension(
             UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
@@ -37,7 +53,7 @@ class DocumentSnapshotTest {
             SnapshotCodec.encode(DocumentSnapshot(listOf(dimension, dimension), true))
         }
         val bytes = SnapshotCodec.encode(DocumentSnapshot(emptyList(), true))
-        bytes[3] = 2
+        bytes[3] = 3
         assertThrows(IllegalArgumentException::class.java) { SnapshotCodec.decode(bytes) }
     }
 }
