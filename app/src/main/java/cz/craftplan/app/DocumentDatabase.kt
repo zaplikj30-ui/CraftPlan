@@ -42,6 +42,9 @@ internal interface DocumentDao {
     @Query("SELECT * FROM document_revision WHERE saveOperationId = :id")
     suspend fun operation(id: String): DocumentRevision?
 
+    @Query("SELECT EXISTS(SELECT 1 FROM document_revision WHERE documentId = :documentId)")
+    suspend fun hasRevisions(documentId: String): Boolean
+
     @Insert
     suspend fun insertHead(head: DocumentHead)
 

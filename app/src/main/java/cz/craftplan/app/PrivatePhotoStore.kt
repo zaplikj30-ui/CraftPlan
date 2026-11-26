@@ -18,7 +18,7 @@ internal class PrivatePhotoStore(
 
     fun prepare(): ByteArray {
         if (!finalFile.exists()) {
-            val bytes = verify(bundledBytes())
+            val bytes = readBundled()
             val staged = Files.createTempFile(directory.toPath(), ".photo-staged-", ".jpg").toFile()
             FileOutputStream(staged).use {
                 it.write(bytes)
@@ -39,9 +39,11 @@ internal class PrivatePhotoStore(
         return readAndSync()
     }
 
+    fun readBundled(): ByteArray = verify(bundledBytes())
+
     fun readConfirmed(): ByteArray = read(finalFile)
 
-    private fun readAndSync(): ByteArray {
+    fun readAndSync(): ByteArray {
         val bytes = FileInputStream(finalFile).use {
             val verified = verify(it.readNBytes(photo.size + 1))
             it.fd.sync()
