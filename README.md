@@ -4,6 +4,8 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 
 ## M1 – uložení a opětovné otevření syntetické fotografie
 
+**Testovací publikace opravy (26. 11. 2026):** vlastník schválil sestavení APK pro praktický retest opravy na zdrojové revizi `4a032e1a975cfc90c8c1251ec5e45af38185f83b`. Výsledek CI a praktického retestu zatím nepotvrzen; pouze syntetická data.
+
 **APK 84 – fyzický FAIL (26. 11. 2026):** při prvním otevření syntetické fotografie svítí `NEULOŽENO`. Při opakování krátce svítí `UKLÁDÁM` a chyba se vrací. Kóty a poznámky zůstávají v běžící relaci. Publikační revize `17304de59e780395d1c6b4bf9f8d69839b5eabd3`, zdrojová revize `e23fe58ce89fc69f3c8c69e8afcebb8e3a40e57a`.
 
 **Příčina a oprava:** první zápis APK 84 volal `Files.createLink`. Android SELinux zakazuje běžným aplikacím vytvářet pevné odkazy i na vlastní soubory. Dřívější test na hostiteli tuto podmínku nepokrýval. Oprava používá atomický `Os.rename` ve stejném adresáři pod zámkem zapisující transakce. Případné další selhání ukáže fázi a bezpečný kód příčiny přímo u stavu uložení. Kód neobsahuje cesty, text výjimky ani obsah dokumentu. [Pravidlo Android SELinux](https://github.com/aosp-mirror-neo/platform_system_sepolicy/blob/android16-release/private/app_neverallows.te#L109-L115)
