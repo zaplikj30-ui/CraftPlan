@@ -79,6 +79,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             field = next
             invalidate()
         }
+    // Fixed toolbar top in this View's pixels; the extra row is deliberately ignored.
+    var fixedToolbarTopPx: Int? = null
     var diagnostics: EditorDiagnostics? = null
     var onDrawCounts: (Int, Int) -> Unit = { _, _ -> }
     private val activeDiagnostics get() = diagnostics?.takeIf { it.recording }
@@ -912,17 +914,12 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun autoPanVelocity(contact: EditorPoint): EditorPoint {
         // Keep the usable top edge reachable without requiring a system-bar gesture.
         // The stable inset changes neither photo coordinates nor the actual viewport.
-        val top = safeOverlayTopPx.coerceIn(0, height.coerceAtLeast(0))
-        val usableHeight = height - top
         return EditorPoint(
             edgePanSpeed(contact.x, width, 48f * density, 440f * density),
-            edgePanSpeed(
-                contact.y - top, usableHeight,
-                verticalAutoPanEdgeSize(
-                    usableHeight, density, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
-                    editingEndpoint = dimensionEdit?.let { it.hit != DimensionHit.BODY } == true,
-                ),
-                440f * density,
+            verticalAutoPanSpeed(
+                contact.y, height, safeOverlayTopPx, fixedToolbarTopPx, density,
+                isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+                editingEndpoint = dimensionEdit?.let { it.hit != DimensionHit.BODY } == true,
             ),
         )
     }

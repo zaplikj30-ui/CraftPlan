@@ -166,6 +166,19 @@ internal fun verticalAutoPanEdgeSize(
     return minOf(height * portion, maxDp * density)
 }
 
+/** Only endpoint editing uses the measured fixed toolbar as its lower edge. */
+internal fun verticalAutoPanSpeed(
+    y: Float, height: Int, safeTopPx: Int, fixedToolbarTopPx: Int?, density: Float,
+    isLandscape: Boolean, editingEndpoint: Boolean,
+): Float {
+    val top = safeTopPx.coerceIn(0, height.coerceAtLeast(0))
+    val bottom = if (editingEndpoint) (fixedToolbarTopPx ?: height).coerceIn(top, height.coerceAtLeast(top))
+        else height.coerceAtLeast(top)
+    val usableHeight = bottom - top
+    val edge = verticalAutoPanEdgeSize(usableHeight, density, isLandscape, editingEndpoint)
+    return edgePanSpeed(y - top, usableHeight, edge, 440f * density)
+}
+
 /** Signed camera speed. The photo moves toward the middle of the view. */
 internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed: Float): Float {
     val edge = minOf(edgeSize, size / 2f)

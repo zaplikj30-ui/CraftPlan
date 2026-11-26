@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
+private val toolbarVerticalPadding = 9.dp
 private val toolbarShape = RoundedCornerShape(8.dp)
 private val toolbarIconSize = 28.dp
 private val toolbarButtonSize = Modifier.size(width = 52.dp, height = 56.dp)
@@ -68,7 +70,10 @@ private val gripSharedDepth = 20.dp
 private val gripSideOuterHitPadding = 23.dp
 
 @Composable
-internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier) {
+internal fun EditorToolbar(
+    state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier,
+    onFixedToolbarTop: (Float) -> Unit = {},
+) {
     val tool = state.scene.tool
     val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
     Column(modifier.fillMaxWidth()) {
@@ -87,7 +92,7 @@ internal fun EditorToolbar(state: PhotoEditorState, repeatHintOffset: Dp, modifi
                 )
             }
         }
-        EditorToolbarSurface(state)
+        EditorToolbarSurface(state, onFixedToolbarTop)
     }
 }
 
@@ -274,7 +279,7 @@ private fun Modifier.sharedToolbarGrip(state: PhotoEditorState): Modifier =
     }
 
 @Composable
-private fun EditorToolbarSurface(state: PhotoEditorState) {
+private fun EditorToolbarSurface(state: PhotoEditorState, onFixedToolbarTop: (Float) -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
@@ -306,7 +311,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                         )
                     }
                 }.sharedToolbarGrip(state))
-                    .padding(vertical = 9.dp).padding(end = if (sideGrip) 9.dp else 0.dp),
+                    .padding(vertical = toolbarVerticalPadding).padding(end = if (sideGrip) 9.dp else 0.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
@@ -343,7 +348,10 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                     horizontalArrangement = Arrangement.Start,
                 ) {
                     Row(
-                        Modifier.pointerInput(state) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            // The fixed buttons stay at the bottom, even with the extra row open.
+                            onFixedToolbarTop(coordinates.positionInRoot().y - with(density) { toolbarVerticalPadding.toPx() })
+                        }.pointerInput(state) {
                             var motion = 0f
                             detectHorizontalDragGestures(
                                 onDragStart = { motion = 0f },

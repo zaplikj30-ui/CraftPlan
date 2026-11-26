@@ -316,6 +316,26 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun endpointAutoPanUsesFixedToolbarTopRatherThanScreenBottom() {
+        for (landscape in listOf(false, true)) {
+            val height = if (landscape) 400 else 800
+            val top = 24
+            val bottom = height - 74
+            fun speed(y: Float, editing: Boolean = true, toolbar: Int? = bottom) =
+                verticalAutoPanSpeed(y, height, top, toolbar, 1f, landscape, editing)
+            assertEquals(440f, speed(top.toFloat()), 0f)
+            assertEquals(0f, speed(top + 48f), 0f)
+            assertEquals(0f, speed(bottom - 48f), 0f)
+            assertEquals(-220f, speed(bottom - 24f), 0.0001f)
+            assertEquals(-440f, speed(bottom.toFloat()), 0f)
+            assertEquals(-440f, speed(height.toFloat()), 0f)
+            assertEquals(0f, speed(bottom - 24f, toolbar = null), 0f)
+            assertEquals(speed(bottom - 24f, false, null), speed(bottom - 24f, false), 0f)
+            assertEquals(0f, speed(top.toFloat(), toolbar = top), 0f)
+        }
+    }
+
+    @Test
     fun autoPanSpeedIsSymmetricAndActiveOnlyNearAnEdge() {
         assertEquals(0f, edgePanSpeed(200f, 400, 48f, 440f), 0f)
         assertEquals(220f, edgePanSpeed(24f, 400, 48f, 440f), 0f)

@@ -48,6 +48,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -800,10 +803,11 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 storageStatus = {
                     DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
                 },
-                toolbar = { modifier ->
+                toolbar = { modifier, onFixedToolbarTop ->
                     if (editorState.saveStatus != DocumentSaveStatus.RECOVERED) EditorToolbar(
                         editorState, repeatHintOffset,
                         modifier.alpha(if (editorState.valueDraft == null) 1f else 0f),
+                        onFixedToolbarTop = onFixedToolbarTop,
                     )
                 },
             )
@@ -899,8 +903,11 @@ private fun SamplePhoto(
     onDrawCounts: (Int, Int) -> Unit,
     overlays: @Composable () -> Unit,
     storageStatus: @Composable () -> Unit,
-    toolbar: @Composable (Modifier) -> Unit,
+    toolbar: @Composable (Modifier, (Float) -> Unit) -> Unit,
 ) {
+    var editorTop by remember { mutableStateOf<Float?>(null) }
+    var fixedToolbarTop by remember { mutableStateOf<Float?>(null) }
+    val fixedToolbarTopPx = editorTop?.let { top -> fixedToolbarTop?.let { (it - top).roundToInt() } }
     Box(modifier = modifier) {
         AndroidView(
             factory = { context ->
@@ -910,9 +917,12 @@ private fun SamplePhoto(
                     this.scene = scene
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
+                editorTop = coordinates.positionInRoot().y
+            },
             update = { view ->
                 view.safeOverlayTopPx = safeOverlayTopPx
+                view.fixedToolbarTopPx = fixedToolbarTopPx
                 view.onCreateDimension = onCreateDimension
                 view.onChangeDimension = onChangeDimension
                 view.onSelectDimension = onSelectDimension
@@ -933,7 +943,7 @@ private fun SamplePhoto(
                 .height(with(density) { statusScrimHeightPx.toDp() })
                 .background(Color.Black.copy(alpha = 0.55f)))
         }
-        toolbar(Modifier.align(Alignment.BottomStart))
+        toolbar(Modifier.align(Alignment.BottomStart)) { fixedToolbarTop = it }
         Box(Modifier.align(Alignment.TopStart)
             .padding(start = 4.dp, top = with(density) { safeOverlayTopPx.toDp() } + 4.dp)) { storageStatus() }
         Box(Modifier.align(Alignment.TopEnd)
