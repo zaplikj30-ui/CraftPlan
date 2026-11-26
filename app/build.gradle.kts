@@ -4,6 +4,7 @@ plugins {
     id("com.android.application") version "8.13.2"
     id("org.jetbrains.kotlin.android") version "2.3.10"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
+    id("com.google.devtools.ksp") version "2.3.6"
 }
 
 val m1Keystore = providers.environmentVariable("CRAFTPLAN_M1_KEYSTORE").orNull
@@ -82,6 +83,10 @@ kotlin {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", file("schemas").absolutePath)
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.04.01"))
     implementation("androidx.activity:activity-compose:1.12.4")
@@ -89,6 +94,10 @@ dependencies {
     implementation("androidx.compose.ui:ui")
 
     implementation("com.google.mlkit:digital-ink-recognition:19.0.0")
+
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.sqlite:sqlite-bundled:2.7.1")
+    ksp("androidx.room:room-compiler:2.8.5")
 
     testImplementation("junit:junit:4.13.2")
 }
