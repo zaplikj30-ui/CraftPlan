@@ -23,6 +23,45 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun inlineDragUsesFifteenDegreesInBothDirectionsAndAtAnyOrientation() {
+        for (orientation in listOf(0.0, 90.0, 42.0, -53.0, 180.0)) {
+            fun vector(angle: Double, length: Float): EditorPoint {
+                val radians = Math.toRadians(angle)
+                return EditorPoint((kotlin.math.cos(radians) * length).toFloat(),
+                    (kotlin.math.sin(radians) * length).toFloat())
+            }
+            val axis = vector(orientation, 100f)
+            for (direction in listOf(0.0, 180.0)) {
+                for (offset in listOf(-14.99, 0.0, 14.99)) {
+                    assertEquals(InlineLabelDragMode.LABEL, resolveInlineLabelDrag(
+                        null, axis, vector(orientation + direction + offset, 30f), 7f, false))
+                }
+                for (offset in listOf(-90.0, -15.01, 15.01, 90.0)) {
+                    assertEquals(InlineLabelDragMode.BODY, resolveInlineLabelDrag(
+                        null, axis, vector(orientation + direction + offset, 30f), 7f, false))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun inlineDragWaitsForThresholdThenKeepsFirstModeUntilNextGesture() {
+        val axis = EditorPoint(100f, 0f)
+        assertNull(resolveInlineLabelDrag(null, axis, EditorPoint(0f, 6f), 7f, false))
+        assertNull(resolveInlineLabelDrag(null, axis, EditorPoint(7f, 0f), 7f, false))
+        assertNull(resolveInlineLabelDrag(null, EditorPoint(0f, 0f), EditorPoint(30f, 0f), 7f, false))
+        val label = resolveInlineLabelDrag(null, axis, EditorPoint(12f, 2f), 7f, false)
+        val body = resolveInlineLabelDrag(null, axis, EditorPoint(2f, 12f), 7f, false)
+        assertEquals(InlineLabelDragMode.LABEL, label)
+        assertEquals(InlineLabelDragMode.BODY, body)
+        assertEquals(label, resolveInlineLabelDrag(label, axis, EditorPoint(0f, 80f), 7f, false))
+        assertEquals(body, resolveInlineLabelDrag(body, axis, EditorPoint(80f, 0f), 7f, false))
+        assertEquals(InlineLabelDragMode.BODY, resolveInlineLabelDrag(
+            null, axis, EditorPoint(30f, 0f), 7f, true))
+        assertNull(resolveInlineLabelDrag(null, axis, EditorPoint(2f, 0f), 7f, true))
+    }
+
+    @Test
     fun centeredDecorationKeepsSizeAndTouchMargins() {
         val above = dimensionLabelGeometry(2f, 80f, 36f, false, true)
         val inline = above.centeredOnLine()

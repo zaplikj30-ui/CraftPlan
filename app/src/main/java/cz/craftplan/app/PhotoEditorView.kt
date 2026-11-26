@@ -56,6 +56,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val downAnchor: PhotoAnchor,
         val tapTarget: DimensionTarget,
         val movesLabel: Boolean = false,
+        val inlineDragMode: InlineLabelDragMode? = null,
         val dragThreshold: Float,
         val preview: PhotoDimension? = null,
     )
@@ -758,6 +759,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     }
 
     private fun DimensionEdit.diagnosticAction(): DiagnosticAction = when {
+        inlineDragMode == InlineLabelDragMode.BODY -> DiagnosticAction.EDIT_BODY
         tapTarget.label -> DiagnosticAction.EDIT_LABEL
         hit == DimensionHit.BODY -> DiagnosticAction.EDIT_BODY
         hit == DimensionHit.START -> DiagnosticAction.EDIT_START
@@ -789,7 +791,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down, profile)
         if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
             val dimension = target.dimension
-            // Label and notebook gestures never fall through to moving the whole dimension.
+            // Above-line labels and notebooks keep their established gestures.
+            // Inline movable labels defer direction arbitration until the drag threshold.
             val span = viewport.screenPoint(dimension.start).distanceTo(viewport.screenPoint(dimension.end))
             val threshold = if (target.label) profile.editDragThreshold else dimensionDragThreshold(
                 span, profile.hitDensity, profile.editDragThreshold,
@@ -941,15 +944,16 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             } else activeDiagnostics?.action(DiagnosticAction.DRAWING, DiagnosticResult.REJECTED)
         } else if (edit != null) {
             if (edit.preview != null || passesDragThreshold(edit.down, contact, edit.dragThreshold)) {
+                val resolved = resolveEditDrag(edit, contact)
                 onSelectDimension(edit.original.id)
-                val changed = editedDimension(edit, contact)
+                val changed = editedDimension(resolved, contact)
                 val applied = onChangeDimension(edit.original, changed)
                 val result = when {
                     applied -> DiagnosticResult.APPLIED
                     edit.original == changed -> DiagnosticResult.UNCHANGED
                     else -> DiagnosticResult.REJECTED
                 }
-                activeDiagnostics?.action(edit.diagnosticAction(), result, edit.original.id, edit.down.distanceTo(contact))
+                activeDiagnostics?.action(resolved.diagnosticAction(), result, edit.original.id, edit.down.distanceTo(contact))
             } else {
                 activeDiagnostics?.action(
                     edit.diagnosticAction(), DiagnosticResult.UNCHANGED, edit.original.id, edit.down.distanceTo(contact),
@@ -959,11 +963,26 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         }
     }
 
+    private fun resolveEditDrag(draft: DimensionEdit, contact: EditorPoint): DimensionEdit {
+        if (!appearance.inline || !draft.movesLabel || draft.inlineDragMode != null) return draft
+        val axis = viewport.screenPoint(draft.original.end) - viewport.screenPoint(draft.original.start)
+        val mode = resolveInlineLabelDrag(null, axis, contact - draft.down, draft.dragThreshold, labelsLocked)
+            ?: return draft
+        return draft.copy(inlineDragMode = mode)
+    }
+
     private fun editedDimension(draft: DimensionEdit, contact: EditorPoint): PhotoDimension {
         val delta = contact - viewport.screenPoint(draft.downAnchor)
         val original = draft.original
         if (draft.tapTarget.notebook) return original
         if (!draft.movesLabel) return viewport.moveDimension(original, draft.hit, delta)
+        if (appearance.inline) {
+            when (draft.inlineDragMode) {
+                InlineLabelDragMode.BODY -> return viewport.moveDimension(original, DimensionHit.BODY, delta)
+                InlineLabelDragMode.LABEL -> Unit
+                null -> return original
+            }
+        }
         val axis = viewport.screenPoint(original.end) - viewport.screenPoint(original.start)
         if (!appearance.inline) return original.shiftLabel(axis, delta, labelsLocked)
         val length = hypot(axis.x, axis.y)
@@ -975,7 +994,12 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun updateDraft(contact: EditorPoint) {
         lensContact = contact
         dimensionDrag = dimensionDrag?.let { it.copy(end = viewport.toPhotoAnchor(contact.x, contact.y)) }
-        dimensionEdit = dimensionEdit?.let { it.copy(preview = editedDimension(it, contact)) }
+        dimensionEdit = dimensionEdit?.let {
+            val resolved = resolveEditDrag(it, contact)
+            // Do not create a preview until the inline direction is resolved.
+            if (appearance.inline && resolved.movesLabel && resolved.inlineDragMode == null) resolved
+            else resolved.copy(preview = editedDimension(resolved, contact))
+        }
         invalidate()
     }
 

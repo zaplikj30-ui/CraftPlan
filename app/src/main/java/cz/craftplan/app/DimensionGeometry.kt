@@ -12,6 +12,27 @@ internal enum class DimensionHit {
     START, END, BODY,
 }
 
+internal enum class InlineLabelDragMode { LABEL, BODY }
+
+/** Resolve only the first meaningful motion, relative to the undirected line axis.
+ * Keep the chosen mode for the entire contact; the caller discards it on UP/CANCEL/pinch.
+ */
+internal fun resolveInlineLabelDrag(
+    previous: InlineLabelDragMode?, axis: EditorPoint, delta: EditorPoint,
+    threshold: Float, labelsLocked: Boolean,
+): InlineLabelDragMode? {
+    if (previous != null) return previous
+    val motion = hypot(delta.x, delta.y)
+    if (!motion.isFinite() || motion <= threshold ||
+        !axis.x.isFinite() || !axis.y.isFinite() || (axis.x == 0f && axis.y == 0f)) return null
+    if (labelsLocked) return InlineLabelDragMode.BODY
+    val along = kotlin.math.abs(axis.x.toDouble() * delta.x + axis.y.toDouble() * delta.y)
+    val across = kotlin.math.abs(axis.x.toDouble() * delta.y - axis.y.toDouble() * delta.x)
+    // tan(15 degrees); dot/cross avoid normalizing or converting angles on every gesture.
+    return if (across <= along * 0.2679491924311227) InlineLabelDragMode.LABEL
+        else InlineLabelDragMode.BODY
+}
+
 /** Screen-space distance to the finite line segment, not to its generous hit zone. */
 internal fun distanceToDimensionLine(point: EditorPoint, start: EditorPoint, end: EditorPoint): Float {
     val axis = end - start
