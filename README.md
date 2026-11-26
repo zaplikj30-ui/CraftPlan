@@ -2,6 +2,30 @@
 
 Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokončené změny syntetického dokumentu se průběžně ukládají a další otevření načte poslední ověřenou revizi.
 
+## M1 – jednotlivé fotografie a bezpečný import
+
+- **Základ APK 85:** vlastník prakticky ověřil uložení, reopen, restart a následné úpravy. Migrace Room 1→2 přidává katalog importů. Stávající tabulky, syntetický dokument, jeho fotografie, revize a kóty zůstávají použitelné. Čtení snapshotů verze 1 je zachováno.
+- Na úvodní obrazovce vyber **Importovat fotografii JPEG**. Android zpřístupní jeden soubor ke čtení. CraftPlan ověří bajty ve svém soukromém úložišti a nabídne náhled. **Později** ponechá dokončenou přípravu k obnovení i po restartu. **Zahodit import** vyžaduje potvrzení a týká se pouze rozpracované kopie. Externí zdroj se nemění.
+- **Potvrdit import** po ověření finálního souboru a synchronizaci souboru i adresáře založí první úplnou revizi. Každý import má vlastní identitu a samostatné kóty. Z úvodní obrazovky jde znovu otevřít každý potvrzený snímek. EXIF 1–8 se použije jako jedna uložená mapa pro zobrazení a kotvy. JPEG se při importu v režimu Plná nepřekomprimuje. Import má limit 32 MiB a 120 Mpx. Zobrazení dekóduje pracovní bitmapu se stranou nejvýše 2 048 px.
+- Pád při neúplném čtení může nechat izolovaný soubor `.part`. K obnovení se nabízejí až kandidáti s dokončeným zápisem a ověřitelným SHA‑256. Revize a chráněná média se automaticky nemažou. Pro testy používej pouze syntetické nebo nahraditelné fotografie.
+- **Ověření:** jednotkové testy pokrývají obnovu přípravy po odstranění zdroje, nezávislé identity, kontrolu poškozeného a nedokončeného JPEG, pořadí potvrzení a ochranu při zahození. Matice EXIF a SQL migrace byly ověřeny na hostiteli. Fyzický test Android migrace z APK 85, systémového výběru souboru, skutečných otočených a zrcadlených JPEG, plného disku a přerušení napájení zůstává **NOT RUN**.
+
+### Návrh kvality a dvou cest focení
+
+Parametry níže jsou výchozí hodnoty pro pozdější porovnání detailů, čitelnosti hran, velikosti souboru a výkonu. Volby focení a importu zůstávají oddělené s produktovým výchozím stavem Plná / Plná. V tomto kroku je dostupný import JPEG v plné kvalitě.
+
+| Kvalita | Navržené parametry |
+|---|---|
+| Úsporná | Delší strana nejvýše 1 600 px, JPEG kvalita 82. Bez zvětšování menších snímků. |
+| Střední | Delší strana nejvýše 3 000 px, JPEG kvalita 90. Bez zvětšování menších snímků. |
+| Plná | Import uchová přesně bajty dodané zdrojem, u focení se ponechá JPEG dodaný fotoaparátem v dostupném plném rozlišení bez další komprese CraftPlanu. |
+
+Formáty k ověření po JPEG: PNG pro bezztrátové podklady a HEIC/HEIF pro jednotlivé fotografie, pokud projdou kontrolou rozměrů, orientace, čitelnosti a identity uložených bajtů. RAW, pohyblivé či vícesnímkové soubory zůstávají mimo tento návrh. Nižší kvality by otočení a zrcadlení normalizovaly při jediném převodu do výsledného JPEG. V modelu by zůstala identita mapy uložených pixelů a oddělená informace o původní orientaci.
+
+- **Vestavěný fotoaparát:** CameraX `Preview` a `ImageCapture`, oprávnění ke kameře až při použití, výstup do privátního mezisouboru. Po převzetí použít stejný ověřený staging, náhled a atomické potvrzení revize jako u importu. [CameraX ImageCapture](https://developer.android.com/media/camera/camerax/take-photo)
+- **Systémový fotoaparát:** `TakePicture` s `EXTRA_OUTPUT` a dočasným URI z neexportovaného `FileProvider`, omezeným na jediný vstupní soubor. Před spuštěním evidovat identitu pokusu, po návratu odebrat oprávnění a ověřit skutečné bajty. Samotné `RESULT_OK` nepotvrzuje soubor. Pro podporované aplikace fotoaparátu ověřit storno, chybějící výstup, zánik procesu a to, že nevzniká automatická kopie v Galerii. [TakePicture](https://developer.android.com/reference/androidx/activity/result/contract/ActivityResultContracts.TakePicture) · [FileProvider](https://developer.android.com/reference/androidx/core/content/FileProvider)
+- Uživatel bude moci zvolit obě cesty. Výchozí volba a umístění ovladače zůstávají otevřené. Obě varianty používají stejný bezpečný tok a společnou politiku kvality. Panoramata mají samostatný budoucí rozsah. [Rozhodnutí vlastníka v PR #4](https://github.com/zaplikj30-ui/CraftPlan/pull/4#issuecomment-7179713568)
+
 ## M1 – uložení a opětovné otevření syntetické fotografie
 
 **APK 85 – praktický PASS základního save/reopen (26. 11. 2026):** zdrojová revize `4a032e1a975cfc90c8c1251ec5e45af38185f83b`, publikační revize `f25d24d12f0c640b6f85afc602259e43896e3e49`, [Actions 45732529293](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45732529293) SUCCESS (JVM testy, lint, sestavení a podpis). Vlastník na telefonu potvrdil první otevření a stav `ULOŽENO`, uložení a návrat čtyř kót (1250 mm, 0 mm, NEZMĚŘENO, 1/3 in), poznámky, poloh kót a posunutého čísla po návratu z úvodní obrazovky. Stejný dokument zachován po zahození z posledních aplikací a vynuceném ukončení přes nastavení, každý scénář dvakrát. Ukončení probíhalo až po potvrzení `ULOŽENO`; nejde o test pádu během zápisu. Pouze syntetická data.
