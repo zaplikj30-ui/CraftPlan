@@ -352,7 +352,16 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             val top = bottom - labelHeight - 4f * density
             overlayPaint.color = WORKSPACE_COLOR
             canvas.drawRoundRect(center - halfWidth, top, center + halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
-            canvas.drawText(label, center, bottom - labelPaint.descent() - 2f * density, labelPaint)
+            val baseline = bottom - labelPaint.descent() - 2f * density
+            // Keep the existing text metrics and fill; outline is a visual pass only.
+            labelPaint.color = Color.BLACK
+            labelPaint.style = Paint.Style.STROKE
+            labelPaint.strokeJoin = Paint.Join.ROUND
+            labelPaint.strokeWidth = 2f * density
+            canvas.drawText(label, center, baseline, labelPaint)
+            labelPaint.style = Paint.Style.FILL
+            labelPaint.color = Color.WHITE
+            canvas.drawText(label, center, baseline, labelPaint)
         }
         if (decoration.notebook) {
             // A tiny notebook marker; the note text itself stays off the photograph.
@@ -465,9 +474,16 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             overlayPaint.strokeWidth = 5f * density
             canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
         }
+        writeDimensionSegments(dimensionSegments, length, density)
+        // Paint the same centerlines twice, without changing anchors, arrow shape or hit areas.
+        // One dp of dark contrast on each side of the existing two-dp colored stroke.
+        overlayPaint.color = Color.BLACK
+        overlayPaint.strokeWidth = 4f * density
+        overlayPaint.strokeCap = Paint.Cap.ROUND
+        canvas.drawLines(dimensionSegments, overlayPaint)
+        overlayPaint.strokeCap = Paint.Cap.BUTT
         overlayPaint.color = Color.rgb(247, 220, 39)
         overlayPaint.strokeWidth = 2f * density
-        writeDimensionSegments(dimensionSegments, length, density)
         canvas.drawLines(dimensionSegments, overlayPaint)
         canvas.restore()
     }
