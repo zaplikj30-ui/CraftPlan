@@ -269,7 +269,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         }
         val lensStart = drag?.start ?: edited?.start
         if (target != null && lensStart != null) {
-            drawMagnifier(canvas, viewport.screenPoint(target), lensStart, drag?.end ?: edited?.end)
+            drawMagnifier(canvas, viewport.screenPoint(target), lensStart, drag?.end ?: edited?.end, edited?.id)
         }
         canvas.restoreToCount(saveCount)
         recorder?.let {
@@ -299,12 +299,25 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         }
     }
 
-    private fun drawCommittedDimension(canvas: Canvas, dimension: PhotoDimension, selected: Boolean) =
-        drawDimension(canvas, dimension.start, dimension.end, selected, labels.getValue(dimension.id), dimension.labelT)
+    private fun drawCommittedDimension(
+        canvas: Canvas, dimension: PhotoDimension, selected: Boolean, inMagnifier: Boolean = false,
+    ) = drawDimension(canvas, dimension.start, dimension.end, selected,
+        labels.getValue(dimension.id), dimension.labelT, inMagnifier)
+
+    private fun dimensionBoundsVisible(
+        canvas: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, padding: Float, inMagnifier: Boolean,
+    ): Boolean = if (inMagnifier) {
+        // The lens samples screen coordinates around its target, not around its overlay position.
+        // Use the transformed Canvas clip, including when the sample extends past a View edge.
+        !canvas.quickReject(minOf(x1, x2) - padding, minOf(y1, y2) - padding,
+            maxOf(x1, x2) + padding, maxOf(y1, y2) + padding)
+    } else {
+        boundsMayBeVisible(x1, y1, x2, y2, padding, width, height)
+    }
 
     private fun drawDimension(
         canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, decoration: DimensionLabel,
-        labelT: Float = 0f,
+        labelT: Float = 0f, inMagnifier: Boolean = false,
     ): Boolean {
         val x1 = viewport.screenX(start)
         val y1 = viewport.screenY(start)
@@ -315,11 +328,11 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val fraction = (1f + labelT) / 2f
         val labelX = x1 + dx * fraction
         val labelY = y1 + dy * fraction
-        val showStroke = boundsMayBeVisible(x1, y1, x2, y2, 14f * density, width, height)
-        val showStart = selected && boundsMayBeVisible(x1, y1, x1, y1, 16f * density, width, height)
-        val showEnd = selected && boundsMayBeVisible(x2, y2, x2, y2, 16f * density, width, height)
-        val showLabel = boundsMayBeVisible(
-            labelX, labelY, labelX, labelY, maxOf(24f * density, decoration.cullingRadius), width, height,
+        val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2, 14f * density, inMagnifier)
+        val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, 16f * density, inMagnifier)
+        val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, 16f * density, inMagnifier)
+        val showLabel = dimensionBoundsVisible(
+            canvas, labelX, labelY, labelX, labelY, maxOf(24f * density, decoration.cullingRadius), inMagnifier,
         )
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
@@ -489,7 +502,9 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.restore()
     }
 
-    private fun drawMagnifier(canvas: Canvas, target: EditorPoint, start: PhotoAnchor, end: PhotoAnchor?) {
+    private fun drawMagnifier(
+        canvas: Canvas, target: EditorPoint, start: PhotoAnchor, end: PhotoAnchor?, editedId: UUID?,
+    ) {
         val contact = lensContact ?: return
         val margin = 8f * density
         val top = safeOverlayTopPx + margin
@@ -518,6 +533,12 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.scale(zoom, zoom)
         canvas.translate(-target.x, -target.y)
         canvas.drawBitmap(photo, null, photoBounds, paint)
+        for (dimension in scene.dimensions) {
+            // The active preview replaces its committed geometry; never show both.
+            if (dimension.id != editedId) {
+                drawCommittedDimension(canvas, dimension, selected = false, inMagnifier = true)
+            }
+        }
         if (end != null && start != end) drawDimensionLine(canvas, start, end, selected = false)
         canvas.restore()
 
