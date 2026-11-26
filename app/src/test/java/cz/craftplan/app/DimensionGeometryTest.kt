@@ -23,7 +23,7 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
-    fun inlineDragUsesTwentyDegreesInBothDirectionsAndAtAnyOrientation() {
+    fun inlineDragUsesTwentyFiveDegreesInBothDirectionsAndAtAnyOrientation() {
         for (orientation in listOf(0.0, 90.0, 42.0, -53.0, 180.0)) {
             fun vector(angle: Double, length: Float): EditorPoint {
                 val radians = Math.toRadians(angle)
@@ -32,11 +32,11 @@ class DimensionGeometryTest {
             }
             val axis = vector(orientation, 100f)
             for (direction in listOf(0.0, 180.0)) {
-                for (offset in listOf(-19.99, -17.5, 0.0, 17.5, 19.99)) {
+                for (offset in listOf(-24.99, -22.5, -17.5, 0.0, 17.5, 22.5, 24.99)) {
                     assertEquals(InlineLabelDragMode.LABEL, resolveInlineLabelDrag(
                         null, axis, vector(orientation + direction + offset, 30f), 7f, false))
                 }
-                for (offset in listOf(-90.0, -20.01, 20.01, 90.0)) {
+                for (offset in listOf(-90.0, -25.01, 25.01, 90.0)) {
                     assertEquals(InlineLabelDragMode.BODY, resolveInlineLabelDrag(
                         null, axis, vector(orientation + direction + offset, 30f), 7f, false))
                 }
