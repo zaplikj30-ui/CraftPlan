@@ -122,33 +122,37 @@ class DimensionGeometryTest {
     }
 
     @Test
-    fun rulerMinimumPreservesOtherLabelSizesAndNeighborGap() {
+    fun rulerZoomPreservesOtherLabelSizesAndNeighborGap() {
         for (density in listOf(1f, 2f)) {
             val hidden = dimensionLabelGeometry(density, null, 18f * density, false, true)
             val shown = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
             val measured = dimensionLabelGeometry(density, 60f * density, 18f * density, false, true)
-            for (scale in listOf(0.8f, 0.9f, 0.95f, 1f, 1.2f)) {
-                val expected = maxOf(0.95f, scale)
+            for ((scale, expected) in listOf(0.8f to 0.8f, 0.9f to 0.9f,
+                0.95f to 0.95f, 1f to 1f, 1.1f to 1.3f, 1.2f to 1.6f)) {
                 for (geometry in listOf(hidden, shown)) {
                     val ruler = requireNotNull(geometry.ruler)
                     val neighbor = requireNotNull(geometry.text ?: geometry.notebook)
                     val offset = geometry.rulerNeighborOffset(scale)
-                    assertEquals(expected, geometry.rulerScale(scale), 0f)
+                    assertEquals(expected, geometry.rulerScale(scale), 0.00001f)
                     assertEquals(28f * density * expected, (ruler.right - ruler.left) * expected, 0.0001f)
                     assertEquals((neighbor.left - ruler.right) * scale,
                         neighbor.left * scale + offset - ruler.right * expected, 0.0001f)
-                    assertEquals(0f, requireNotNull(ruler.hit(ruler.right * expected,
-                        -12f * density * expected, expected, geometry.rulerTouch)).distance, 0f)
+                    val actualScale = geometry.rulerScale(scale)
+                    assertEquals(0f, requireNotNull(ruler.hit(ruler.right * actualScale,
+                        -12f * density * actualScale, actualScale, geometry.rulerTouch)).distance, 0f)
                     assertTrue(ruler.hit(23f * density, -12f * density,
-                        expected, geometry.rulerTouch) != null)
+                        actualScale, geometry.rulerTouch) != null)
+                    assertTrue(geometry.cullingRadius * geometry.cullingScale(scale) >=
+                        kotlin.math.hypot(ruler.right * actualScale, ruler.top * actualScale) - 0.0001f)
                     val touch = requireNotNull(geometry.textTouch ?: geometry.notebookTouch)
                     val point = neighbor.centerX * scale + offset
                     assertEquals(0f, requireNotNull(neighbor.hit(point - offset,
                         (neighbor.top + neighbor.bottom) / 2f * scale, scale, touch)).distance, 0f)
-                    assertTrue(geometry.cullingRadius * maxOf(1f, scale) >=
+                    assertTrue(geometry.cullingRadius * geometry.cullingScale(scale) >=
                         kotlin.math.hypot(neighbor.right * scale + offset, neighbor.top * scale) - 0.0001f)
                 }
                 assertEquals(0f, measured.rulerNeighborOffset(scale), 0f)
+                assertEquals(maxOf(1f, scale), measured.cullingScale(scale), 0f)
             }
         }
     }

@@ -341,7 +341,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val showLabel = dimensionBoundsVisible(
             canvas, labelX, labelY, labelX, labelY,
             maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
-                maxOf(1f, labelScale), inMagnifier,
+                decoration.geometry.cullingScale(labelScale), inMagnifier,
         )
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
