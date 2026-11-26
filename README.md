@@ -74,6 +74,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **Schválená testovací publikace APK 96 (26. 11. 2026):** výslovný GO vlastníka pro podepsané sestavení ze zdrojové revize `49aabdb5c612106aab8a2f6dea41a9cf3ab0306c` přes stávající M1 Actions. Rozsah: kompenzace velikosti textu 18–15–12 sp podle zoomu, ostatní úpravy zachovány. JVM/lint/build a fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
 
+**APK 96 – praktický FAIL směru škálování popisků (26. 11. 2026):** [Actions 45845133369](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45845133369) SUCCESS, JVM/lint/sestavení/podpis. Vlastník doložil dvěma screenshoty (mimo GitHub), že při maximálním přiblížení jsou popisky příliš malé, při oddálení příliš velké. Implementace `18f - 6f * dimensionZoomProgress` má opačný směr než aktuálně požadovaný. Návrh pro další zkoušku: 12 sp při fitu a pod ním, 15 sp při 8× fitu, 18 sp při max. 64× fitu; pouze obrátit směr, zachovat společné metriky výběru a vykreslení. Konkrétní krajní velikosti zatím návrh, bez nového GO k implementaci nebo sestavení. Ostatní funkce nedotčeny. Pouze nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
