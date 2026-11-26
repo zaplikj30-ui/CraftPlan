@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import kotlin.math.hypot
+import kotlin.math.log2
 
 /**
  * Maps image coordinates to the viewport for display. Lengths and document coordinates
@@ -47,6 +48,10 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
         private set
     var top = 0f
         private set
+
+    /** Visual stroke size only: at photo fit 1x, at maximum zoom 2x. */
+    val dimensionStrokeScale: Float
+        get() = 1f + log2((scale / photoFitScale).coerceIn(1f, MAX_ZOOM)) / log2(MAX_ZOOM)
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale
@@ -199,7 +204,7 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     }
 
     private companion object {
-        const val MAX_ZOOM = 8f
+        const val MAX_ZOOM = 64f
         const val WORKSPACE_RESERVE_SCREENS = 3.0
     }
 }

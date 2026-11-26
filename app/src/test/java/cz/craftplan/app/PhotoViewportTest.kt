@@ -49,6 +49,49 @@ class PhotoViewportTest {
     }
 
     @Test
+    fun strokeScaleIsBoundedAndContinuousAcrossZoomAndFit() {
+        val viewport = PhotoViewport(1200, 800)
+        viewport.fit(600, 600)
+        for (step in 0..6) {
+            if (step > 0) viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
+            assertEquals(1f + step / 6f, viewport.dimensionStrokeScale, 0.00001f)
+        }
+        viewport.transform(300f, 300f, 300f, 300f, factor = 100f)
+        assertEquals(32f, viewport.scale, 0.001f)
+        assertEquals(2f, viewport.dimensionStrokeScale, 0f)
+        viewport.fit(600, 600)
+        viewport.transform(300f, 300f, 300f, 300f, factor = 3f)
+        assertTrue(viewport.dimensionStrokeScale in (1f + 1f / 6f)..(1f + 2f / 6f))
+        viewport.fit(600, 600)
+        assertEquals(1f, viewport.dimensionStrokeScale, 0f)
+    }
+
+    @Test
+    fun maximumZoomKeepsAnchorMappingAcrossPanRotationAndFit() {
+        val viewport = PhotoViewport(4001, 3001)
+        val anchor = PhotoAnchor(0.5f, 0.5f)
+        viewport.fit(1080, 1920)
+        viewport.transform(540f, 960f, 540f, 960f, factor = 100f)
+        assertEquals(2f, viewport.dimensionStrokeScale, 0.00001f)
+        fun check(x: Float, y: Float) {
+            val point = viewport.screenPoint(anchor)
+            assertEquals(x, point.x, 0.05f)
+            assertEquals(y, point.y, 0.05f)
+            val recovered = requireNotNull(viewport.toPhotoAnchor(x, y))
+            assertEquals(anchor.u, recovered.u, 0.000001f)
+            assertEquals(anchor.v, recovered.v, 0.000001f)
+        }
+        check(540f, 960f)
+        viewport.transform(540f, 960f, 600f, 900f)
+        check(600f, 900f)
+        viewport.transform(600f, 900f, 540f, 960f)
+        viewport.resize(1920, 1080)
+        check(960f, 540f)
+        viewport.fit(1920, 1080)
+        check(960f, 540f)
+    }
+
+    @Test
     fun fitIncludesAnchorsFromDifferentDimensionsAfterAResize() {
         val viewport = PhotoViewport(400, 400)
         val left = PhotoDimension(
@@ -121,7 +164,7 @@ class PhotoViewportTest {
         assertEquals(24f, viewport.left, 0.001f)
         assertEquals(576f, viewport.screenX(far), 0.001f)
         viewport.transform(300f, 240f, 300f, 240f, factor = 100_000_000f)
-        assertEquals(4f, viewport.scale, 0.001f)
+        assertEquals(32f, viewport.scale, 0.001f)
     }
 
     @Test
@@ -217,7 +260,7 @@ class PhotoViewportTest {
         val viewport = PhotoViewport(1200, 800)
         viewport.fit(600, 600)
         viewport.transform(300f, 300f, 300f, 300f, factor = 100f)
-        assertEquals(4f, viewport.scale, 0.001f)
+        assertEquals(32f, viewport.scale, 0.001f)
 
         viewport.fit(1200, 600)
         assertEquals(0.75f, viewport.scale, 0.001f)
@@ -226,7 +269,7 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun outsideAnchorsExtendOnlyTheRequiredDirectionsAtMaximumZoom() {
+    fun outsideAnchorsExtendOnlyTheRequiredDirectionsAtEightfoldZoom() {
         val viewport = PhotoViewport(800, 800)
         viewport.fit(400, 400)
         val dimension = PhotoDimension(
