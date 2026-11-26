@@ -48,6 +48,10 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     var top = 0f
         private set
 
+    /** Destination edges are in the same space as the normalized anchors. */
+    val photoRight: Float get() = left + imageWidth * scale
+    val photoBottom: Float get() = top + imageHeight * scale
+
     fun fit(width: Int, height: Int) {
         this.width = width
         this.height = height

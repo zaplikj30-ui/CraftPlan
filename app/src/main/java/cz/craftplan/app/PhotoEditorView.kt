@@ -235,8 +235,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         photoBounds.set(
             viewport.left,
             viewport.top,
-            viewport.left + photo.width * viewport.scale,
-            viewport.top + photo.height * viewport.scale,
+            viewport.photoRight,
+            viewport.photoBottom,
         )
         canvas.drawBitmap(photo, null, photoBounds, paint)
         val drag = dimensionDrag

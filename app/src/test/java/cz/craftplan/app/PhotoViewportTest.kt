@@ -8,6 +8,47 @@ import org.junit.Test
 
 class PhotoViewportTest {
     @Test
+    fun photoDestinationMatchesCanonicalAnchorsAtFitZoomAndReopen() {
+        for (orientation in 1..8) {
+            val (width, height) = photoDimensions(4001, 3001, orientation)
+            val viewport = PhotoViewport(width, height)
+            val reopened = PhotoViewport(width, height)
+            viewport.resize(800, 720)
+            reopened.resize(800, 720)
+            assertEquals(viewport.photoRight, reopened.photoRight, 0f)
+            assertEquals(viewport.photoBottom, reopened.photoBottom, 0f)
+            assertCanonicalDestination(viewport, width, height)
+            viewport.transform(400f, 360f, 425f, 345f, factor = 2f)
+            assertCanonicalDestination(viewport, width, height)
+            viewport.resize(720, 800)
+            assertCanonicalDestination(viewport, width, height)
+        }
+    }
+
+    private fun assertCanonicalDestination(viewport: PhotoViewport, width: Int, height: Int) {
+        val corner = viewport.screenPoint(PhotoAnchor(1f, 1f))
+        assertEquals(corner.x, viewport.photoRight, 0.001f)
+        assertEquals(corner.y, viewport.photoBottom, 0.001f)
+        val destinationWidth = viewport.photoRight - viewport.left
+        val destinationHeight = viewport.photoBottom - viewport.top
+        assertEquals(width * viewport.scale, destinationWidth, 0.001f)
+        assertEquals(height * viewport.scale, destinationHeight, 0.001f)
+        // The same fractional point of a reduced texture maps to the anchor,
+        // even when sampling rounds the two bitmap axes differently.
+        val bitmapWidth = (width + 3) / 4
+        val bitmapHeight = (height + 3) / 4
+        val texelX = bitmapWidth / 3
+        val texelY = bitmapHeight / 2
+        val anchor = PhotoAnchor(texelX.toFloat() / bitmapWidth, texelY.toFloat() / bitmapHeight)
+        val point = viewport.screenPoint(anchor)
+        assertEquals(viewport.left + anchor.u * destinationWidth, point.x, 0.001f)
+        assertEquals(viewport.top + anchor.v * destinationHeight, point.y, 0.001f)
+        val hit = requireNotNull(viewport.toPhotoAnchor(point.x, point.y))
+        assertEquals(anchor.u, hit.u, 0.00001f)
+        assertEquals(anchor.v, hit.v, 0.00001f)
+    }
+
+    @Test
     fun fitIncludesAnchorsFromDifferentDimensionsAfterAResize() {
         val viewport = PhotoViewport(400, 400)
         val left = PhotoDimension(
