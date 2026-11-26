@@ -34,7 +34,7 @@ internal class ImportStaging(
                     if (count < 0) break
                     check(count > 0) { "Photo stream stopped making progress" }
                     size += count
-                    require(size <= MAX_PHOTO_BYTES) { "Photo exceeds byte limit" }
+                    if (size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
                     digest.update(buffer, 0, count)
                     output.write(buffer, 0, count)
                 }
@@ -68,12 +68,9 @@ internal class ImportStaging(
     private fun readVerified(file: File, candidate: ImportCandidate): ByteArray {
         require(Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS))
         val bytes = file.inputStream().use { it.readNBytes(MAX_PHOTO_BYTES + 1) }
-        require(bytes.size in 4..MAX_PHOTO_BYTES &&
-            bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte() &&
-            bytes[bytes.lastIndex - 1] == 0xff.toByte() && bytes.last() == 0xd9.toByte()) {
-            "Only complete JPEG inputs are supported"
-        }
-        require(sha256(bytes) == candidate.digest) { "Staged bytes failed integrity verification" }
+        if (bytes.size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
+        if (sha256(bytes) != candidate.digest) throw ImportValidationFailure(ImportRejection.STAGED_INTEGRITY)
+        validateJpegStructure(bytes)
         return bytes
     }
 

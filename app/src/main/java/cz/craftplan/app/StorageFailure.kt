@@ -35,6 +35,7 @@ internal fun storageFailureCode(error: Exception, fallback: StoragePhase): Strin
     repeat(6) {
         val current = cause ?: return "$phase / $reason"
         when (current) {
+            is ImportValidationFailure -> return "$phase / ${current.reason.name}"
             is ErrnoException -> return "$phase / ERRNO_${current.errno}"
             is DocumentConflict -> return "${StoragePhase.CONFLICT} / STALE_REVISION"
             is AtomicMoveNotSupportedException -> return "$phase / ATOMIC_MOVE_UNSUPPORTED"

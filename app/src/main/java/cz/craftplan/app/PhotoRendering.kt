@@ -2,10 +2,12 @@ package cz.craftplan.app
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.media.ExifInterface
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.UUID
 
 /** Maps raw JPEG axes into the canonical top-left photo coordinates. */
@@ -37,6 +39,31 @@ internal fun inspectImportedJpeg(candidate: ImportCandidate, bytes: ByteArray): 
         candidate.digest, bytes.size, bounds.outWidth, bounds.outHeight, orientation, 1, orientation ?: 1, "full", "image/jpeg")
 }
 
+/** Reject decoder-reported partial images during import. The decoded probe does
+ * not supply the editor bitmap, so the existing explicit EXIF map stays authoritative. */
+internal fun validateJpegWithAndroid(bytes: ByteArray) {
+    try {
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
+            if (info.mimeType != "image/jpeg") throw ImportValidationFailure(ImportRejection.JPEG_SIGNATURE)
+            val size = info.size
+            if (size.width.toLong() * size.height > MAX_PHOTO_PIXELS) {
+                throw ImportValidationFailure(ImportRejection.PHOTO_PIXEL_LIMIT)
+            }
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
+            decoder.setTargetSampleSize(8)
+            decoder.setOnPartialImageListener { false }
+        }.recycle()
+    } catch (error: ImageDecoder.DecodeException) {
+        val reason = when (error.error) {
+            ImageDecoder.DecodeException.SOURCE_INCOMPLETE -> ImportRejection.JPEG_TRUNCATED
+            ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA -> ImportRejection.JPEG_DECODE_MALFORMED
+            else -> ImportRejection.JPEG_DECODE_FAILED
+        }
+        throw ImportValidationFailure(reason)
+    }
+}
+
 internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap {
     val bounds = jpegBounds(bytes)
     require(bounds.outWidth == photo.width && bounds.outHeight == photo.height)
@@ -64,7 +91,11 @@ internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap {
 private fun jpegBounds(bytes: ByteArray): BitmapFactory.Options {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-    require(bounds.outMimeType == "image/jpeg" && bounds.outWidth > 0 && bounds.outHeight > 0 &&
-        bounds.outWidth.toLong() * bounds.outHeight <= MAX_PHOTO_PIXELS)
+    if (bounds.outMimeType != "image/jpeg" || bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw ImportValidationFailure(ImportRejection.JPEG_DECODE_MALFORMED)
+    }
+    if (bounds.outWidth.toLong() * bounds.outHeight > MAX_PHOTO_PIXELS) {
+        throw ImportValidationFailure(ImportRejection.PHOTO_PIXEL_LIMIT)
+    }
     return bounds
 }

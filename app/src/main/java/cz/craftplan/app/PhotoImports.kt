@@ -30,6 +30,7 @@ internal class PhotoImports(
     fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         val bytes = staging.read(candidate)
         val photo = inspectImportedJpeg(candidate, bytes)
+        validateJpegWithAndroid(bytes)
         ImportPreview(candidate, photo, decodePhoto(bytes, photo))
     }
 

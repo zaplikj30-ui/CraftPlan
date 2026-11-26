@@ -36,7 +36,8 @@ class PhotoImportTest {
         assertArrayEquals(bytes, restarted.read(first))
         val corrupt = bytes.clone().also { it[100] = (it[100].toInt() xor 1).toByte() }
         File(dir, first.fileName).writeBytes(corrupt)
-        assertThrows(IllegalArgumentException::class.java) { restarted.read(first) }
+        val failure = assertThrows(ImportValidationFailure::class.java) { restarted.read(first) }
+        assertEquals("IMPORT_PREVIEW / STAGED_INTEGRITY", storageFailureCode(failure, StoragePhase.IMPORT_PREVIEW))
         assertArrayEquals(bytes, restarted.read(second))
     }
 
@@ -70,7 +71,7 @@ class PhotoImportTest {
         val imports = PhotoImports(dir, {}, files, db, catalog) { photo, source ->
             DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
         }
-        val bytes = bundledSyntheticPhoto()
+        val bytes = bundledSyntheticPhoto() + byteArrayOf(0x53, 0x45, 0x46, 0xff.toByte(), 0xd9.toByte(), 0x01)
         val first = imports.receive(bytes.inputStream())
         val second = imports.receive(bytes.inputStream())
         val firstPhoto = testPhoto(first, bytes.size)
@@ -89,6 +90,8 @@ class PhotoImportTest {
         val opened = imports.confirm(first, firstPhoto)
         assertEquals(first.photoId.name, db.revisions.values.single().saveOperationId)
         assertEquals(firstPhoto, opened.snapshot.photo)
+        assertEquals(sha256(bytes), opened.snapshot.photo.sha256)
+        assertArrayEquals(bytes, imports.open(first.photoId).photoBytes)
         assertArrayEquals(bytes, opened.photoBytes)
         assertEquals(listOf(second), imports.list().pending)
         try {
@@ -110,6 +113,43 @@ class PhotoImportTest {
         imports.discard(discard)
         assertFalse(File(dir, discard.fileName).exists())
         assertEquals(setOf(first.photoId, second.photoId), imports.list().confirmed.toSet())
+    }
+
+    @Test
+    fun structureRejectsPayloadEoiAndIncompleteOrInvalidSegments() {
+        val jpeg = bundledSyntheticPhoto()
+        val fakeEoiInApp = byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 5, 0xff.toByte(), 0xd9.toByte(), 0x11)
+        val embedded = jpeg.copyOfRange(0, 2) + fakeEoiInApp + jpeg.copyOfRange(2, jpeg.size)
+        validateJpegStructure(embedded)
+
+        val cases = listOf(
+            byteArrayOf(1, 2, 3) to ImportRejection.JPEG_SIGNATURE,
+            embedded.copyOf(embedded.size - 2) to ImportRejection.JPEG_TRUNCATED,
+            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 1) to
+                ImportRejection.JPEG_INVALID_STRUCTURE,
+            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xef.toByte(), 0, 9, 0xff.toByte(), 0xd9.toByte()) to
+                ImportRejection.JPEG_TRUNCATED,
+            jpeg.copyOfRange(0, 2) + byteArrayOf(0xff.toByte(), 0xd9.toByte()) to
+                ImportRejection.JPEG_INVALID_STRUCTURE,
+        )
+        val dir = folder.newFolder()
+        val files = staging(dir)
+        for ((bytes, reason) in cases) {
+            val error = assertThrows(ImportValidationFailure::class.java) { files.receive(bytes.inputStream()) }
+            assertEquals("IMPORT_STAGE / ${reason.name}", storageFailureCode(error, StoragePhase.IMPORT_STAGE))
+            assertEquals(emptyList<ImportCandidate>(), files.candidates())
+        }
+    }
+
+    @Test
+    fun acceptsSyntheticProgressiveJpegWithTrailingData() {
+        // Generated 16×8 RGB gradient, encoded in progressive mode.
+        val jpeg = checkNotNull(javaClass.getResourceAsStream("/synthetic-progressive.jpg")).use { it.readBytes() }
+        val bytes = jpeg + byteArrayOf(1, 2, 3)
+        val dir = folder.newFolder()
+        val candidate = staging(dir).receive(bytes.inputStream())
+        assertArrayEquals(bytes, staging(dir).read(candidate))
+        assertEquals(sha256(bytes), candidate.digest)
     }
 
     @Test
