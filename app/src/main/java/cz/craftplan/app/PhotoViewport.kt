@@ -60,9 +60,15 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionTickScale: Float
         get() = 0.8f + 0.2f * dimensionZoomProgress
 
-    /** Black stroke width relative to stroke density, preserving the maximum-zoom border. */
+    /** Yellow stroke width relative to stroke density; unchanged at maximum zoom. */
+    val dimensionFillWidth: Float
+        get() = 1.7f + 0.3f * dimensionZoomProgress
+
+    /** Black under-stroke: at fit, 15% less yellow and 25% more border per side.
+     *  The total width stays almost unchanged (2.95 instead of 3), and is 4 at maximum zoom.
+     */
     val dimensionOutlineWidth: Float
-        get() = 3f + dimensionZoomProgress
+        get() = 2.95f + 1.05f * dimensionZoomProgress
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale

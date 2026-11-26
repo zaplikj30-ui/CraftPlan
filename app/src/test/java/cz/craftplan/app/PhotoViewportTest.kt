@@ -56,20 +56,26 @@ class PhotoViewportTest {
             if (step > 0) viewport.transform(300f, 300f, 300f, 300f, factor = 2f)
             assertEquals(0.8f + 0.2f * step, viewport.dimensionStrokeScale, 0.00001f)
             assertEquals(0.8f + 0.2f * step / 6f, viewport.dimensionTickScale, 0.00001f)
-            assertEquals(3f + step / 6f, viewport.dimensionOutlineWidth, 0.00001f)
+            val progress = step / 6f
+            assertEquals(1.7f + 0.3f * progress, viewport.dimensionFillWidth, 0.00001f)
+            assertEquals(2.95f + 1.05f * progress, viewport.dimensionOutlineWidth, 0.00001f)
+            assertEquals(0.625f + 0.375f * progress,
+                (viewport.dimensionOutlineWidth - viewport.dimensionFillWidth) / 2f, 0.00001f)
         }
         viewport.transform(300f, 300f, 300f, 300f, factor = 100f)
         assertEquals(32f, viewport.scale, 0.001f)
         assertEquals(2f, viewport.dimensionStrokeScale, 0f)
         assertEquals(1f, viewport.dimensionTickScale, 0f)
         assertEquals(4f, viewport.dimensionOutlineWidth, 0f)
+        assertEquals(2f, viewport.dimensionFillWidth, 0f)
         viewport.fit(600, 600)
         viewport.transform(300f, 300f, 300f, 300f, factor = 3f)
         assertTrue(viewport.dimensionStrokeScale in 1f..1.2f)
         viewport.fit(600, 600)
         assertEquals(0.8f, viewport.dimensionStrokeScale, 0f)
         assertEquals(0.8f, viewport.dimensionTickScale, 0f)
-        assertEquals(3f, viewport.dimensionOutlineWidth, 0f)
+        assertEquals(2.95f, viewport.dimensionOutlineWidth, 0f)
+        assertEquals(1.7f, viewport.dimensionFillWidth, 0f)
     }
 
     @Test

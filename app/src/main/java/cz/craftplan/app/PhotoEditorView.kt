@@ -484,7 +484,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         overlayPaint.strokeCap = Paint.Cap.SQUARE
         canvas.drawLines(dimensionSegments, overlayPaint)
         overlayPaint.color = Color.rgb(247, 220, 39)
-        overlayPaint.strokeWidth = 2f * strokeDensity
+        overlayPaint.strokeWidth = viewport.dimensionFillWidth * strokeDensity
         canvas.drawLines(dimensionSegments, overlayPaint)
         overlayPaint.strokeCap = Paint.Cap.BUTT
         canvas.restore()
