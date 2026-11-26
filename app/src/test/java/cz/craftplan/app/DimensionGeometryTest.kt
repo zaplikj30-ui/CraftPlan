@@ -23,6 +23,98 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun centeredDecorationKeepsSizeAndTouchMargins() {
+        val above = dimensionLabelGeometry(2f, 80f, 36f, false, true)
+        val inline = above.centeredOnLine()
+        val text = requireNotNull(inline.text)
+        val oldText = requireNotNull(above.text)
+        val touch = requireNotNull(inline.textTouch)
+        assertEquals(0f, text.centerY, 0f)
+        assertEquals(oldText.bottom - oldText.top, text.bottom - text.top, 0f)
+        assertEquals(0f, requireNotNull(inline.notebook).centerY, 0f)
+        assertEquals(0f, requireNotNull(text.hit(0f, 0f, 0.6f, touch)).distance, 0f)
+        assertTrue(text.hit(0f, text.top * 0.6f - 1f, 0.6f, touch) != null)
+    }
+
+    @Test
+    fun inlinePlacementLeavesRealGapAndProtectsEndpoints() {
+        val geometry = dimensionLabelGeometry(1f, 60f, 18f, false, true).centeredOnLine()
+        val (left, right) = geometry.horizontalBounds(1f)
+        for (reversed in listOf(false, true)) {
+            for (offset in listOf(-0.92f, 0f, 0.92f)) {
+                val p = placeDimensionLabel(geometry, 200f, offset, 1f, reversed, true, 16f, 4f)
+                val center = if (reversed) 200f - p.distance else p.distance
+                assertTrue(center + left >= 20f - 0.0001f)
+                assertTrue(center + right <= 180f + 0.0001f)
+                val spans = requireNotNull(p.bodySpans)
+                assertEquals(2, spans.size)
+                val start = EditorPoint(0f, 0f)
+                val end = EditorPoint(200f, 0f)
+                val atLabel = EditorPoint(p.distance, 0f)
+                assertFalse(dimensionStrokeTargets(atLabel, start, end, 1f, bodySpans = spans)
+                    .any { it.hit == DimensionHit.BODY && it.direct })
+                assertTrue(dimensionStrokeTargets(start, start, end, 1f, bodySpans = spans)
+                    .any { it.hit == DimensionHit.START && it.gripCore })
+            }
+        }
+    }
+
+    @Test
+    fun shortLabelsUseReadableOutsideSideAndAboveKeepsOriginalPosition() {
+        for (geometry in listOf(
+            dimensionLabelGeometry(1f, 140f, 18f, false, false),
+            dimensionLabelGeometry(1f, null, 18f, false, true),
+            dimensionLabelGeometry(1f, 140f, 18f, true, false),
+        )) {
+            val inline = geometry.centeredOnLine()
+            val (left, right) = inline.horizontalBounds(1f)
+            for (reversed in listOf(false, true)) {
+                val length = 20f
+                val p = placeDimensionLabel(inline, length, 0f, 1f, reversed, true, 12f, 4f)
+                val center = if (reversed) length - p.distance else p.distance
+                assertTrue(center + left >= length + 16f - 0.0001f)
+                assertEquals(1, requireNotNull(p.bodySpans).size)
+                val other = placeDimensionLabel(inline, length, if (reversed) 0.5f else -0.5f,
+                    1f, reversed, true, 12f, 4f)
+                val otherCenter = if (reversed) length - other.distance else other.distance
+                assertTrue(otherCenter + right <= -16f)
+            }
+            val above = placeDimensionLabel(geometry, 20f, 0.5f, 1f, false, false, 12f, 4f)
+            assertEquals(15f, above.distance, 0f)
+            assertNull(above.bodySpans)
+        }
+    }
+
+    @Test
+    fun movingOutsideLabelCannotJumpAcrossDimensionOrChangeAnchors() {
+        val geometry = dimensionLabelGeometry(1f, 140f, 18f, false, false).centeredOnLine()
+        for (reversed in listOf(false, true)) {
+            val axis = EditorPoint(if (reversed) -20f else 20f, 0f)
+            val initial = dimension.copy(labelT = 0f)
+            val p = placeDimensionLabel(geometry, 20f, initial.labelT, 1f, reversed, true, 12f, 4f)
+            assertEquals(initial, initial.shiftPlacedLabel(axis, EditorPoint(-6f, 0f), false, p))
+            val moved = initial.shiftPlacedLabel(axis, EditorPoint(6f, 0f), false, p)
+            assertEquals(if (reversed) -0.6f else 0.6f, moved.labelT, 0.00001f)
+            assertEquals(initial.start, moved.start)
+            assertEquals(initial.end, moved.end)
+            assertEquals(initial, initial.shiftPlacedLabel(axis, EditorPoint(6f, 0f), true, p))
+            val otherSide = initial.copy(labelT = if (reversed) 0.5f else -0.5f)
+            val other = placeDimensionLabel(geometry, 20f, otherSide.labelT, 1f, reversed, true, 12f, 4f)
+            val limited = otherSide.shiftPlacedLabel(axis, EditorPoint(100f, 0f), false, other)
+            assertTrue(if (reversed) limited.labelT > 0f else limited.labelT < 0f)
+        }
+    }
+
+    @Test
+    fun proportionalZoomKeepsInlinePlacementWhenClearanceAlsoFits() {
+        val geometry = dimensionLabelGeometry(1f, 60f, 18f, false, false).centeredOnLine()
+        val a = placeDimensionLabel(geometry, 200f, 0.3f, 1f, false, true, 16f, 4f)
+        val b = placeDimensionLabel(geometry, 400f, 0.3f, 2f, false, true, 32f, 8f)
+        assertEquals(2f * a.distance, b.distance, 0.0001f)
+        assertEquals(2f * a.dragTravel, b.dragTravel, 0.0001f)
+    }
+
+    @Test
     fun batchedStrokePreservesTicksAndArrowheadsForLongAndShortDimensions() {
         val reused = FloatArray(28)
         writeDimensionSegments(reused, 80f, 2f)

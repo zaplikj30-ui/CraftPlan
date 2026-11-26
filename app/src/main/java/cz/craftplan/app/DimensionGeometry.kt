@@ -34,6 +34,7 @@ internal data class DimensionStrokeTarget(
 internal fun dimensionStrokeTargets(
     point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float, strokeScale: Float = 1f,
     tickScale: Float = 1f,
+    bodySpans: List<DimensionLineSpan>? = null,
 ): List<DimensionStrokeTarget> {
     val axis = end - start
     val length = hypot(axis.x, axis.y)
@@ -65,7 +66,10 @@ internal fun dimensionStrokeTargets(
     }
     if (t <= 0.27f) endpoint(DimensionHit.START, start, 1f)
     if (t >= 0.73f) endpoint(DimensionHit.END, end, -1f)
-    val lineDistance = distanceToDimensionLine(point, start, end)
+    // Inline labels leave a real gap. Do not rank the invisible stroke as a direct hit.
+    val lineDistance = bodySpans?.minOfOrNull { span ->
+        distanceToDimensionLine(point, from(start, span.start, 0f), from(start, span.end, 0f))
+    } ?: if (bodySpans == null) distanceToDimensionLine(point, start, end) else Float.POSITIVE_INFINITY
     if (lineDistance <= 20f * density) {
         result += DimensionStrokeTarget(DimensionHit.BODY, lineDistance, 0f, lineDistance <= strokeRadius)
     }
@@ -85,6 +89,8 @@ internal fun labelRectangleDistance(
 /** Baseline label geometry, scaled as a single unit in the Canvas. */
 internal data class LabelRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val centerX: Float get() = (left + right) / 2f
+    val centerY: Float get() = (top + bottom) / 2f
+    fun translateY(dy: Float) = copy(top = top + dy, bottom = bottom + dy)
     fun contains(x: Float, y: Float): Boolean = x in left..right && y in top..bottom
 
     /** Preserve the baseline hit zone and margins while ranking the actual scaled rectangle. */
@@ -126,6 +132,106 @@ internal data class DimensionLabelGeometry(
     /** Conservative scale also covers the shifted neighbors of a larger ruler. */
     fun cullingScale(labelScale: Float): Float =
         maxOf(1f, if (ruler != null) rulerScale(labelScale) else labelScale)
+
+    /** Center each decoration vertically, retaining its original touch margins. */
+    fun centeredOnLine(): DimensionLabelGeometry = copy(
+        ruler = ruler?.let { it.translateY(-it.centerY) },
+        text = text?.let { it.translateY(-it.centerY) },
+        notebook = notebook?.let { it.translateY(-it.centerY) },
+        rulerTouch = rulerTouch.translateY(-(ruler?.centerY ?: 0f)),
+        textTouch = textTouch?.translateY(-(text?.centerY ?: 0f)),
+        notebookTouch = notebookTouch?.translateY(-(notebook?.centerY ?: 0f)),
+    )
+
+    /** Whole displayed group, in readable-axis screen pixels relative to the label anchor. */
+    fun horizontalBounds(scale: Float): Pair<Float, Float> {
+        val offset = rulerNeighborOffset(scale)
+        val rs = rulerScale(scale)
+        val left = minOf(ruler?.let { it.left * rs } ?: Float.POSITIVE_INFINITY,
+            text?.let { it.left * scale + offset } ?: Float.POSITIVE_INFINITY,
+            notebook?.let { it.left * scale + offset } ?: Float.POSITIVE_INFINITY)
+        val right = maxOf(ruler?.let { it.right * rs } ?: Float.NEGATIVE_INFINITY,
+            text?.let { it.right * scale + offset } ?: Float.NEGATIVE_INFINITY,
+            notebook?.let { it.right * scale + offset } ?: Float.NEGATIVE_INFINITY)
+        return if (left.isFinite() && right.isFinite()) left to right else 0f to 0f
+    }
+}
+
+/** App-wide display preferences, not stored measurement data. */
+internal data class DimensionAppearance(
+    val inline: Boolean = true,
+    val transparent: Boolean = false,
+)
+
+internal data class DimensionLineSpan(val start: Float, val end: Float)
+internal data class DimensionLabelPlacement(
+    val distance: Float,
+    val bodySpans: List<DimensionLineSpan>?,
+    val dragTravel: Float,
+    val minLabelT: Float = -0.92f,
+    val maxLabelT: Float = 0.92f,
+)
+
+/**
+ * The same placement is used for painting, culling, touch and manual label movement.
+ * All distances are screen pixels along the original start->end axis.
+ * For short dimensions the readable right is the default outside side; a manually
+ * negative readable label offset selects the left side instead.
+ */
+internal fun placeDimensionLabel(
+    geometry: DimensionLabelGeometry,
+    length: Float,
+    labelT: Float,
+    scale: Float,
+    reversed: Boolean,
+    inline: Boolean,
+    endClearance: Float,
+    gap: Float,
+): DimensionLabelPlacement {
+    val requested = length * (1f + labelT) / 2f
+    if (!inline || length <= 0f || !length.isFinite() || scale <= 0f || !scale.isFinite()) {
+        return DimensionLabelPlacement(requested, null, length * 0.92f)
+    }
+    val (left, right) = geometry.horizontalBounds(scale)
+    val readableT = if (reversed) -labelT else labelT
+    val first = endClearance + gap - left
+    val last = length - endClearance - gap - right
+    fun original(x: Float) = if (reversed) length - x else x
+    fun span(a: Float, b: Float): DimensionLineSpan {
+        val x = original(a)
+        val y = original(b)
+        return DimensionLineSpan(minOf(x, y), maxOf(x, y))
+    }
+    if (first <= last) {
+        val travel = last - first
+        val position = first + travel * ((readableT + 0.92f) / 1.84f).coerceIn(0f, 1f)
+        return DimensionLabelPlacement(original(position), listOf(
+            span(0f, position + left - gap),
+            span(position + right + gap, length),
+        ), travel)
+    }
+
+    // The full label (including visible note, ruler or notebook) stays beyond
+    // the endpoint and its unchanged handle. Extend the body up to its near edge.
+    val outward = kotlin.math.abs(readableT) * length / 2f
+    val position: Float
+    val body: DimensionLineSpan
+    if (readableT < 0f) {
+        val edge = -endClearance - outward
+        position = edge - gap - right
+        body = span(edge, length)
+    } else {
+        val edge = length + endClearance + outward
+        position = edge + gap - left
+        body = span(0f, edge)
+    }
+    // Do not jump across the whole dimension on a tiny drag crossing zero.
+    // Preserve the chosen outside side throughout the manual drag.
+    val leftSide = readableT < 0f
+    val negativeSide = if (reversed) !leftSide else leftSide
+    val minT = if (negativeSide) -0.92f else if (leftSide) 0.0001f else 0f
+    val maxT = if (!negativeSide) 0.92f else if (leftSide) -0.0001f else 0f
+    return DimensionLabelPlacement(original(position), listOf(body), length * 0.92f, minT, maxT)
 }
 
 internal fun dimensionLabelGeometry(
@@ -165,6 +271,20 @@ internal fun PhotoDimension.shiftLabel(axis: EditorPoint, delta: EditorPoint, lo
     if (!projected.isFinite()) return this
     val updated = (labelT + 2.0 * projected).coerceIn(-0.92, 0.92).toFloat()
     return if (updated == labelT) this else copy(labelT = updated)
+}
+
+/** Match manual movement to the available travel without changing stored anchor semantics. */
+internal fun PhotoDimension.shiftPlacedLabel(
+    axis: EditorPoint, delta: EditorPoint, locked: Boolean, placement: DimensionLabelPlacement,
+): PhotoDimension {
+    if (locked) return this
+    val length = hypot(axis.x, axis.y)
+    if (length <= 0f || placement.dragTravel <= 0f) return this
+    val ratio = placement.dragTravel / (0.92f * length)
+    val moved = shiftLabel(EditorPoint(axis.x * ratio, axis.y * ratio), delta, false)
+    if (moved == this) return this
+    val limited = moved.labelT.coerceIn(placement.minLabelT, placement.maxLabelT)
+    return if (limited == labelT) this else moved.copy(labelT = limited)
 }
 
 private fun PhotoAnchor.shift(du: Float, dv: Float): PhotoAnchor? {

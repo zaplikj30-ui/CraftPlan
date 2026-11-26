@@ -150,6 +150,11 @@
     <string name="pen_paste">Vložit</string>
     <string name="pen_select_all">Vybrat vše</string>
     <string name="dimension_settings">Nastavení kóty</string>
+    <string name="dimension_appearance_settings">Vzhled kót</string>
+    <string name="dimension_label_inline">Popisek v čáře</string>
+    <string name="dimension_label_above">Popisek nad čárou</string>
+    <string name="dimension_label_placement_explanation">V čáře: pokud se popisek nevejde mezi šipky, zobrazí se vedle kóty. Nad čárou: původní umístění i u krátkých kót.</string>
+    <string name="dimension_label_transparent">Průhledné pozadí popisku</string>
     <string name="editor_status_bar_settings">Horní systémová lišta</string>
     <string name="editor_status_bar_explanation">Vypnuto: průhledná a viditelná. Zapnuto: automaticky skrývaná, dočasně ji vysune tah od horního okraje. Volba platí i při zadávání kóty.</string>
     <string name="editor_status_bar_portrait">Na výšku – skrývat</string>

@@ -158,6 +158,8 @@ internal fun DimensionValueDialog(
     hideStatusBarPortrait: Boolean,
     hideStatusBarLandscape: Boolean,
     onStatusBarHidden: (portrait: Boolean, hidden: Boolean) -> Unit,
+    appearance: DimensionAppearance,
+    onAppearanceChange: (DimensionAppearance) -> Unit,
     diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
@@ -222,6 +224,7 @@ internal fun DimensionValueDialog(
     var unitsOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var statusBarSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var appearanceSettingsOpen by rememberSaveable { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
         if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
@@ -794,6 +797,10 @@ internal fun DimensionValueDialog(
                                 onClick = { settingsOpen = false; keypadSettingsOpen = true },
                             )
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.dimension_appearance_settings)) },
+                                onClick = { settingsOpen = false; appearanceSettingsOpen = true },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.editor_status_bar_settings)) },
                                 onClick = { settingsOpen = false; statusBarSettingsOpen = true },
                             )
@@ -1123,6 +1130,34 @@ internal fun DimensionValueDialog(
                 },
                 confirmButton = {
                     TextButton(onClick = { keypadSettingsOpen = false }) { Text("OK") }
+                },
+            )
+        }
+        if (appearanceSettingsOpen) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { appearanceSettingsOpen = false },
+                title = {
+                    EditorDialogStatusBarEffect(hideStatusBar)
+                    Text(stringResource(R.string.dimension_appearance_settings))
+                },
+                text = {
+                    Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(if (appearance.inline) R.string.dimension_label_inline
+                                else R.string.dimension_label_above), Modifier.weight(1f))
+                            Switch(checked = appearance.inline,
+                                onCheckedChange = { onAppearanceChange(appearance.copy(inline = it)) })
+                        }
+                        Text(stringResource(R.string.dimension_label_placement_explanation))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.dimension_label_transparent), Modifier.weight(1f))
+                            Switch(checked = appearance.transparent,
+                                onCheckedChange = { onAppearanceChange(appearance.copy(transparent = it)) })
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { appearanceSettingsOpen = false }) { Text("OK") }
                 },
             )
         }

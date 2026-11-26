@@ -478,6 +478,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var statusBarSettings by mutableStateOf(EditorStatusBarSettings())
         private set
+    var dimensionAppearance by mutableStateOf(DimensionAppearance())
+        private set
     private var preferences: SharedPreferences? = null
 
     fun restorePreferences(source: SharedPreferences) {
@@ -497,10 +499,23 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         labelsLocked = source.getBoolean("labels_locked", false)
+        dimensionAppearance = DimensionAppearance(
+            inline = source.getBoolean("dimension_label_inline", true),
+            transparent = source.getBoolean("dimension_label_transparent", false),
+        )
         statusBarSettings = EditorStatusBarSettings(
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
             landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,
         )
+    }
+
+    fun setDimensionAppearance(value: DimensionAppearance) {
+        if (dimensionAppearance == value) return
+        dimensionAppearance = value
+        preferences?.edit()
+            ?.putBoolean("dimension_label_inline", value.inline)
+            ?.putBoolean("dimension_label_transparent", value.transparent)
+            ?.apply()
     }
 
     fun setStatusBarHidden(portrait: Boolean, hidden: Boolean) {
@@ -788,6 +803,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 onGestureEditing = editorState::editGesture,
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
+                appearance = editorState.dimensionAppearance,
                 fitRequest = editorState.fitRequest,
                 diagnostics = editorState.diagnostics.takeIf {
                     BuildConfig.ENABLE_STRESS_TOOLS && editorState.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH
@@ -829,6 +845,8 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     hideStatusBarPortrait = editorState.statusBarSettings.hidden(true, isTablet),
                     hideStatusBarLandscape = editorState.statusBarSettings.hidden(false, isTablet),
                     onStatusBarHidden = editorState::setStatusBarHidden,
+                    appearance = editorState.dimensionAppearance,
+                    onAppearanceChange = editorState::setDimensionAppearance,
                     diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording },
                 )
             }
@@ -901,6 +919,7 @@ private fun SamplePhoto(
     onGestureEditing: (Boolean) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
+    appearance: DimensionAppearance,
     fitRequest: Int,
     diagnostics: EditorDiagnostics?,
     onDrawCounts: (Int, Int) -> Unit,
@@ -943,6 +962,7 @@ private fun SamplePhoto(
                 view.onDrawCounts = onDrawCounts
                 view.showNotes = showNotes
                 view.labelsLocked = labelsLocked
+                view.appearance = appearance
                 view.scene = scene
                 view.fitRequest = fitRequest
             },

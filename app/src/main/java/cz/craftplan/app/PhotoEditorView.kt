@@ -101,7 +101,20 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val geometry: DimensionLabelGeometry,
     )
     private val labelHeight = labelPaint.descent() - labelPaint.ascent()
-    private val emptyLabel = DimensionLabel(null, dimensionLabelGeometry(density, null, labelHeight, false, false))
+    private val emptyAboveLabel = DimensionLabel(null, dimensionLabelGeometry(density, null, labelHeight, false, false))
+    private val emptyInlineLabel = emptyAboveLabel.copy(geometry = emptyAboveLabel.geometry.centeredOnLine())
+    private val emptyLabel get() = if (appearance.inline) emptyInlineLabel else emptyAboveLabel
+    var appearance = DimensionAppearance()
+        set(value) {
+            if (field == value) return
+            val layoutChanged = field.inline != value.inline
+            field = value
+            if (layoutChanged) {
+                clearDimensionGesture()
+                updateDimensionLabels()
+            }
+            invalidate()
+        }
     // Keep the 15sp layout cached. Scale the entire decoration (including icons,
     // background and spacing) together without rebuilding labels on each pinch frame.
     private val dimensionLabelScale: Float
@@ -328,23 +341,33 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val y2 = viewport.screenY(end)
         val dx = x2 - x1
         val dy = y2 - y1
-        val fraction = (1f + labelT) / 2f
+        val length = hypot(dx, dy)
+        val labelScale = dimensionLabelScale
+        val labelPadding = maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
+            decoration.geometry.cullingScale(labelScale)
+        val strokeDensity = density * viewport.dimensionStrokeScale
+        val handlePadding = anchorRadius + 0.7f * density
+        // Reject distant objects before constructing inline spans; the outside
+        // label can extend by at most half the line plus its full group width.
+        val broadPadding = if (appearance.inline)
+            length * 0.46f + 3f * labelPadding + handlePadding + 14f * strokeDensity + 2f * density
+            else maxOf(labelPadding, handlePadding, 14f * strokeDensity)
+        if (!dimensionBoundsVisible(canvas, x1, y1, x2, y2, broadPadding, inMagnifier)) return false
+        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        val placement = labelPlacement(decoration.geometry, length, angle, labelT)
+        val fraction = if (length > 0f) placement.distance / length else 0.5f
         val labelX = x1 + dx * fraction
         val labelY = y1 + dy * fraction
-        val strokeDensity = density * viewport.dimensionStrokeScale
-        val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2, 14f * strokeDensity, inMagnifier)
-        val handlePadding = anchorRadius + 0.7f * density
+        val extension = placement.bodySpans?.maxOfOrNull { maxOf(-it.start, it.end - length, 0f) } ?: 0f
+        val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2,
+            14f * strokeDensity + extension, inMagnifier)
         val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, handlePadding, inMagnifier)
         val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, handlePadding, inMagnifier)
-        val labelScale = dimensionLabelScale
-        val showLabel = dimensionBoundsVisible(
-            canvas, labelX, labelY, labelX, labelY,
-            maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
-                decoration.geometry.cullingScale(labelScale), inMagnifier,
-        )
+        val showLabel = dimensionBoundsVisible(canvas, labelX, labelY, labelX, labelY,
+            labelPadding, inMagnifier)
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
-        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        if (showStroke) drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, strokeDensity)
+        if (showStroke) drawScreenDimensionLine(canvas, x1, y1, length, angle, selected,
+            strokeDensity, placement.bodySpans)
         if (showStart) drawAnchor(canvas, start)
         if (showEnd) drawAnchor(canvas, end)
         if (!showLabel) return true
@@ -365,9 +388,11 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.translate(geometry.rulerNeighborOffset(labelScale) / labelScale, 0f)
         val textBounds = geometry.text
         if (label != null && textBounds != null) {
-            overlayPaint.color = WORKSPACE_COLOR
-            canvas.drawRoundRect(textBounds.left, textBounds.top, textBounds.right, textBounds.bottom,
-                3f * density, 3f * density, overlayPaint)
+            if (!appearance.transparent) {
+                overlayPaint.color = WORKSPACE_COLOR
+                canvas.drawRoundRect(textBounds.left, textBounds.top, textBounds.right, textBounds.bottom,
+                    3f * density, 3f * density, overlayPaint)
+            }
             val baseline = textBounds.bottom - labelPaint.descent() - 2f * density
             canvas.save()
             canvas.translate(textBounds.centerX, baseline)
@@ -402,11 +427,25 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
 
     private data class LabelCandidate(val hit: LabelHitDistance, val notebook: Boolean)
 
+    private fun labelPlacement(
+        geometry: DimensionLabelGeometry, length: Float, angle: Float, labelT: Float,
+    ): DimensionLabelPlacement {
+        val strokeDensity = density * viewport.dimensionStrokeScale
+        // Protect the full existing selected handle and the inward arrowheads,
+        // accounting for square caps and the selected-body highlight as well.
+        val halfStroke = maxOf(viewport.dimensionOutlineWidth, 5f) * strokeDensity / 2f
+        val clearance = maxOf(anchorRadius, minOf(9f * strokeDensity, length / 4f) + halfStroke)
+        return placeDimensionLabel(geometry, length, labelT, dimensionLabelScale,
+            angle > 90f || angle <= -90f, appearance.inline, clearance, halfStroke + 2f * density)
+    }
+
     private fun labelHitDistances(
-        point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel, labelT: Float,
+        point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel,
+        placement: DimensionLabelPlacement,
     ): List<LabelCandidate> {
         val axis = end - start
-        val fraction = (1f + labelT) / 2f
+        val length = hypot(axis.x, axis.y)
+        val fraction = if (length > 0f) placement.distance / length else 0.5f
         val x = point.x - (start.x + axis.x * fraction)
         val y = point.y - (start.y + axis.y * fraction)
         val angle = Math.toRadians(readableAngle(axis).toDouble())
@@ -446,8 +485,9 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val besideRuler = base == null && displayNote != null
         val notebook = dimension.note.isNotBlank() && displayNote == null
         val textWidth = text?.let(labelPaint::measureText) ?: 0f
-        return DimensionLabel(text, dimensionLabelGeometry(density, text?.let { textWidth },
-            labelHeight, besideRuler, notebook))
+        val geometry = dimensionLabelGeometry(density, text?.let { textWidth },
+            labelHeight, besideRuler, notebook)
+        return DimensionLabel(text, if (appearance.inline) geometry.centeredOnLine() else geometry)
     }
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
@@ -461,25 +501,38 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
 
     private fun drawScreenDimensionLine(
         canvas: Canvas, x1: Float, y1: Float, length: Float, angle: Float, selected: Boolean, strokeDensity: Float,
+        bodySpans: List<DimensionLineSpan>? = null,
     ) {
         canvas.save()
         canvas.translate(x1, y1)
         canvas.rotate(angle)
 
+        fun drawBody() {
+            if (bodySpans == null) canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
+            else for (span in bodySpans) canvas.drawLine(span.start, 0f, span.end, 0f, overlayPaint)
+        }
         if (selected) {
             overlayPaint.color = 0x8CFFFFFF.toInt()
             overlayPaint.strokeWidth = 5f * strokeDensity
-            canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
+            drawBody()
         }
         writeDimensionSegments(dimensionSegments, length, strokeDensity, viewport.dimensionTickScale)
         // Matching square caps keep a contrasting border on the ends without round bulges.
         overlayPaint.color = Color.BLACK
         overlayPaint.strokeWidth = viewport.dimensionOutlineWidth * strokeDensity
         overlayPaint.strokeCap = Paint.Cap.SQUARE
-        canvas.drawLines(dimensionSegments, overlayPaint)
+        if (bodySpans == null) canvas.drawLines(dimensionSegments, overlayPaint)
+        else {
+            drawBody()
+            canvas.drawLines(dimensionSegments, 4, 24, overlayPaint)
+        }
         overlayPaint.color = Color.rgb(247, 220, 39)
         overlayPaint.strokeWidth = viewport.dimensionFillWidth * strokeDensity
-        canvas.drawLines(dimensionSegments, overlayPaint)
+        if (bodySpans == null) canvas.drawLines(dimensionSegments, overlayPaint)
+        else {
+            drawBody()
+            canvas.drawLines(dimensionSegments, 4, 24, overlayPaint)
+        }
         overlayPaint.strokeCap = Paint.Cap.BUTT
         canvas.restore()
     }
@@ -788,8 +841,13 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale, tickScale)
-            val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
+            val decoration = labels.getValue(dimension.id)
+            val axis = end - start
+            val angle = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
+            val placement = labelPlacement(decoration.geometry, hypot(axis.x, axis.y), angle, dimension.labelT)
+            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale, tickScale,
+                placement.bodySpans)
+            val labelsAtPoint = labelHitDistances(point, start, end, decoration, placement)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore)
             } + labelsAtPoint.map {
@@ -907,7 +965,11 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         if (draft.tapTarget.notebook) return original
         if (!draft.movesLabel) return viewport.moveDimension(original, draft.hit, delta)
         val axis = viewport.screenPoint(original.end) - viewport.screenPoint(original.start)
-        return original.shiftLabel(axis, delta, labelsLocked)
+        if (!appearance.inline) return original.shiftLabel(axis, delta, labelsLocked)
+        val length = hypot(axis.x, axis.y)
+        val angle = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
+        val placement = labelPlacement(labels.getValue(original.id).geometry, length, angle, original.labelT)
+        return original.shiftPlacedLabel(axis, delta, labelsLocked, placement)
     }
 
     private fun updateDraft(contact: EditorPoint) {
