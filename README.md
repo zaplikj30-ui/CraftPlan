@@ -140,6 +140,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **Schválený návrat na ±20° (26. 11. 2026):** pouze prahový úhel tahu čísla se vrací ze zkušebních ±25° na ±20°. Test pokrývá obě strany prahu, oba směry tahu a různé orientace kóty včetně 22,5° pro posun celé kóty. Praktický retest nové revize NOT RUN.
 
+**Schválená testovací publikace A02 + ±20° (27. 11. 2026):** výslovný GO vlastníka k podepsanému sestavení z revize `256c1e37cbd4368fcaaea7496552d4db3c9e8e3c` stávající M1 Actions. A02 commit `725df1f3ebc4127180405b2ae1ac48c63a584aa0`, návrat tolerance ±20° v uvedené zdrojové revizi. Codex hlásí 240 jednotkových testů, lint, kontrolu diffu a cílené nezávislé review A02 PASS; ChatGPT ověřil vzdálený HEAD a relevantní diff, bez blokujícího nálezu, lokální testy samostatně neopakoval. Tato publikace mění pouze README, nikoli kód. Výsledek nové Actions a fyzické ověření NOT RUN před publikací. Prakticky ověřit běžný import, seznam, uložení a reopen s přesnými hodnotami a poznámkami, posun čísla a celé kóty; poškození katalogu a obnova jen pro čtení vyžadují zvláštní řízenou zkoušku na nahraditelných datech. Žádný merge.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
