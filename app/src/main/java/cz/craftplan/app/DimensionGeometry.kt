@@ -28,8 +28,8 @@ internal fun resolveInlineLabelDrag(
     if (labelsLocked) return InlineLabelDragMode.BODY
     val along = kotlin.math.abs(axis.x.toDouble() * delta.x + axis.y.toDouble() * delta.y)
     val across = kotlin.math.abs(axis.x.toDouble() * delta.y - axis.y.toDouble() * delta.x)
-    // tan(15 degrees); dot/cross avoid normalizing or converting angles on every gesture.
-    return if (across <= along * 0.2679491924311227) InlineLabelDragMode.LABEL
+    // tan(20 degrees); dot/cross avoid normalizing or converting angles on every gesture.
+    return if (across <= along * 0.36397023426620234) InlineLabelDragMode.LABEL
         else InlineLabelDragMode.BODY
 }
 
