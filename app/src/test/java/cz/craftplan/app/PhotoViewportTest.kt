@@ -79,24 +79,24 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun labelTextCounterScalesFromEighteenToTwelveSp() {
+    fun labelTextGrowsFromTwelveToEighteenSp() {
         val viewport = PhotoViewport(1000, 1000)
         viewport.fit(500, 500)
-        assertEquals(18f, viewport.dimensionLabelSp, 0f)
+        assertEquals(12f, viewport.dimensionLabelSp, 0f)
         for (step in 1..6) {
             viewport.transform(250f, 250f, 250f, 250f, 2f)
-            assertEquals(18f - step, viewport.dimensionLabelSp, 0.00001f)
+            assertEquals(12f + step, viewport.dimensionLabelSp, 0.00001f)
         }
         viewport.transform(250f, 250f, 250f, 250f, 2f)
-        assertEquals(12f, viewport.dimensionLabelSp, 0f)
+        assertEquals(18f, viewport.dimensionLabelSp, 0f)
         for (step in 5 downTo 0) {
             viewport.transform(250f, 250f, 250f, 250f, 0.5f)
-            assertEquals(18f - step, viewport.dimensionLabelSp, 0.00001f)
+            assertEquals(12f + step, viewport.dimensionLabelSp, 0.00001f)
         }
         viewport.transform(250f, 250f, 250f, 250f, 0.1f)
-        assertEquals(18f, viewport.dimensionLabelSp, 0f)
+        assertEquals(12f, viewport.dimensionLabelSp, 0f)
         viewport.fit(500, 500)
-        assertEquals(18f, viewport.dimensionLabelSp, 0f)
+        assertEquals(12f, viewport.dimensionLabelSp, 0f)
     }
 
     @Test

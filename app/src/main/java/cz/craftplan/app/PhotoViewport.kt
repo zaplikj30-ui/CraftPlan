@@ -70,9 +70,9 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionOutlineWidth: Float
         get() = 2.95f + 1.05f * dimensionZoomProgress
 
-    /** Counter-scale text for readability: 18sp at fit, 15sp at 8x, 12sp at 64x. */
+    /** Increase label size with zoom: 12sp at fit, 15sp at 8x, 18sp at 64x. */
     val dimensionLabelSp: Float
-        get() = 18f - 6f * dimensionZoomProgress
+        get() = 12f + 6f * dimensionZoomProgress
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale
