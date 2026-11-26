@@ -138,6 +138,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **APK 113 – zkušební tolerance ±25° (26. 11. 2026):** [Actions 45906678978](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45906678978), revize `86a75ed6d58c96ffedddb16f4bb7df529f00eb58`, JVM/lint/sestavení/podpis SUCCESS. Vlastník prakticky potvrdil funkčnost varianty ±20°, při posunu čísla se však někdy musí soustředit na směr a nechce zhoršit posun celé kóty. Odsouhlasil další zkušební variantu ±25° po nabídce úpravy a sestavení. Pouze změna úhlového prahu a odpovídajících regresních testů (včetně 22,5° nově uvnitř tolerance); ostatní chování, kotvy, hodnoty a ukládání nedotčeny. Konečný úhel zatím nepotvrzen. Prakticky porovnat s ±20°; JVM/lint/build nové revize před publikací a praktické ověření ±25° NOT RUN. Pouze nahraditelná data.
 
+**Schválený návrat na ±20° (26. 11. 2026):** pouze prahový úhel tahu čísla se vrací ze zkušebních ±25° na ±20°. Test pokrývá obě strany prahu, oba směry tahu a různé orientace kóty včetně 22,5° pro posun celé kóty. Praktický retest nové revize NOT RUN.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
