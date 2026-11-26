@@ -32,7 +32,7 @@ internal data class DimensionStrokeTarget(
 )
 
 internal fun dimensionStrokeTargets(
-    point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float,
+    point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float, strokeScale: Float = 1f,
 ): List<DimensionStrokeTarget> {
     val axis = end - start
     val length = hypot(axis.x, axis.y)
@@ -40,9 +40,12 @@ internal fun dimensionStrokeTargets(
     val ux = axis.x / length
     val uy = axis.y / length
     val t = ((point.x - start.x) * ux + (point.y - start.y) * uy) / length
-    val strokeRadius = density
-    val tick = 11f * density
-    val arrow = minOf(9f * density, length / 4f)
+    // Direct hits follow the drawn strokes, but keep the established grip core,
+    // expanded touch tolerances and endpoint/body partition at device density.
+    val strokeDensity = density * strokeScale
+    val strokeRadius = strokeDensity
+    val tick = 11f * strokeDensity
+    val arrow = minOf(9f * strokeDensity, length / 4f)
     fun from(center: EditorPoint, along: Float, across: Float) =
         EditorPoint(center.x + ux * along - uy * across, center.y + uy * along + ux * across)
     val result = mutableListOf<DimensionStrokeTarget>()

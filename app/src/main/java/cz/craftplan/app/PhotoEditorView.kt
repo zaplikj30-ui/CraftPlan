@@ -328,7 +328,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val fraction = (1f + labelT) / 2f
         val labelX = x1 + dx * fraction
         val labelY = y1 + dy * fraction
-        val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2, 14f * density, inMagnifier)
+        val strokeDensity = density * viewport.dimensionStrokeScale
+        val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2, 14f * strokeDensity, inMagnifier)
         val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, 16f * density, inMagnifier)
         val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, 16f * density, inMagnifier)
         val showLabel = dimensionBoundsVisible(
@@ -336,7 +337,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         )
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        if (showStroke) drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected)
+        if (showStroke) drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, strokeDensity)
         if (showStart) drawAnchor(canvas, start)
         if (showEnd) drawAnchor(canvas, end)
         if (!showLabel) return true
@@ -461,29 +462,30 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val dx = viewport.screenX(end) - x1
         val dy = viewport.screenY(end) - y1
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected)
+        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * viewport.dimensionStrokeScale)
     }
 
-    private fun drawScreenDimensionLine(canvas: Canvas, x1: Float, y1: Float, length: Float, angle: Float, selected: Boolean) {
+    private fun drawScreenDimensionLine(
+        canvas: Canvas, x1: Float, y1: Float, length: Float, angle: Float, selected: Boolean, strokeDensity: Float,
+    ) {
         canvas.save()
         canvas.translate(x1, y1)
         canvas.rotate(angle)
 
         if (selected) {
             overlayPaint.color = 0x8CFFFFFF.toInt()
-            overlayPaint.strokeWidth = 5f * density
+            overlayPaint.strokeWidth = 5f * strokeDensity
             canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
         }
-        writeDimensionSegments(dimensionSegments, length, density)
-        // Paint the same centerlines twice, without changing anchors, arrow shape or hit areas.
-        // One dp of dark contrast on each side of the existing two-dp colored stroke.
+        writeDimensionSegments(dimensionSegments, length, strokeDensity)
+        // Keep the existing contrast outline and cap styles, scaled with the visible stroke.
         overlayPaint.color = Color.BLACK
-        overlayPaint.strokeWidth = 4f * density
+        overlayPaint.strokeWidth = 4f * strokeDensity
         overlayPaint.strokeCap = Paint.Cap.ROUND
         canvas.drawLines(dimensionSegments, overlayPaint)
         overlayPaint.strokeCap = Paint.Cap.BUTT
         overlayPaint.color = Color.rgb(247, 220, 39)
-        overlayPaint.strokeWidth = 2f * density
+        overlayPaint.strokeWidth = 2f * strokeDensity
         canvas.drawLines(dimensionSegments, overlayPaint)
         canvas.restore()
     }
@@ -773,10 +775,11 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             scene.find(scene.selectedId)?.let { add(it) }
             addAll(scene.dimensions.asReversed().filterNot { it.id == scene.selectedId })
         }
+        val strokeScale = viewport.dimensionStrokeScale
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity)
+            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale)
             val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore)

@@ -40,6 +40,29 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun largerStrokesKeepAnchorsAndDirectHitsAlignedWithoutExpandingTouchZones() {
+        val segments = FloatArray(28)
+        writeDimensionSegments(segments, 100f, 2f)
+        assertEquals(0f, segments[0], 0f)
+        assertEquals(100f, segments[2], 0f)
+        assertEquals(-22f, segments[5], 0f)
+        assertEquals(22f, segments[7], 0f)
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(100f, 0f)
+        fun targets(point: EditorPoint, scale: Float) = dimensionStrokeTargets(point, start, end, 1f, scale)
+        assertTrue(targets(EditorPoint(0f, 22f), 2f).any { it.hit == DimensionHit.START && it.direct })
+        assertFalse(targets(EditorPoint(0f, 22f), 1f).any { it.direct })
+        assertTrue(targets(EditorPoint(18f, 9f), 2f).any { it.hit == DimensionHit.START && it.direct })
+        assertTrue(targets(EditorPoint(4f, 0f), 2f).any { it.gripCore })
+        assertFalse(targets(EditorPoint(5f, 0f), 2f).any { it.gripCore })
+        assertTrue(targets(EditorPoint(0f, 32f), 2f).isEmpty())
+        assertTrue(targets(EditorPoint(50f, 21f), 2f).isEmpty())
+        assertEquals(listOf(DimensionHit.BODY), targets(EditorPoint(50f, 0f), 2f).map { it.hit })
+        writeDimensionSegments(segments, 8f, 2f)
+        assertEquals(2f, segments[14], 0f) // short arrows still cap at one quarter of length
+    }
+
+    @Test
     fun allPointerTypesStartFromTheEstablishedGestureProfile() {
         for (kind in EditorPointerKind.entries) {
             val profile = editorInputProfile(kind, 2f)
