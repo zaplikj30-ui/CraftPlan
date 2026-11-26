@@ -79,25 +79,57 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun labelTextUsesWiderZoomRangeWithoutMovingAnchors() {
+    fun labelsScaleDirectlyWithPhotoWithoutMovingAnchors() {
         val viewport = PhotoViewport(1000, 1000)
-        viewport.fit(500, 500)
-        val sizes = listOf(9f, 11f, 13f, 15f, 18f, 21f, 24f)
+        viewport.fit(360, 360)
         val anchor = PhotoAnchor(0.5f, 0.5f)
-        for (step in sizes.indices) {
-            assertEquals(sizes[step], viewport.dimensionLabelSp, 0.00001f)
-            assertEquals(EditorPoint(250f, 250f), viewport.screenPoint(anchor))
-            viewport.transform(250f, 250f, 250f, 250f, 2f)
+        val other = PhotoAnchor(0.5f, 0.52f)
+        val base = viewport.dimensionLabelScale(1f)
+        val gap = viewport.screenY(other) - viewport.screenY(anchor)
+        assertEquals(0.6f, base, 0.00001f)
+        for (step in 0..6) {
+            val factor = (1 shl step).toFloat()
+            val actual = viewport.dimensionLabelScale(1f)
+            assertEquals(base * factor, actual, 0.0001f)
+            assertEquals(gap / base,
+                (viewport.screenY(other) - viewport.screenY(anchor)) / actual, 0.001f)
+            assertEquals(180f, viewport.screenY(anchor), 0.001f)
+            viewport.transform(180f, 180f, 180f, 180f, 2f)
         }
-        assertEquals(24f, viewport.dimensionLabelSp, 0f)
+        assertEquals(base * 64f, viewport.dimensionLabelScale(1f), 0.0001f)
         for (step in 5 downTo 0) {
-            viewport.transform(250f, 250f, 250f, 250f, 0.5f)
-            assertEquals(sizes[step], viewport.dimensionLabelSp, 0.00001f)
+            viewport.transform(180f, 180f, 180f, 180f, 0.5f)
+            assertEquals(base * (1 shl step), viewport.dimensionLabelScale(1f), 0.0001f)
         }
-        viewport.transform(250f, 250f, 250f, 250f, 0.1f)
-        assertEquals(9f, viewport.dimensionLabelSp, 0f)
-        viewport.fit(500, 500)
-        assertEquals(9f, viewport.dimensionLabelSp, 0f)
+    }
+
+    @Test
+    fun labelScaleIsIndependentOfBitmapResolutionAndViewportFit() {
+        val a = PhotoViewport(1000, 500)
+        val b = PhotoViewport(2000, 1000)
+        a.fit(360, 720)
+        b.fit(720, 1440)
+        assertEquals(a.dimensionLabelScale(1f), b.dimensionLabelScale(2f), 0.00001f)
+        val before = a.dimensionLabelScale(1f)
+        a.resize(720, 360)
+        assertEquals(before, a.dimensionLabelScale(1f), 0.00001f)
+        a.fit(720, 360)
+        assertEquals(before * 2f, a.dimensionLabelScale(1f), 0.00001f)
+    }
+
+    @Test
+    fun labelsAlsoShrinkWhenFittingOutsidePhotoAnchors() {
+        val viewport = PhotoViewport(1000, 1000)
+        viewport.fit(360, 360)
+        val base = viewport.dimensionLabelScale(1f)
+        val dimension = PhotoDimension(
+            UUID.randomUUID(), PhotoId.SYNTHETIC_WORKBENCH,
+            PhotoAnchor(-1f, 0.5f), PhotoAnchor(2f, 0.5f),
+        )
+        viewport.updateContentBounds(dimension, 0f)
+        viewport.fit(360, 360)
+        assertEquals(base / 3f, viewport.dimensionLabelScale(1f), 0.00001f)
+        assertEquals(360f, viewport.screenX(dimension.end) - viewport.screenX(dimension.start), 0.001f)
     }
 
     @Test

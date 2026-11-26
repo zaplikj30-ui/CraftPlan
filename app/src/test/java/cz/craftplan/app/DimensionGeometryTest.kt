@@ -122,13 +122,13 @@ class DimensionGeometryTest {
     }
 
     @Test
-    fun rulerZoomPreservesOtherLabelSizesAndNeighborGap() {
+    fun rulerAndNeighborsGrowProportionallyWithPhoto() {
         for (density in listOf(1f, 2f)) {
             val hidden = dimensionLabelGeometry(density, null, 18f * density, false, true)
             val shown = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
             val measured = dimensionLabelGeometry(density, 60f * density, 18f * density, false, true)
-            for ((scale, expected) in listOf(0.6f to 0.8f, 0.8f to 0.9f,
-                1f to 1f, 1.2f to 1.2f, 1.4f to 1.4f, 1.6f to 1.6f)) {
+            for ((scale, expected) in listOf(0.075f to 0.1f, 0.3f to 0.4f,
+                0.6f to 0.8f, 1.2f to 1.6f, 2.4f to 3.2f, 4.8f to 6.4f)) {
                 for (geometry in listOf(hidden, shown)) {
                     val ruler = requireNotNull(geometry.ruler)
                     val neighbor = requireNotNull(geometry.text ?: geometry.notebook)

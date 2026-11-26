@@ -70,13 +70,12 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionOutlineWidth: Float
         get() = 2.95f + 1.05f * dimensionZoomProgress
 
-    /** Trial: smaller labels at fit, same at 8x, larger at 64x. Anchors are unchanged. */
-    val dimensionLabelSp: Float
-        get() {
-            val progress = dimensionZoomProgress
-            return if (progress <= 0.5f) 9f + 12f * progress
-                else 15f + 18f * (progress - 0.5f)
-        }
+    /** Photo-relative decoration scale: 9sp nominal at a 360dp photo long edge.
+     *  Unlike fit-relative zoom, this preserves proportions across viewport resize,
+     *  different bitmap resolutions and fitting annotations outside the photo.
+     */
+    fun dimensionLabelScale(density: Float): Float =
+        0.6f * (maxOf(imageWidth, imageHeight) * scale / (360f * density))
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale

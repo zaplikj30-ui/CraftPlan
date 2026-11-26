@@ -108,9 +108,10 @@ internal data class DimensionLabelGeometry(
     val textTouch: LabelRect?,
     val notebookTouch: LabelRect?,
 ) {
-    /** Retain the ruler's nominal 0.8/1/1.6 range while text uses 0.6/1/1.6. */
-    fun rulerScale(labelScale: Float): Float =
-        if (labelScale <= 1f) (1f + labelScale) / 2f else labelScale
+    /** Preserve the ruler's 0.8x reference size when labels are 0.6x.
+     *  Both now follow the same photo-relative scale at every zoom.
+     */
+    fun rulerScale(labelScale: Float): Float = labelScale * (4f / 3f)
 
     /** Screen-pixel offset for adjacent note/notebook, retaining their original gap. */
     fun rulerNeighborOffset(labelScale: Float): Float =

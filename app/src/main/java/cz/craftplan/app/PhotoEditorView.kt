@@ -105,8 +105,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     // Keep the 15sp layout cached. Scale the entire decoration (including icons,
     // background and spacing) together without rebuilding labels on each pinch frame.
     private val dimensionLabelScale: Float
-        get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, viewport.dimensionLabelSp,
-            resources.displayMetrics) / labelPaint.textSize
+        get() = viewport.dimensionLabelScale(density)
     private val noteWhitespace = Regex("\\s+")
     private var labels = emptyMap<UUID, DimensionLabel>()
     var labelsLocked = false
