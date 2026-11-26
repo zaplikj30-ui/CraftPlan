@@ -64,6 +64,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **Schválená testovací publikace APK 94 (26. 11. 2026):** výslovný GO vlastníka pro podepsané sestavení ze zdrojové revize `53c0288ea3cab5e1db1e8f7fe38b98cd639cc122` přes stávající M1 Actions. Rozsah: spodní hranice auto-pan při editaci konce podle pevné lišty, kroužky kolem rysek, text 14–16 sp. JVM/lint/build a fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
 
+**APK 94 – praktická připomínka k číslům (26. 11. 2026):** [Actions 45838163588](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45838163588) SUCCESS, JVM/lint/sestavení/podpis. Vlastník po vyzkoušení nechce měnit velikost textu podle zoomu; jako optimální referenci označil screenshot 1000096201.jpg, doplněný videem 1000096199.mp4 (oba mimo repo). Požadavek: stejná čitelná velikost popisku při minimálním i maximálním přiblížení jako na referenčním screenshotu. Návrh pro další test: pevná velikost 15 sp nezávislá na zoomu, respektovat systémové měřítko písma, obnovit jednoduché původní vykreslení a shodnou geometrii textového výběru. Přesná velikost referenčního popisku v sp ze screenshotu není spolehlivě určena. Neměnit kroužky kolem rysek, šipky, metr, spodní auto-pan ani data. Praktické výsledky kroužků a spodní hranice zatím vlastník výslovně neuzavřel. Návrh bez GO k implementaci či sestavení.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
