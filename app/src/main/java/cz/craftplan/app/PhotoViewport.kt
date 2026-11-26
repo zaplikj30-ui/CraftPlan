@@ -49,9 +49,20 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     var top = 0f
         private set
 
+    private val dimensionZoomProgress: Float
+        get() = log2((scale / photoFitScale).coerceIn(1f, MAX_ZOOM)) / log2(MAX_ZOOM)
+
     /** Visual stroke size only: at photo fit 0.8x, at maximum zoom the unchanged 2x. */
     val dimensionStrokeScale: Float
-        get() = 0.8f + 1.2f * (log2((scale / photoFitScale).coerceIn(1f, MAX_ZOOM)) / log2(MAX_ZOOM))
+        get() = 0.8f + 1.2f * dimensionZoomProgress
+
+    /** Additional shortening of the end ticks at fit, disappearing at maximum zoom. */
+    val dimensionTickScale: Float
+        get() = 0.8f + 0.2f * dimensionZoomProgress
+
+    /** Black stroke width relative to stroke density, preserving the maximum-zoom border. */
+    val dimensionOutlineWidth: Float
+        get() = 3f + dimensionZoomProgress
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale

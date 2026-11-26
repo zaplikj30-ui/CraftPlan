@@ -33,6 +33,7 @@ internal data class DimensionStrokeTarget(
 
 internal fun dimensionStrokeTargets(
     point: EditorPoint, start: EditorPoint, end: EditorPoint, density: Float, strokeScale: Float = 1f,
+    tickScale: Float = 1f,
 ): List<DimensionStrokeTarget> {
     val axis = end - start
     val length = hypot(axis.x, axis.y)
@@ -44,7 +45,7 @@ internal fun dimensionStrokeTargets(
     // expanded touch tolerances and endpoint/body partition at device density.
     val strokeDensity = density * strokeScale
     val strokeRadius = strokeDensity
-    val tick = 11f * strokeDensity
+    val tick = dimensionTickHalfLength(strokeDensity, tickScale)
     val arrow = minOf(9f * strokeDensity, length / 4f)
     fun from(center: EditorPoint, along: Float, across: Float) =
         EditorPoint(center.x + ux * along - uy * across, center.y + uy * along + ux * across)
@@ -171,9 +172,12 @@ internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed:
     return (near - far) * maxSpeed
 }
 
+private fun dimensionTickHalfLength(strokeDensity: Float, tickScale: Float): Float =
+    11f * strokeDensity * tickScale
+
 /** Seven independent segments in the same order as the individually drawn strokes. */
-internal fun writeDimensionSegments(segments: FloatArray, length: Float, density: Float) {
-    val tick = 11f * density
+internal fun writeDimensionSegments(segments: FloatArray, length: Float, density: Float, tickScale: Float = 1f) {
+    val tick = dimensionTickHalfLength(density, tickScale)
     val arrow = minOf(9f * density, length / 4f)
     val wing = arrow / 2f
     fun line(offset: Int, x1: Float, y1: Float, x2: Float, y2: Float) {

@@ -477,10 +477,10 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             overlayPaint.strokeWidth = 5f * strokeDensity
             canvas.drawLine(0f, 0f, length, 0f, overlayPaint)
         }
-        writeDimensionSegments(dimensionSegments, length, strokeDensity)
+        writeDimensionSegments(dimensionSegments, length, strokeDensity, viewport.dimensionTickScale)
         // Matching square caps keep a contrasting border on the ends without round bulges.
         overlayPaint.color = Color.BLACK
-        overlayPaint.strokeWidth = 4f * strokeDensity
+        overlayPaint.strokeWidth = viewport.dimensionOutlineWidth * strokeDensity
         overlayPaint.strokeCap = Paint.Cap.SQUARE
         canvas.drawLines(dimensionSegments, overlayPaint)
         overlayPaint.color = Color.rgb(247, 220, 39)
@@ -776,10 +776,11 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             addAll(scene.dimensions.asReversed().filterNot { it.id == scene.selectedId })
         }
         val strokeScale = viewport.dimensionStrokeScale
+        val tickScale = viewport.dimensionTickScale
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
-            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale)
+            val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale, tickScale)
             val labelsAtPoint = labelHitDistances(point, start, end, labels.getValue(dimension.id), dimension.labelT)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore)

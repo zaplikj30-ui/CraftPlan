@@ -63,6 +63,28 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun shorterFitTicksChangeOnlyVisibleTickGeometryAndNotTouchEligibility() {
+        val original = FloatArray(28)
+        val shortened = FloatArray(28)
+        writeDimensionSegments(original, 100f, 0.8f)
+        writeDimensionSegments(shortened, 100f, 0.8f, tickScale = 0.8f)
+        for (index in original.indices) {
+            val expected = if (index in listOf(5, 7, 9, 11)) original[index] * 0.8f else original[index]
+            assertEquals(expected, shortened[index], 0.00001f)
+        }
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(100f, 0f)
+        val point = EditorPoint(0f, 8.6f)
+        val before = dimensionStrokeTargets(point, start, end, 1f, 0.8f)
+        val after = dimensionStrokeTargets(point, start, end, 1f, 0.8f, 0.8f)
+        assertEquals(before.map { it.hit }, after.map { it.hit })
+        assertTrue(before.any { it.hit == DimensionHit.START && it.direct })
+        assertFalse(after.any { it.hit == DimensionHit.START && it.direct })
+        assertTrue(dimensionStrokeTargets(EditorPoint(0f, shortened[7]), start, end, 1f, 0.8f, 0.8f)
+            .any { it.hit == DimensionHit.START && it.direct })
+    }
+
+    @Test
     fun allPointerTypesStartFromTheEstablishedGestureProfile() {
         for (kind in EditorPointerKind.entries) {
             val profile = editorInputProfile(kind, 2f)
