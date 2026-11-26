@@ -4,6 +4,8 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 
 ## M1 – uložení a opětovné otevření syntetické fotografie
 
+**Testovací publikace (26. 11. 2026):** vlastník schválil samostatné sestavení a publikaci APK pro praktické ověření ukládání na zdrojové revizi `e23fe58ce89fc69f3c8c69e8afcebb8e3a40e57a`. Výsledek CI a fyzických testů této publikace zatím nepotvrzen; pouze syntetická data.
+
 - **Otevřít testovací fotografii** při prvním otevření založí dokument. Další otevření čte ověřené soukromé bajty JPEG a potvrzené kóty ze stejného dokumentu. Revize uchovává identity a kotvy, přesné desetinné a racionální délky, původní jednotky a zápis, nulu a stav NEZMĚŘENO, poznámky a jejich viditelnost, popisky, rovnice a původ potvrzeného výpočtu.
 - Dokončené změny včetně Undo/Redo se ukládají mimo hlavní vlákno. Rozpracovaný tah ani nepotvrzený dialog hodnoty se nepřenášejí do revize. Historie Undo/Redo zůstává v paměti aktuální relace a při novém spuštění se načte poslední uložený výsledek. Při chybě zůstávají dokončené změny v editoru a lze zvolit **Zkusit znovu**. Zpět před odchodem upozorní na nepotvrzené změny. Změny pouze v RAM se po ukončení procesu neobnoví.
 - Soukromý JPEG se zapisuje do dočasného souboru, synchronizuje a ověří podle délky a SHA-256. Finální jméno vzniká atomickým pevným odkazem bez přepsání a před transakcí je synchronizovaný i adresář. Revize, identita operace, digest a ukazatel se potvrzují společně v Room 2.8.5 s BundledSQLiteDriver (SQLite 2.7.1). Zapisující spojení kontroluje `TRUNCATE` a `synchronous=FULL`. Stav **ULOŽENO** vyžaduje ověřenou odpovídající revizi a médium. Při nejasném potvrzení se opakovaně ověřuje stejný pokus se stejným předchůdcem a generací úložiště.
