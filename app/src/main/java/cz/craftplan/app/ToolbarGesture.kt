@@ -43,14 +43,30 @@ internal fun toolbarGripReleaseReason(dx: Float, dy: Float, maxTravel: Float, th
     return if (dy < 0f) ToolbarGripOutcome.UP else ToolbarGripOutcome.DOWN
 }
 
-/** Same release policy; the diagnostic reason is also the source of the decision. */
-internal fun toolbarGripAfterRelease(expanded: Boolean, dx: Float, dy: Float, maxTravel: Float, threshold: Float): Boolean =
+/** Same release policy; only the separate side grip retains tap-to-toggle. */
+internal fun toolbarGripAfterRelease(
+    expanded: Boolean, dx: Float, dy: Float, maxTravel: Float, threshold: Float,
+    tapToggles: Boolean = true,
+): Boolean =
     when (toolbarGripReleaseReason(dx, dy, maxTravel, threshold)) {
-        ToolbarGripOutcome.TAP -> !expanded
+        ToolbarGripOutcome.TAP -> if (tapToggles) !expanded else expanded
         ToolbarGripOutcome.UP -> true
         ToolbarGripOutcome.DOWN -> false
         else -> expanded
     }
+
+/** Actual top grip bounds in the common Compose root, including its workspace overlap. */
+internal data class ToolbarTopGripRegion(
+    val left: Float, val top: Float, val right: Float, val bottom: Float, val surfaceTop: Float,
+) {
+    fun contains(x: Float, y: Float): Boolean =
+        x >= left && x < right && y >= top && y < bottom
+
+    fun inWorkspace(y: Float): Boolean = y < surfaceTop
+
+    fun canTrack(x: Float, y: Float, editorPriority: Boolean): Boolean =
+        contains(x, y) && (!inWorkspace(y) || !editorPriority)
+}
 
 internal enum class ToolbarSharedDecision { WAIT, VERTICAL, HORIZONTAL, LONG_PRESS, INVALID }
 

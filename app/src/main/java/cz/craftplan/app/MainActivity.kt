@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -803,11 +804,13 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 storageStatus = {
                     DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
                 },
-                toolbar = { modifier, onFixedToolbarTop ->
+                toolbarState = editorState,
+                toolbar = { modifier, onFixedToolbarTop, onTopGripRegion ->
                     if (editorState.saveStatus != DocumentSaveStatus.RECOVERED) EditorToolbar(
                         editorState, repeatHintOffset,
                         modifier.alpha(if (editorState.valueDraft == null) 1f else 0f),
                         onFixedToolbarTop = onFixedToolbarTop,
+                        onTopGripRegion = onTopGripRegion,
                     )
                 },
             )
@@ -903,22 +906,30 @@ private fun SamplePhoto(
     onDrawCounts: (Int, Int) -> Unit,
     overlays: @Composable () -> Unit,
     storageStatus: @Composable () -> Unit,
-    toolbar: @Composable (Modifier, (Float) -> Unit) -> Unit,
+    toolbarState: PhotoEditorState,
+    toolbar: @Composable (Modifier, (Float) -> Unit, (ToolbarTopGripRegion) -> Unit) -> Unit,
 ) {
-    var editorTop by remember { mutableStateOf<Float?>(null) }
+    var editorOrigin by remember { mutableStateOf<Offset?>(null) }
+    var editorView by remember { mutableStateOf<PhotoEditorView?>(null) }
+    var topGripRegion by remember { mutableStateOf<ToolbarTopGripRegion?>(null) }
     var fixedToolbarTop by remember { mutableStateOf<Float?>(null) }
-    val fixedToolbarTopPx = editorTop?.let { top -> fixedToolbarTop?.let { (it - top).roundToInt() } }
-    Box(modifier = modifier) {
+    val fixedToolbarTopPx = editorOrigin?.let { origin -> fixedToolbarTop?.let { (it - origin.y).roundToInt() } }
+    // The full-size editor and toolbar share this content Box's local coordinates.
+    Box(modifier = modifier.topToolbarGrip(
+        toolbarState, { topGripRegion }, { editorOrigin },
+        { x, y, input -> editorView?.hasToolbarGesturePriority(x, y, input) ?: true },
+    )) {
         AndroidView(
             factory = { context ->
                 PhotoEditorView(context, photo, media).apply {
+                    editorView = this
                     this.diagnostics = diagnostics
                     this.safeOverlayTopPx = safeOverlayTopPx
                     this.scene = scene
                 }
             },
             modifier = Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
-                editorTop = coordinates.positionInRoot().y
+                editorOrigin = coordinates.positionInRoot()
             },
             update = { view ->
                 view.safeOverlayTopPx = safeOverlayTopPx
@@ -943,7 +954,7 @@ private fun SamplePhoto(
                 .height(with(density) { statusScrimHeightPx.toDp() })
                 .background(Color.Black.copy(alpha = 0.55f)))
         }
-        toolbar(Modifier.align(Alignment.BottomStart)) { fixedToolbarTop = it }
+        toolbar(Modifier.align(Alignment.BottomStart), { fixedToolbarTop = it }, { topGripRegion = it })
         Box(Modifier.align(Alignment.TopStart)
             .padding(start = 4.dp, top = with(density) { safeOverlayTopPx.toDp() } + 4.dp)) { storageStatus() }
         Box(Modifier.align(Alignment.TopEnd)

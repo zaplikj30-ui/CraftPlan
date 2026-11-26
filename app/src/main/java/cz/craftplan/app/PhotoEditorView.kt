@@ -792,8 +792,18 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         return true
     }
 
-    private fun targetAt(point: EditorPoint, profile: EditorInputProfile): DimensionTarget? {
-        val recorder = activeDiagnostics
+    // Read-only arbitration before Compose claims the top grip. Reuse the
+    // normal editor resolver and input profile; do not broaden hit tolerances.
+    internal fun hasToolbarGesturePriority(x: Float, y: Float, input: EditorPointerKind): Boolean {
+        if (!editable || x !in 0f..width.toFloat() || y !in 0f..height.toFloat()) return false
+        if (scene.tool != DimensionTool.SELECT) return true
+        return targetAt(EditorPoint(x, y), editorInputProfile(input, density), recordDiagnostics = false) != null
+    }
+
+    private fun targetAt(
+        point: EditorPoint, profile: EditorInputProfile, recordDiagnostics: Boolean = true,
+    ): DimensionTarget? {
+        val recorder = if (recordDiagnostics) activeDiagnostics else null
         val started = if (recorder != null) System.nanoTime() else 0L
         // Keep every eligible part. A nearby handle must not erase a direct label or line hit.
         val frontToBack = buildList {
