@@ -107,7 +107,13 @@ internal data class DimensionLabelGeometry(
     val rulerTouch: LabelRect,
     val textTouch: LabelRect?,
     val notebookTouch: LabelRect?,
-)
+) {
+    // Includes every visible corner even when the decoration rotates.
+    val cullingRadius: Float = listOfNotNull(ruler, text, notebook).maxOfOrNull {
+        hypot(maxOf(kotlin.math.abs(it.left), kotlin.math.abs(it.right)),
+            maxOf(kotlin.math.abs(it.top), kotlin.math.abs(it.bottom)))
+    } ?: 0f
+}
 
 internal fun dimensionLabelGeometry(
     density: Float, textWidth: Float?, labelHeight: Float, besideRuler: Boolean, notebook: Boolean,

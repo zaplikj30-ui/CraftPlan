@@ -102,6 +102,10 @@ class DimensionGeometryTest {
                 assertTrue(requireNotNull(ruler.hit(23f * density, -12f * density,
                     scale, unmeasured.rulerTouch)).distance > 0f)
                 assertNull(ruler.hit(60f * density, -12f * density, scale, unmeasured.rulerTouch))
+                assertTrue(notebook.hit(notebook.right + 7f * density, -15f * density,
+                    scale, requireNotNull(unmeasured.notebookTouch)) != null)
+                assertTrue(unmeasured.cullingRadius * scale >=
+                    kotlin.math.hypot(notebook.right * scale, notebook.top * scale) - 0.0001f)
                 val visibleNote = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
                 val note = requireNotNull(visibleNote.text)
                 assertEquals(4f * density * scale,

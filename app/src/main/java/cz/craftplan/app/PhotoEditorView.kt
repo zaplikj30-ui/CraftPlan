@@ -99,7 +99,6 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private data class DimensionLabel(
         val text: String?,
         val geometry: DimensionLabelGeometry,
-        val cullingRadius: Float = 0f,
     )
     private val labelHeight = labelPaint.descent() - labelPaint.ascent()
     private val emptyLabel = DimensionLabel(null, dimensionLabelGeometry(density, null, labelHeight, false, false))
@@ -341,7 +340,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val labelScale = dimensionLabelScale
         val showLabel = dimensionBoundsVisible(
             canvas, labelX, labelY, labelX, labelY,
-            maxOf(24f * density, decoration.cullingRadius * maxOf(1f, labelScale)), inMagnifier,
+            maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
+                maxOf(1f, labelScale), inMagnifier,
         )
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
@@ -437,15 +437,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val besideRuler = base == null && displayNote != null
         val notebook = dimension.note.isNotBlank() && displayNote == null
         val textWidth = text?.let(labelPaint::measureText) ?: 0f
-        // Rotation cannot take the rectangle outside this radius; include glyph overhang.
-        val extentX = maxOf(
-            14f * density,
-            if (besideRuler) textWidth + 28f * density else textWidth / 2f + 5f * density,
-            if (notebook) (if (text == null) 14f * density else textWidth / 2f) + 25f * density else 0f,
-        )
-        val radius = extentX + maxOf(24f * density, labelHeight + 9f * density) + labelPaint.textSize
         return DimensionLabel(text, dimensionLabelGeometry(density, text?.let { textWidth },
-            labelHeight, besideRuler, notebook), radius)
+            labelHeight, besideRuler, notebook))
     }
 
     private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
