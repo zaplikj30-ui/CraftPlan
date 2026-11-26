@@ -70,12 +70,12 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionOutlineWidth: Float
         get() = 2.95f + 1.05f * dimensionZoomProgress
 
-    /** Photo-relative decoration scale: 9sp nominal at a 360dp photo long edge.
-     *  Unlike fit-relative zoom, this preserves proportions across viewport resize,
-     *  different bitmap resolutions and fitting annotations outside the photo.
+    /** Trial: the same nominal 9sp decoration at photo fit, regardless of image
+     * aspect ratio, pixel resolution or screen density. All decorations follow
+     * the relative zoom, including when fitting annotations outside the photo.
      */
-    fun dimensionLabelScale(density: Float): Float =
-        0.6f * (maxOf(imageWidth, imageHeight) * scale / (360f * density))
+    val dimensionLabelScale: Float
+        get() = 0.6f * (scale / photoFitScale)
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale
@@ -103,11 +103,14 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
         val oldCenterX = this.width / 2f
         val oldCenterY = this.height / 2f
+        val oldPhotoFitScale = photoFitScale
         this.width = width
         this.height = height
         updatePhotoFitScale()
         contentFitScale = contentFit().scale
-        transform(oldCenterX, oldCenterY, width / 2f, height / 2f)
+        // Preserve the same relative zoom and focused image point on rotation.
+        transform(oldCenterX, oldCenterY, width / 2f, height / 2f,
+            factor = photoFitScale / oldPhotoFitScale)
     }
 
     private fun updatePhotoFitScale() {
@@ -144,7 +147,7 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
 
         // If an edit removes an overhang, keep a previously valid hand-set zoom
         // until the user zooms back into the new range.
-        val minScale = minOf(scale, contentFitScale)
+        val minScale = minOf(scale, contentFitScale * MIN_ZOOM)
         val nextScale = (scale * factor).coerceIn(minScale, photoFitScale * MAX_ZOOM)
         val ratio = nextScale.toDouble() / scale
         val requestedLeft = (toX - (fromX - left) * ratio).toFloat()
@@ -228,6 +231,7 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     }
 
     private companion object {
+        const val MIN_ZOOM = 0.25f
         const val MAX_ZOOM = 64f
         const val WORKSPACE_RESERVE_SCREENS = 3.0
     }
