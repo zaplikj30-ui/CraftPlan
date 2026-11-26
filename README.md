@@ -130,6 +130,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **Schválená testovací publikace (26. 11. 2026) – vzhled kót:** výslovný GO vlastníka k okamžitému podepsanému sestavení ze zdrojové revize `48546c89c42aba9def529479d920482edc2e7a96` přes existující M1 Actions. Bez dalších změn kódu. Projektové JVM/lint/build/fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
 
+**APK 110 – FAIL a cílená oprava (26. 11. 2026):** [Actions 45903684965](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45903684965) skončily v `compileDebugKotlin` na shodné JVM signatuře `setDimensionAppearance(DimensionAppearance)` v MainActivity.kt (generovaný setter vlastnosti a stejnojmenná explicitní metoda). Přejmenována pouze explicitní metoda a její callback na `updateDimensionAppearance`. Testy/lint/podepsané sestavení APK 110 neproběhly. Opakování již schváleného sestavení, bez změny UX či dat. Praktické ověření NOT RUN.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.

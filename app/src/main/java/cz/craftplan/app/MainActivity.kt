@@ -509,7 +509,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         )
     }
 
-    fun setDimensionAppearance(value: DimensionAppearance) {
+    fun updateDimensionAppearance(value: DimensionAppearance) {
         if (dimensionAppearance == value) return
         dimensionAppearance = value
         preferences?.edit()
@@ -846,7 +846,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     hideStatusBarLandscape = editorState.statusBarSettings.hidden(false, isTablet),
                     onStatusBarHidden = editorState::setStatusBarHidden,
                     appearance = editorState.dimensionAppearance,
-                    onAppearanceChange = editorState::setDimensionAppearance,
+                    onAppearanceChange = editorState::updateDimensionAppearance,
                     diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording },
                 )
             }
