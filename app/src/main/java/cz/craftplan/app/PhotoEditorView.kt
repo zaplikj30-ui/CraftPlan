@@ -920,6 +920,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
                 contact.y - top, usableHeight,
                 verticalAutoPanEdgeSize(
                     usableHeight, density, resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+                    editingEndpoint = dimensionEdit?.let { it.hit != DimensionHit.BODY } == true,
                 ),
                 440f * density,
             ),

@@ -294,6 +294,28 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun endpointEditingUsesNarrowVerticalEdgeInBothOrientations() {
+        for (landscape in listOf(false, true)) {
+            val height = if (landscape) 400 else 800
+            val edge = verticalAutoPanEdgeSize(height, 1f, landscape, editingEndpoint = true)
+            assertEquals(48f, edge, 0f)
+            assertEquals(0f, edgePanSpeed(48f, height, edge, 440f), 0f)
+            assertEquals(0f, edgePanSpeed(height - 48f, height, edge, 440f), 0f)
+            assertEquals(0f, edgePanSpeed(100f, height, edge, 440f), 0f)
+            assertEquals(0f, edgePanSpeed(height - 100f, height, edge, 440f), 0f)
+            assertEquals(220f, edgePanSpeed(24f, height, edge, 440f), 0.0001f)
+            assertEquals(-220f, edgePanSpeed(height - 24f, height, edge, 440f), 0.0001f)
+            assertEquals(440f, edgePanSpeed(0f, height, edge, 440f), 0f)
+            assertEquals(-440f, edgePanSpeed(height.toFloat(), height, edge, 440f), 0f)
+            assertTrue(verticalAutoPanEdgeSize(height, 1f, landscape) > edge)
+            assertEquals(96f, verticalAutoPanEdgeSize(height * 2, 2f, landscape, editingEndpoint = true), 0f)
+        }
+        assertEquals(15f, verticalAutoPanEdgeSize(30, 1f, true, editingEndpoint = true), 0f)
+        assertEquals(0f, verticalAutoPanEdgeSize(0, 1f, false, editingEndpoint = true), 0f)
+        assertEquals(0f, verticalAutoPanEdgeSize(800, Float.NaN, false, editingEndpoint = true), 0f)
+    }
+
+    @Test
     fun autoPanSpeedIsSymmetricAndActiveOnlyNearAnEdge() {
         assertEquals(0f, edgePanSpeed(200f, 400, 48f, 440f), 0f)
         assertEquals(220f, edgePanSpeed(24f, 400, 48f, 440f), 0f)
