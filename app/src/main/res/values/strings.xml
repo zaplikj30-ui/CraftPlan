@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">CraftPlan</string>
     <string name="open_sample">Otevřít testovací fotografii</string>
+    <string name="document_opening">Otevírám…</string>
+    <string name="document_open_failed">Dokument se nepodařilo bezpečně otevřít. Zkuste to znovu.</string>
+    <string name="document_saving">UKLÁDÁM…</string>
+    <string name="document_saved">ULOŽENO</string>
+    <string name="document_editing">ROZPRACOVÁNO</string>
+    <string name="document_save_failed">NEULOŽENO</string>
+    <string name="document_save_uncertain">NEPOTVRZENO</string>
+    <string name="document_save_conflict">NEULOŽENO – uložená revize se změnila.</string>
+    <string name="document_recovered">Novější revizi nelze otevřít. Zobrazena starší ověřená revize, pouze ke čtení.</string>
+    <string name="document_retry">Zkusit znovu</string>
+    <string name="document_leave_title">Práce zatím není potvrzená</string>
+    <string name="document_leave_wait">Ukládání probíhá. Počkejte na potvrzení.</string>
+    <string name="document_leave_warning">Zůstaňte a zkuste uložení znovu. Odchod ukončí tuto pracovní relaci; změny, které se nepotvrdily, se ztratí.</string>
+    <string name="document_stay">Zůstat</string>
+    <string name="document_leave">Odejít</string>
     <string name="sample_title">Testovací fotografie</string>
     <string name="back_to_start">Zpět</string>
     <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>

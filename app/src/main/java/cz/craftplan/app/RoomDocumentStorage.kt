@@ -11,7 +11,15 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 
-internal fun openDocumentRepository(context: Context): DocumentRepository {
+internal object AppDocumentStorage {
+    private var repository: DocumentRepository? = null
+
+    @Synchronized
+    fun repository(context: Context): DocumentRepository =
+        repository ?: openDocumentRepository(context.applicationContext).also { repository = it }
+}
+
+private fun openDocumentRepository(context: Context): DocumentRepository {
     val privateDirectory = context.filesDir
     // Persist the directory entry as well, should Android have just created filesDir.
     syncPrivateDirectory(checkNotNull(privateDirectory.parentFile))

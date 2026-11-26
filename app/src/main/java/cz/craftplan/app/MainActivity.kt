@@ -1,8 +1,11 @@
 package cz.craftplan.app
 
+import android.app.Application
 import android.content.res.Configuration
 import android.content.ContentResolver
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.Window
@@ -36,18 +39,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.tappableElement
 import androidx.compose.foundation.layout.union
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
@@ -61,7 +67,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -126,7 +132,114 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-internal class PhotoEditorState : ViewModel() {
+internal class PhotoEditorState(application: Application) : AndroidViewModel(application) {
+    var photo by mutableStateOf<Bitmap?>(null)
+        private set
+    var openingPhoto by mutableStateOf(false)
+        private set
+    var openFailed by mutableStateOf(false)
+        private set
+    private var storageStatus by mutableStateOf(DocumentSaveStatus.SAVING)
+    private var gestureEditing by mutableStateOf(false)
+    val saveStatus: DocumentSaveStatus
+        get() = if (storageStatus == DocumentSaveStatus.SAVED && (gestureEditing || valueDraft != null)) {
+            DocumentSaveStatus.EDITING
+        } else storageStatus
+    val hasUnsavedChanges get() = autosave?.hasPendingChanges == true
+    private var autosave: DocumentAutosave? = null
+    private var saveJob: Job? = null
+    private var retainedHistoryVersion: DocumentVersion? = null
+
+    fun openPhoto() {
+        if (photo != null || openingPhoto) return
+        openingPhoto = true
+        openFailed = false
+        viewModelScope.launch {
+            try {
+                val (document, bitmap) = withContext(Dispatchers.IO) {
+                    val document = AppDocumentStorage.repository(getApplication()).open()
+                    val bytes = document.photoBytes
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        ?: throw IOException("Could not decode verified JPEG")
+                    require(bitmap.width == document.snapshot.photo.width &&
+                        bitmap.height == document.snapshot.photo.height)
+                    document to bitmap
+                }
+                scene = DimensionScene(document.snapshot.dimensions)
+                if (document.recovered || retainedHistoryVersion != document.version) history = DimensionHistory()
+                retainedHistoryVersion = null
+                showNotes = document.snapshot.showNotes
+                if (document.recovered) {
+                    storageStatus = DocumentSaveStatus.RECOVERED
+                } else {
+                    autosave = DocumentAutosave(document.version)
+                    storageStatus = DocumentSaveStatus.SAVED
+                    if (document.version.revisionId == null) queueCompletedChange()
+                }
+                photo = bitmap
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                openFailed = true
+            } finally {
+                openingPhoto = false
+            }
+        }
+    }
+
+    fun closePhoto() {
+        check(saveJob?.isActive != true)
+        cancelStressGeneration()
+        stopDiagnostics()
+        diagnosticGripBounds = null
+        diagnosticSharedGripBounds = null
+        retainedHistoryVersion = autosave?.confirmedVersion?.takeUnless { hasUnsavedChanges }
+        if (retainedHistoryVersion == null) history = DimensionHistory()
+        autosave = null
+        gestureEditing = false
+        photo = null
+        scene = DimensionScene()
+    }
+
+    fun editGesture(active: Boolean) {
+        if (active && !gestureEditing) autosave?.beginEdit()
+        gestureEditing = active
+    }
+
+    private fun queueCompletedChange() {
+        val session = autosave ?: return
+        session.finishedEdit(DocumentSnapshot(scene.dimensions, showNotes))
+        if (storageStatus == DocumentSaveStatus.SAVED || storageStatus == DocumentSaveStatus.SAVING) {
+            retrySave()
+        }
+    }
+
+    fun retrySave() {
+        val session = autosave ?: return
+        if (!session.hasPendingChanges || saveJob?.isActive == true) return
+        storageStatus = DocumentSaveStatus.SAVING
+        saveJob = viewModelScope.launch {
+            try {
+                while (true) {
+                    val request = session.nextRequest() ?: break
+                    val ack = withContext(Dispatchers.IO) {
+                        AppDocumentStorage.repository(getApplication()).save(request)
+                    }
+                    check(session.acknowledge(ack))
+                }
+                storageStatus = DocumentSaveStatus.SAVED
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: DocumentConflict) {
+                storageStatus = DocumentSaveStatus.CONFLICT
+            } catch (_: UncertainDocumentSave) {
+                storageStatus = DocumentSaveStatus.UNCERTAIN
+            } catch (_: Exception) {
+                storageStatus = DocumentSaveStatus.FAILED
+            }
+        }
+    }
+
     private var currentScene by mutableStateOf(DimensionScene())
     var scene: DimensionScene
         get() = currentScene
@@ -308,6 +421,7 @@ internal class PhotoEditorState : ViewModel() {
 
     fun toggleNotes() {
         showNotes = !showNotes
+        queueCompletedChange()
         diagnostics.action(DiagnosticAction.NOTES, DiagnosticResult.APPLIED, detail = if (showNotes) 1 else 0)
     }
 
@@ -324,10 +438,13 @@ internal class PhotoEditorState : ViewModel() {
     }
 
     fun applyDimensionChange(next: DimensionScene): Boolean {
+        if (autosave == null) return false
         val previousHistory = history
         history = history.record(scene, next)
         scene = next
-        return history !== previousHistory
+        val changed = history !== previousHistory
+        if (changed) queueCompletedChange()
+        return changed
     }
 
     fun writeDiagnosticExport(resolver: ContentResolver, uri: Uri, data: String, finished: (Boolean) -> Unit) {
@@ -351,6 +468,7 @@ internal class PhotoEditorState : ViewModel() {
         val (previous, nextHistory) = history.undo(scene) ?: return
         scene = previous
         history = nextHistory
+        queueCompletedChange()
         diagnostics.action(DiagnosticAction.UNDO, DiagnosticResult.APPLIED)
     }
 
@@ -358,13 +476,18 @@ internal class PhotoEditorState : ViewModel() {
         val (next, nextHistory) = history.redo(scene) ?: return
         scene = next
         history = nextHistory
+        queueCompletedChange()
         diagnostics.action(DiagnosticAction.REDO, DiagnosticResult.APPLIED)
     }
 
     fun openValue(dimension: PhotoDimension) {
         val current = scene.find(dimension.id)
-        val opened = current == dimension && valueDraft == null && !inkController.hasPendingInput
-        if (opened) valueDraft = DimensionValueDraft(checkNotNull(current))
+        val opened = autosave != null && current == dimension &&
+            valueDraft == null && !inkController.hasPendingInput
+        if (opened) {
+            autosave?.beginEdit()
+            valueDraft = DimensionValueDraft(checkNotNull(current))
+        }
         diagnostics.action(DiagnosticAction.OPEN_VALUE, if (opened) DiagnosticResult.APPLIED else DiagnosticResult.REJECTED, dimension.id)
     }
 
@@ -460,18 +583,36 @@ internal fun EditorDialogStatusBarEffect(hidden: Boolean) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
-    var photoOpen by rememberSaveable { mutableStateOf(false) }
+    val photo = editorState.photo
+    val photoOpen = photo != null
+    var confirmLeave by remember { mutableStateOf(false) }
     if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsRecordingEffects(editorState, window)
     PrepareDimensionDialog(editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording })
-    val closePhoto = {
-        editorState.cancelStressGeneration()
-        editorState.stopDiagnostics()
-        editorState.diagnosticGripBounds = null
-        editorState.diagnosticSharedGripBounds = null
-        editorState.scene = editorState.scene.closePhoto()
-        photoOpen = false
+    BackHandler(enabled = photoOpen && editorState.valueDraft == null) {
+        if (editorState.hasUnsavedChanges) confirmLeave = true else editorState.closePhoto()
     }
-    BackHandler(enabled = photoOpen && editorState.valueDraft == null, onBack = closePhoto)
+    LaunchedEffect(editorState.saveStatus) {
+        if (!editorState.hasUnsavedChanges) confirmLeave = false
+    }
+    if (confirmLeave && editorState.hasUnsavedChanges) {
+        val writing = editorState.saveStatus == DocumentSaveStatus.SAVING
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text(stringResource(R.string.document_leave_title)) },
+            text = { Text(stringResource(if (writing) R.string.document_leave_wait else R.string.document_leave_warning)) },
+            confirmButton = {
+                TextButton(onClick = { confirmLeave = false }) { Text(stringResource(R.string.document_stay)) }
+            },
+            dismissButton = if (!writing) {
+                {
+                    TextButton(onClick = {
+                        confirmLeave = false
+                        editorState.closePhoto()
+                    }) { Text(stringResource(R.string.document_leave)) }
+                }
+            } else null,
+        )
+    }
     val configuration = LocalConfiguration.current
     val portrait = configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
     val isTablet = configuration.smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP
@@ -494,7 +635,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     }
     Scaffold(contentWindowInsets = contentInsets) { insets ->
         val screen = Modifier.fillMaxSize().padding(insets)
-        if (photoOpen) {
+        if (photo != null) {
             val direction = LocalLayoutDirection.current
             val density = LocalDensity.current
             val statusTop = WindowInsets.statusBarsIgnoringVisibility.getTop(density)
@@ -511,11 +652,14 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 modifier = screen,
                 safeOverlayTopPx = safeOverlayTop,
                 statusScrimHeightPx = statusScrimHeight,
+                photo = photo,
+                editable = editorState.saveStatus != DocumentSaveStatus.RECOVERED,
                 scene = editorState.scene,
                 onCreateDimension = { editorState.applyDimensionChange(editorState.scene.create(it)) },
                 onChangeDimension = { old, new -> editorState.applyDimensionChange(editorState.scene.edit(old, new)) },
                 onSelectDimension = { editorState.scene = editorState.scene.select(it) },
                 onEditValue = editorState::openValue,
+                onGestureEditing = editorState::editGesture,
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 fitRequest = editorState.fitRequest,
@@ -525,8 +669,9 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     editorState.visibleDrawCandidates = visible
                 },
                 overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState) },
+                storageStatus = { DocumentStatus(editorState.saveStatus, editorState::retrySave) },
                 toolbar = { modifier ->
-                    EditorToolbar(
+                    if (editorState.saveStatus != DocumentSaveStatus.RECOVERED) EditorToolbar(
                         editorState, repeatHintOffset,
                         modifier.alpha(if (editorState.valueDraft == null) 1f else 0f),
                     )
@@ -558,9 +703,10 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
                 if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState)
-                Button(onClick = { photoOpen = true }) {
-                    Text(stringResource(R.string.open_sample))
+                Button(onClick = editorState::openPhoto, enabled = !editorState.openingPhoto) {
+                    Text(stringResource(if (editorState.openingPhoto) R.string.document_opening else R.string.open_sample))
                 }
+                if (editorState.openFailed) Text(stringResource(R.string.document_open_failed))
                 val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
                     if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)
@@ -573,27 +719,55 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
 }
 
 @Composable
+private fun DocumentStatus(status: DocumentSaveStatus, retry: () -> Unit) {
+    val label = when (status) {
+        DocumentSaveStatus.SAVING -> R.string.document_saving
+        DocumentSaveStatus.SAVED -> R.string.document_saved
+        DocumentSaveStatus.EDITING -> R.string.document_editing
+        DocumentSaveStatus.FAILED -> R.string.document_save_failed
+        DocumentSaveStatus.UNCERTAIN -> R.string.document_save_uncertain
+        DocumentSaveStatus.CONFLICT -> R.string.document_save_conflict
+        DocumentSaveStatus.RECOVERED -> R.string.document_recovered
+    }
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surface) {
+        Column {
+            Text(stringResource(label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelMedium)
+            if (status == DocumentSaveStatus.FAILED || status == DocumentSaveStatus.UNCERTAIN ||
+                status == DocumentSaveStatus.CONFLICT
+            ) {
+                TextButton(onClick = retry) { Text(stringResource(R.string.document_retry)) }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SamplePhoto(
     modifier: Modifier,
     safeOverlayTopPx: Int,
     statusScrimHeightPx: Int,
+    photo: Bitmap,
+    editable: Boolean,
     scene: DimensionScene,
     onCreateDimension: (PhotoDimension) -> Boolean,
     onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean,
     onSelectDimension: (UUID?) -> Unit,
     onEditValue: (PhotoDimension) -> Unit,
+    onGestureEditing: (Boolean) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
     fitRequest: Int,
     diagnostics: EditorDiagnostics?,
     onDrawCounts: (Int, Int) -> Unit,
     overlays: @Composable () -> Unit,
+    storageStatus: @Composable () -> Unit,
     toolbar: @Composable (Modifier) -> Unit,
 ) {
     Box(modifier = modifier) {
         AndroidView(
             factory = { context ->
-                PhotoEditorView(context).apply {
+                PhotoEditorView(context, photo).apply {
                     this.diagnostics = diagnostics
                     this.safeOverlayTopPx = safeOverlayTopPx
                     this.scene = scene
@@ -606,6 +780,8 @@ private fun SamplePhoto(
                 view.onChangeDimension = onChangeDimension
                 view.onSelectDimension = onSelectDimension
                 view.onEditValue = onEditValue
+                view.onGestureEditing = onGestureEditing
+                view.editable = editable
                 view.onDrawCounts = onDrawCounts
                 view.showNotes = showNotes
                 view.labelsLocked = labelsLocked
@@ -621,6 +797,8 @@ private fun SamplePhoto(
                 .background(Color.Black.copy(alpha = 0.55f)))
         }
         toolbar(Modifier.align(Alignment.BottomStart))
+        Box(Modifier.align(Alignment.TopStart)
+            .padding(start = 4.dp, top = with(density) { safeOverlayTopPx.toDp() } + 4.dp)) { storageStatus() }
         Box(Modifier.align(Alignment.TopEnd)
             .padding(top = with(density) { safeOverlayTopPx.toDp() })) { overlays() }
     }

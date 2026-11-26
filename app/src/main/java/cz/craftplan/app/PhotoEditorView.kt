@@ -2,7 +2,7 @@ package cz.craftplan.app
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
@@ -23,8 +23,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
-internal class PhotoEditorView(context: Context) : View(context) {
-    private val photo = BitmapFactory.decodeResource(resources, R.drawable.synthetic_workbench)
+internal class PhotoEditorView(context: Context, private val photo: Bitmap) : View(context) {
     private val viewport = PhotoViewport(photo.width, photo.height)
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
@@ -91,6 +90,8 @@ internal class PhotoEditorView(context: Context) : View(context) {
     var onChangeDimension: (PhotoDimension, PhotoDimension) -> Boolean = { _, _ -> false }
     var onSelectDimension: (UUID?) -> Unit = {}
     var onEditValue: (PhotoDimension) -> Unit = {}
+    var onGestureEditing: (Boolean) -> Unit = {}
+    var editable = true
     private data class DimensionLabel(
         val text: String? = null,
         val besideRuler: Boolean = false,
@@ -565,7 +566,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
                 activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.CANCELED)
                 return true
             }
-            ownsDimensionStream = beginDimensionGesture(event)
+            ownsDimensionStream = editable && beginDimensionGesture(event)
         }
         val canceled = event.flags and MotionEvent.FLAG_CANCELED != 0
         if (event.actionMasked == MotionEvent.ACTION_CANCEL ||
@@ -719,6 +720,7 @@ internal class PhotoEditorView(context: Context) : View(context) {
         } else {
             return false
         }
+        onGestureEditing(true)
         clickCandidate = false
         activePointerId = MotionEvent.INVALID_POINTER_ID
         return true
@@ -949,7 +951,10 @@ internal class PhotoEditorView(context: Context) : View(context) {
         lensContact = null
         ownsDimensionStream = false
         stopAutoPan()
-        if (needsRedraw) invalidate()
+        if (needsRedraw) {
+            onGestureEditing(false)
+            invalidate()
+        }
     }
 
     override fun performClick(): Boolean = super.performClick()
