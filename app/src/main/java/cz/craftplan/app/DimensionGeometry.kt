@@ -82,6 +82,57 @@ internal fun labelRectangleDistance(
     hypot(along - (left + right) / 2f, across - (top + bottom) / 2f),
 )
 
+/** Baseline label geometry, scaled as a single unit in the Canvas. */
+internal data class LabelRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+    val centerX: Float get() = (left + right) / 2f
+    fun contains(x: Float, y: Float): Boolean = x in left..right && y in top..bottom
+
+    /** Preserve the baseline hit zone and margins while ranking the actual scaled rectangle. */
+    fun hit(x: Float, y: Float, scale: Float, touch: LabelRect): LabelHitDistance? {
+        val l = left * scale
+        val t = top * scale
+        val r = right * scale
+        val b = bottom * scale
+        val expanded = x in (l - (left - touch.left))..(r + (touch.right - right)) &&
+            y in (t - (top - touch.top))..(b + (touch.bottom - bottom))
+        if (!expanded && !touch.contains(x, y)) return null
+        return labelRectangleDistance(x, y, l, t, r, b)
+    }
+}
+
+internal data class DimensionLabelGeometry(
+    val ruler: LabelRect?,
+    val text: LabelRect?,
+    val notebook: LabelRect?,
+    val rulerTouch: LabelRect,
+    val textTouch: LabelRect?,
+    val notebookTouch: LabelRect?,
+)
+
+internal fun dimensionLabelGeometry(
+    density: Float, textWidth: Float?, labelHeight: Float, besideRuler: Boolean, notebook: Boolean,
+): DimensionLabelGeometry {
+    val height = maxOf(36f * density, labelHeight + 12f * density)
+    val ruler = if (textWidth == null || besideRuler)
+        LabelRect(-14f * density, -17f * density, 14f * density, -7f * density) else null
+    val text = textWidth?.let {
+        val half = it / 2f + 5f * density
+        val center = if (besideRuler) 18f * density + half else 0f
+        val bottom = -5f * density
+        LabelRect(center - half, bottom - labelHeight - 4f * density, center + half, bottom)
+    }
+    val notebookRect = if (notebook) {
+        val left = (textWidth?.div(2f) ?: (14f * density)) + 10f * density
+        LabelRect(left, -24f * density, left + 15f * density, -7f * density)
+    } else null
+    return DimensionLabelGeometry(
+        ruler, text, notebookRect,
+        LabelRect(-24f * density, -height, 24f * density, -2f * density),
+        text?.let { LabelRect(it.left - 3f * density, -height, it.right + 3f * density, -2f * density) },
+        notebookRect?.let { LabelRect(it.left - 8f * density, -32f * density, it.right + 8f * density, density) },
+    )
+}
+
 internal fun PhotoDimension.move(hit: DimensionHit, du: Float, dv: Float): PhotoDimension {
     val movedStart = if (hit == DimensionHit.END) start else start.shift(du, dv) ?: return this
     val movedEnd = if (hit == DimensionHit.START) end else end.shift(du, dv) ?: return this

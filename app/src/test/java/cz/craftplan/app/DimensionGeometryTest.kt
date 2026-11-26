@@ -85,6 +85,39 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun labelGeometryScalesRulerNotebookTextAndSpacingTogether() {
+        for (density in listOf(1f, 2f)) {
+            val unmeasured = dimensionLabelGeometry(density, null, 18f * density, false, true)
+            val ruler = requireNotNull(unmeasured.ruler)
+            val notebook = requireNotNull(unmeasured.notebook)
+            assertEquals(28f * density, ruler.right - ruler.left, 0f)
+            assertEquals(15f * density, notebook.right - notebook.left, 0f)
+            for (scale in listOf(0.8f, 1f, 1.2f)) {
+                assertEquals(10f * density * scale, (notebook.left - ruler.right) * scale, 0.0001f)
+                assertEquals(0f, requireNotNull(ruler.hit(ruler.right * scale, -12f * density * scale,
+                    scale, unmeasured.rulerTouch)).distance, 0f)
+                assertEquals(0f, requireNotNull(notebook.hit(notebook.right * scale, -15f * density * scale,
+                    scale, requireNotNull(unmeasured.notebookTouch))).distance, 0f)
+                assertTrue(ruler.hit(23f * density, -12f * density, scale, unmeasured.rulerTouch) != null)
+                assertTrue(requireNotNull(ruler.hit(23f * density, -12f * density,
+                    scale, unmeasured.rulerTouch)).distance > 0f)
+                assertNull(ruler.hit(60f * density, -12f * density, scale, unmeasured.rulerTouch))
+                val visibleNote = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
+                val note = requireNotNull(visibleNote.text)
+                assertEquals(4f * density * scale,
+                    (note.left - requireNotNull(visibleNote.ruler).right) * scale, 0.0001f)
+                assertEquals(0f, requireNotNull(note.hit(note.right * scale, -10f * density * scale,
+                    scale, requireNotNull(visibleNote.textTouch))).distance, 0f)
+                assertNull(visibleNote.notebook)
+                val measured = dimensionLabelGeometry(density, 60f * density, 18f * density, false, true)
+                assertNull(measured.ruler)
+                assertEquals(5f * density * scale,
+                    (requireNotNull(measured.notebook).left - requireNotNull(measured.text).right) * scale, 0.0001f)
+            }
+        }
+    }
+
+    @Test
     fun allPointerTypesStartFromTheEstablishedGestureProfile() {
         for (kind in EditorPointerKind.entries) {
             val profile = editorInputProfile(kind, 2f)
