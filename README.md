@@ -2,6 +2,24 @@
 
 Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokument kót je zatím pouze v paměti.
 
+## M1 – ověřený funkční základ APK 83 (26. 11. 2026)
+
+Testovaná publikace: `6d2aac127d81004ef5eee0c0d2fb76388656da28`, zdrojová revize `52b7a39b78f542f96893ea0b2057d5edabb613d1`, [Actions 45722630027](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45722630027) SUCCESS (JVM testy, lint, sestavení a ověření podpisu APK). Fyzické výsledky níže jsou potvrzení vlastníka na jeho telefonu se syntetickou fotografií, nikoli nové automatické testy ani úplná matice zařízení.
+
+| Závěrečná praktická kontrola | Výsledek |
+|---|---|
+| Horní systémová lišta | PASS – vlastník potvrdil funkčnost. |
+| Vlastní rukopis S Penem do polí při otevřené systémové klávesnici | PASS – vlastník potvrdil psaní; SwiftKey je jeho běžná klávesnice. |
+| Přerušení rozpracovaného tahu při odchodu z aplikace | PASS – vlastník potvrdil funkčnost popsaného scénáře. |
+| Zachování nastavení po úplném restartu | PASS dle vlastníka – horní systémová lišta, zámek posunu čísel, rozložení klávesnice, rychlý symbol a nastavení kalkulačky. |
+| Přesné převody palcových zlomků | PASS – 1/16 in → 1,5875 mm → 0,0625 in; 1/3 in → přibližně 8,4667 mm (upozornění na zaokrouhlené zobrazení) → 1/3 in; 1/2 in → 12,7 mm → 0,5 in. Vlastník potvrdil správné převody zpět. |
+
+**Systémové klávesnice:** Samsung Keyboard a SwiftKey se otevírají normálně. Gboard původně zobrazoval plovoucí rukopisný panel; po zapnutí jeho vlastní volby „Zobrazovat klávesnici na obrazovce“ v nastavení „Psaní do textových polí“ vlastník potvrdil vysunutí běžné klávesnice. Klasické rozložení je přijatelné; konkrétní rozložení ponechat IME. Jde o pozorování na jednom zařízení, ne důkaz univerzální kompatibility ani přesné interní příčiny. Zapsat do budoucí nápovědy; další změny IME nyní neplánovat.
+
+**Drobnost UX k pozdějšímu rozhodnutí:** zlomek bez explicitní jednotky zadávat po výběru palců; pokud je již rozepsán při zvolených mm, neplatný vstup brání běžnému převodu jednotek. Možné ergonomické zlepšení nesmí potichu změnit význam měření. Alternativou podle aktuálního parseru je explicitní zápis `1/16 in`; samostatná fyzická zkouška této alternativy není doložena.
+
+**Stav:** pět závěrečných kontrol aktuálního řezu editoru PASS dle vlastníka, nikoli dokončená M1. Navazující krok po samostatném GO: bezpečné trvalé uložení a znovuotevření syntetické fotografie se všemi kótami a poznámkami podle PR #2/#3/#5/#6. Skutečné focení/import, zbývající schválené funkce a diagnostika, základní magnety (rozsah k upřesnění), otevřené měření výkonu a pozdější M2 záloha/obnova zůstávají v plánu; nepovažovat je za zrušené. Save/reopen, integrita médií, pád/plný disk, úplná matice IME/orientací/zařízení a M2 restore nejsou touto kontrolou prokázány. Pouze nahraditelná testovací data. Tento zápis není GO k implementaci, novému buildu ani Actions.
+
 ### M1 – více kót, lišta a historie
 
 - **Seznam +** otevře nabídku nástrojů. Krátké klepnutí na ikonu kóty připraví jeden tah. Dlouhé podržení zapíná nebo vypíná opakování. Jednorázová kóta zůstane vybraná. Při opakování se nová kóta dokončí bez výběru a bez dialogu. Opuštění fotografie režim kreslení vypne.
@@ -90,7 +108,7 @@ Vlastník schválil samostatnou volbu pro každou orientaci v ozubeném kolečku
 
 Vlastník schválil přesun nastavení z nabídky jednotek pod ozubené kolečko. Na výšku vlevo v řádku Zrušit/Uložit, na šířku před Zrušit mimo vodorovně posuvnou oblast polí. Oko u poznámky a přepínač klávesnic zůstávají na původních místech. Na šířku zmenšujeme pouze vodorovné vnitřní okraje akcí o 4 dp na každé straně a mezeru před akcemi ze 4 na 2 dp; výška akcí a klávesnice se nemění. Nepřidáváme další řádek. Pod jednotkami zůstávají jednotky včetně Nic a zachování čísla; v nastavení jazyk rukopisu, automatický výpočet, desetinná místa a stávající nastavení numerické klávesnice (dlouhý stisk, obnova rozložení). Chování funkcí a jejich preference beze změny, otevření nastavení při čekajícím rukopisu blokováno stejně jako jednotky. Ověřit na telefonu obě orientace, vlastní i systémovou klávesnici i zavřenou, přístupnost oka, přepínače a akcí, obsah obou nabídek, Back, zachování rozpracovaného textu a nastavení. Android kompilace, lint, projektové testy a fyzická kontrola NOT RUN.
 
-APK 79 (`f50a3e77e19306d197c6f5c68a4062d99e151d43`, Actions 45707320526 SUCCESS): vlastník potvrdil kalkulačku včetně navazujícího výpočtu. TXT (21) potvrzuje úspěšný výpočet a ECHO_IGNORED v obou polích (např. VALUE 13087/13089 ms a NOTE 22964/22965 ms); běžné mazání v poznámce pokračovalo až na prázdný text. Vlastník označil funkci za funkční. Nejde o ověření všech IME ani trvalého ukládání. APK 79 je aktuální ověřený základ.
+APK 79 (`f50a3e77e19306d197c6f5c68a4062d99e151d43`, Actions 45707320526 SUCCESS): vlastník potvrdil kalkulačku včetně navazujícího výpočtu. TXT (21) potvrzuje úspěšný výpočet a ECHO_IGNORED v obou polích (např. VALUE 13087/13089 ms a NOTE 22964/22965 ms); běžné mazání v poznámce pokračovalo až na prázdný text. Vlastník označil funkci za funkční. Nejde o ověření všech IME ani trvalého ukládání. APK 79 byl tehdy aktuálním ověřeným základem; novější stav viz závěrečné ověření APK 83 výše.
 
 ### M1 – ochrana před opakováním vstupu po výpočtu (GO 25. 11. 2026)
 
