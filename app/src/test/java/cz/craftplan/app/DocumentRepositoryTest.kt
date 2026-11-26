@@ -18,6 +18,40 @@ class DocumentRepositoryTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun snapshotOverTheLimitNeverTouchesStorageAndAQueuedCorrectionCanBePublished() = runBlocking {
+        val storage = TestDocumentTransactions()
+        val dir = folder.newFolder()
+        val repository = DocumentRepository(storage, PrivatePhotoStore(dir, {}) { bundledSyntheticPhoto() }) {}
+        val initial = repository.open()
+        val confirmed = repository.save(DocumentSave(initial.version, 1, initial.snapshot))
+        val session = DocumentAutosave(confirmed.version)
+        val dimension = PhotoDimension(UUID.randomUUID(), initial.snapshot.photo.id,
+            PhotoAnchor(0f, 0f), PhotoAnchor(1f, 1f))
+        session.finishedEdit(initial.snapshot.copy(dimensions = List(20_001) {
+            dimension.copy(id = UUID(0, it.toLong()))
+        }))
+        val rejected = checkNotNull(session.nextRequest())
+        val corrected = initial.snapshot.copy(dimensions = listOf(dimension))
+        session.finishedEdit(corrected)
+        val accesses = storage.transactionAccesses
+        val failure = fails<DocumentSnapshotRejected> { repository.save(rejected) }
+        assertEquals("SNAPSHOT / INVALID_DATA", storageFailureCode(failure, StoragePhase.ACK))
+        assertEquals(accesses, storage.transactionAccesses)
+        assertEquals(confirmed.version.revisionId, storage.headRow?.revisionId)
+        assertEquals(1, storage.revisions.size)
+        assertTrue(session.recordFailure(rejected, failure))
+
+        val replacement = checkNotNull(session.nextRequest())
+        assertEquals(confirmed.version, replacement.base)
+        assertEquals(corrected, replacement.snapshot)
+        val ack = repository.save(replacement)
+        assertTrue(session.acknowledge(ack))
+        assertEquals(corrected, repository.open().snapshot)
+        assertEquals(2, storage.revisions.size)
+        assertTrue(rejected.targetId !in storage.revisions)
+    }
+
+    @Test
     fun reopenReadsConfirmedContentAndAcceptsTheSameOperationWithoutAnotherRevision() = runBlocking {
         val storage = TestDocumentTransactions()
         val dir = folder.newFolder()
@@ -223,14 +257,20 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
             else heads[SYNTHETIC_DOCUMENT_ID] = value
         }
     val revisions = linkedMapOf<String, DocumentRevision>()
+    var transactionAccesses = 0
+        private set
     var writerActive = false
         private set
     var failPublish = false
     var beforeWrite: (suspend () -> Unit)? = null
 
-    override suspend fun <T> read(block: suspend DocumentDao.() -> T): T = block(this)
+    override suspend fun <T> read(block: suspend DocumentDao.() -> T): T {
+        transactionAccesses++
+        return block(this)
+    }
 
     override suspend fun <T> write(block: suspend DocumentDao.() -> T): T {
+        transactionAccesses++
         beforeWrite?.let {
             beforeWrite = null
             it()

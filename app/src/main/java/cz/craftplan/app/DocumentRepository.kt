@@ -28,6 +28,10 @@ internal data class DocumentSave(
 internal data class DocumentAck(val operationId: String, val editGeneration: Long, val version: DocumentVersion)
 
 internal class DocumentConflict : IOException("The confirmed document changed")
+
+/** This attempt stopped in deterministic snapshot validation, before accessing storage. */
+internal class DocumentSnapshotRejected(cause: StorageFailure) : IOException("Snapshot rejected before write", cause)
+
 internal class UncertainDocumentSave(cause: Exception) : IOException("Save must be verified before retry", cause)
 
 internal class DocumentRepository(
@@ -76,16 +80,23 @@ internal class DocumentRepository(
     }
 
     suspend fun save(request: DocumentSave): DocumentAck {
-        val proposed = storagePhase(StoragePhase.SNAPSHOT) {
-            require(request.editGeneration > 0 && isUuid(request.operationId) && isUuid(request.targetId))
-            require(request.targetId != request.base.revisionId)
-            require(request.snapshot.photo == photo)
-            val bytes = SnapshotCodec.encode(request.snapshot)
-            require(SnapshotCodec.decode(bytes) == request.snapshot)
-            DocumentRevision(
-                request.targetId, documentId, request.base.storageGeneration,
-                request.base.revisionId, request.operationId, request.editGeneration, sha256(bytes), bytes,
-            )
+        val proposed = try {
+            storagePhase(StoragePhase.SNAPSHOT) {
+                require(request.editGeneration > 0 && isUuid(request.operationId) && isUuid(request.targetId))
+                require(request.targetId != request.base.revisionId)
+                require(request.snapshot.photo == photo)
+                val bytes = SnapshotCodec.encode(request.snapshot)
+                require(SnapshotCodec.decode(bytes) == request.snapshot)
+                DocumentRevision(
+                    request.targetId, documentId, request.base.storageGeneration,
+                    request.base.revisionId, request.operationId, request.editGeneration, sha256(bytes), bytes,
+                )
+            }
+        } catch (error: StorageFailure) {
+            // Encoding and decoding in this block operate solely on an in-memory buffer.
+            val cause = error.cause
+            if (cause is IllegalArgumentException || cause is IOException) throw DocumentSnapshotRejected(error)
+            throw error
         }
 
         // Resolve a possible previous commit before preparing or writing anything.

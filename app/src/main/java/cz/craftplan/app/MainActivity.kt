@@ -320,7 +320,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun queueCompletedChange() {
         val session = autosave ?: return
         session.finishedEdit(DocumentSnapshot(scene.dimensions, showNotes, checkNotNull(currentPhoto)))
-        if (storageStatus == DocumentSaveStatus.SAVED || storageStatus == DocumentSaveStatus.SAVING) {
+        if (storageStatus == DocumentSaveStatus.SAVED || storageStatus == DocumentSaveStatus.SAVING ||
+            session.hasCorrectedSnapshot
+        ) {
             retrySave()
         }
     }
@@ -334,22 +336,26 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             try {
                 while (true) {
                     val request = session.nextRequest() ?: break
-                    val ack = withContext(Dispatchers.IO) {
-                        if (request.snapshot.photo.id == PhotoId.SYNTHETIC_WORKBENCH) storage.synthetic.save(request)
-                        else storage.imports.save(request)
+                    try {
+                        val ack = withContext(Dispatchers.IO) {
+                            if (request.snapshot.photo.id == PhotoId.SYNTHETIC_WORKBENCH) storage.synthetic.save(request)
+                            else storage.imports.save(request)
+                        }
+                        if (!session.acknowledge(ack)) {
+                            throw UncertainDocumentSave(StorageFailure(StoragePhase.ACK,
+                                IllegalStateException("Unexpected revision acknowledgement")))
+                        }
+                    } catch (error: Exception) {
+                        if (session.recordFailure(request, error)) continue
+                        throw error
                     }
-                    check(session.acknowledge(ack))
                 }
                 storageStatus = DocumentSaveStatus.SAVED
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 storageDiagnostic = storageFailureCode(error, StoragePhase.ACK)
-                storageStatus = when (error) {
-                    is DocumentConflict -> DocumentSaveStatus.CONFLICT
-                    is UncertainDocumentSave -> DocumentSaveStatus.UNCERTAIN
-                    else -> DocumentSaveStatus.FAILED
-                }
+                storageStatus = session.failureStatus ?: DocumentSaveStatus.FAILED
             }
         }
     }

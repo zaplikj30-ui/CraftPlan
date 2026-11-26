@@ -28,7 +28,10 @@ internal inline fun <T> storagePhase(phase: StoragePhase, block: () -> T): T = t
 
 /** Only phase, fixed reason codes and numeric OS errno. No exception text or document contents. */
 internal fun storageFailureCode(error: Exception, fallback: StoragePhase): String {
-    val initial = if (error is UncertainDocumentSave) error.cause else error
+    val initial = when (error) {
+        is UncertainDocumentSave, is DocumentSnapshotRejected -> error.cause
+        else -> error
+    }
     val phase = (initial as? StorageFailure)?.phase ?: fallback
     var cause: Throwable? = (initial as? StorageFailure)?.cause ?: initial
     var reason = "UNEXPECTED"
