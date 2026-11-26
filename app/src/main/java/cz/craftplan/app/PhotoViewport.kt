@@ -70,10 +70,6 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionOutlineWidth: Float
         get() = 2.95f + 1.05f * dimensionZoomProgress
 
-    /** Readable label text changes much less than the dimension strokes. */
-    val dimensionLabelSp: Float
-        get() = 14f + 2f * dimensionZoomProgress
-
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale
     val photoBottom: Float get() = top + imageHeight * scale

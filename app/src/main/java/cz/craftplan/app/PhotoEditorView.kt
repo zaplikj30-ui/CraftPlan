@@ -105,11 +105,6 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     )
     private val emptyLabel = DimensionLabel()
     private val labelHeight = labelPaint.descent() - labelPaint.ascent()
-    // Keep the 15sp text layout cached. Uniform Canvas scaling avoids rebuilding
-    // every label and re-ellipsizing notes on every pinch frame.
-    private val dimensionLabelScale: Float
-        get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, viewport.dimensionLabelSp,
-            resources.displayMetrics) / labelPaint.textSize
     private val noteWhitespace = Regex("\\s+")
     private var labels = emptyMap<UUID, DimensionLabel>()
     var labelsLocked = false
@@ -340,10 +335,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val handlePadding = anchorRadius + 0.7f * density
         val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, handlePadding, inMagnifier)
         val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, handlePadding, inMagnifier)
-        val labelScale = dimensionLabelScale
         val showLabel = dimensionBoundsVisible(
-            canvas, labelX, labelY, labelX, labelY,
-            maxOf(24f * density, decoration.cullingRadius * maxOf(1f, labelScale)), inMagnifier,
+            canvas, labelX, labelY, labelX, labelY, maxOf(24f * density, decoration.cullingRadius), inMagnifier,
         )
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
@@ -357,30 +350,26 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val label = decoration.text
         if (label == null || decoration.besideRuler) drawUnmeasuredMarker(canvas)
         if (label != null) {
-            val halfWidth = labelHalfWidth(decoration, labelScale)
+            val halfWidth = decoration.textWidth / 2f + 5f * density
             val center = labelCenter(halfWidth, decoration)
             val bottom = -5f * density
-            val top = bottom - labelHeight * labelScale - 4f * density
+            val top = bottom - labelHeight - 4f * density
             overlayPaint.color = WORKSPACE_COLOR
             canvas.drawRoundRect(center - halfWidth, top, center + halfWidth, bottom, 3f * density, 3f * density, overlayPaint)
-            val baseline = bottom - labelPaint.descent() * labelScale - 2f * density
-            canvas.save()
-            canvas.translate(center, baseline)
-            canvas.scale(labelScale, labelScale)
-            // Use the same cached text metrics for both rendering passes.
+            val baseline = bottom - labelPaint.descent() - 2f * density
+            // Keep the existing text metrics and fill; outline is a visual pass only.
             labelPaint.color = Color.BLACK
             labelPaint.style = Paint.Style.STROKE
             labelPaint.strokeJoin = Paint.Join.ROUND
             labelPaint.strokeWidth = 2f * density
-            canvas.drawText(label, 0f, 0f, labelPaint)
+            canvas.drawText(label, center, baseline, labelPaint)
             labelPaint.style = Paint.Style.FILL
             labelPaint.color = Color.WHITE
-            canvas.drawText(label, 0f, 0f, labelPaint)
-            canvas.restore()
+            canvas.drawText(label, center, baseline, labelPaint)
         }
         if (decoration.notebook) {
             // A tiny notebook marker; the note text itself stays off the photograph.
-            val x = notebookLeft(decoration, labelScale)
+            val x = notebookLeft(decoration)
             val top = -24f * density
             overlayPaint.color = Color.rgb(247, 220, 39)
             canvas.drawRoundRect(x, top, x + 15f * density, top + 17f * density,
@@ -408,8 +397,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val angle = Math.toRadians(readableAngle(axis).toDouble())
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
-        val labelScale = dimensionLabelScale
-        val height = maxOf(36f * density, labelHeight * maxOf(1f, labelScale) + 12f * density)
+        val height = maxOf(36f * density, labelHeight + 12f * density)
         val candidates = mutableListOf<LabelCandidate>()
         fun candidate(left: Float, top: Float, right: Float, bottom: Float, notebook: Boolean = false) {
             candidates += LabelCandidate(labelRectangleDistance(along, across, left, top, right, bottom), notebook)
@@ -420,20 +408,17 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
                 candidate(-14f * density, -17f * density, 14f * density, -7f * density)
             }
             decoration.text?.let {
-                val half = labelHalfWidth(decoration, labelScale)
+                val half = decoration.textWidth / 2f + 5f * density
                 val center = labelCenter(half, decoration)
-                // Never narrow the old generous eligibility zone when text shrinks.
-                val touchHalf = labelHalfWidth(decoration, maxOf(1f, labelScale))
-                val touchCenter = labelCenter(touchHalf, decoration)
-                if (kotlin.math.abs(along - touchCenter) <= touchHalf + 3f * density) {
+                if (kotlin.math.abs(along - center) <= half + 3f * density) {
                     val bottom = -5f * density
-                    candidate(center - half, bottom - labelHeight * labelScale - 4f * density,
+                    candidate(center - half, bottom - labelHeight - 4f * density,
                         center + half, bottom)
                 }
             }
         }
         if (decoration.notebook) {
-            val left = notebookLeft(decoration, labelScale)
+            val left = notebookLeft(decoration)
             if (along in (left - 8f * density)..(left + 23f * density) &&
                 across in (-32f * density)..(1f * density)
             ) candidate(left, -24f * density, left + 15f * density, -7f * density, notebook = true)
@@ -441,11 +426,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         return candidates
     }
 
-    private fun labelHalfWidth(decoration: DimensionLabel, labelScale: Float): Float =
-        decoration.textWidth * labelScale / 2f + 5f * density
-
-    private fun notebookLeft(decoration: DimensionLabel, labelScale: Float): Float =
-        (if (decoration.text == null) 14f * density else decoration.textWidth * labelScale / 2f) + 10f * density
+    private fun notebookLeft(decoration: DimensionLabel): Float =
+        (if (decoration.text == null) 14f * density else decoration.textWidth / 2f) + 10f * density
 
     private fun labelCenter(halfWidth: Float, decoration: DimensionLabel): Float =
         if (decoration.besideRuler) 18f * density + halfWidth else 0f
