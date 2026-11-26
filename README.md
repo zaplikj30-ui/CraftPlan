@@ -96,6 +96,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **GO vlastníka – sjednocení madel (26. 11. 2026):** schváleno sjednotit a rovnou sestavit APK 99. Boční madlo používá stejný nadřazený detektor jako ověřené horní madlo APK 98; odstraněn samostatný detektor a tap-to-toggle. Ponechány dosavadní směry (nahoru vysunutí horní řady, dolů zasunutí), šířky a výšky madel, vodorovná gesta skupiny tlačítek, sdílená plocha, accessibility a dlouhé stisky. Skutečná poloha měřená v root, přednost editoru v neviditelném 23dp bočním přesahu (LTR/RTL), 18dp horním přesahu jako dosud. Při změně typu madla ignorovat starou oblast. Regresní testy společného pravidla a bočního přesahu, horní scénáře zachovány. Statická kontrola; JVM/lint/build před publikací a praktické ověření obou madel, orientací, stylusu, pinch a gest tlačítek NOT RUN. Bez zásahů do editoru, ukládání a geometrie. Pouze nahraditelná data.
 
+**Schválená testovací publikace APK 99 (26. 11. 2026):** výslovný GO vlastníka pro podepsané sestavení ze zdrojové revize `0e521001d300a6f0d6cc543e17d281634e8523d9`. Rozsah: jednotná pravidla horního a bočního madla, bez fyzického tap-to-toggle, s předností editoru v přesahu. Statická kontrola diffu provedena; JVM/lint/build/fyzické ověření před publikací NOT RUN. Pouze nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
