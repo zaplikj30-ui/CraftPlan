@@ -31,15 +31,20 @@ internal data class DocumentRevision(
     val snapshot: ByteArray,
 )
 
+// Keep recovery metadata readable without materializing an oversized, corrupt BLOB.
+private const val REVISION_COLUMNS = "revisionId, documentId, storageGeneration, previousRevisionId, " +
+    "saveOperationId, editGeneration, snapshotDigest, " +
+    "CASE WHEN length(snapshot) <= $MAX_SNAPSHOT_BYTES THEN snapshot ELSE X'' END AS snapshot"
+
 @Dao
 internal interface DocumentDao {
     @Query("SELECT * FROM document_head WHERE documentId = :documentId")
     suspend fun head(documentId: String): DocumentHead?
 
-    @Query("SELECT * FROM document_revision WHERE revisionId = :id")
+    @Query("SELECT $REVISION_COLUMNS FROM document_revision WHERE revisionId = :id")
     suspend fun revision(id: String): DocumentRevision?
 
-    @Query("SELECT * FROM document_revision WHERE saveOperationId = :id")
+    @Query("SELECT $REVISION_COLUMNS FROM document_revision WHERE saveOperationId = :id")
     suspend fun operation(id: String): DocumentRevision?
 
     @Query("SELECT EXISTS(SELECT 1 FROM document_revision WHERE documentId = :documentId)")

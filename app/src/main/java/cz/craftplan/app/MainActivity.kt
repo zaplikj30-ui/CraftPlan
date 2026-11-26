@@ -43,7 +43,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -729,15 +728,13 @@ private fun DocumentStatus(status: DocumentSaveStatus, retry: () -> Unit) {
         DocumentSaveStatus.CONFLICT -> R.string.document_save_conflict
         DocumentSaveStatus.RECOVERED -> R.string.document_recovered
     }
-    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surface) {
-        Column {
-            Text(stringResource(label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelMedium)
-            if (status == DocumentSaveStatus.FAILED || status == DocumentSaveStatus.UNCERTAIN ||
-                status == DocumentSaveStatus.CONFLICT
-            ) {
-                TextButton(onClick = retry) { Text(stringResource(R.string.document_retry)) }
-            }
+    Column(Modifier.background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)) {
+        Text(stringResource(label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium)
+        if (status == DocumentSaveStatus.FAILED || status == DocumentSaveStatus.UNCERTAIN ||
+            status == DocumentSaveStatus.CONFLICT
+        ) {
+            TextButton(onClick = retry) { Text(stringResource(R.string.document_retry)) }
         }
     }
 }

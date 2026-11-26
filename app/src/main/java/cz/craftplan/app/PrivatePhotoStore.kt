@@ -20,19 +20,22 @@ internal class PrivatePhotoStore(
         if (!finalFile.exists()) {
             val bytes = readBundled()
             val staged = Files.createTempFile(directory.toPath(), ".photo-staged-", ".jpg").toFile()
-            FileOutputStream(staged).use {
-                it.write(bytes)
-                it.fd.sync()
-            }
-            read(staged)
             try {
-                // Link is atomic and refuses to replace an existing protected file.
-                Files.createLink(finalFile.toPath(), staged.toPath())
-            } catch (_: FileAlreadyExistsException) {
-                // A concurrent installer won. Verify and sync its actual file below.
-            }
-            return readAndSync().also {
-                // The verified final name now protects this content independently.
+                FileOutputStream(staged).use {
+                    it.write(bytes)
+                    it.fd.sync()
+                }
+                read(staged)
+                try {
+                    // Link is atomic and refuses to replace an existing protected file.
+                    Files.createLink(finalFile.toPath(), staged.toPath())
+                } catch (_: FileAlreadyExistsException) {
+                    // A concurrent installer won. Verify and sync its actual file below.
+                }
+                return readAndSync()
+            } finally {
+                // Only this attempt's temporary copy of the verified bundled fixture.
+                // Never unlink a final name or sweep stages left by a prior process.
                 staged.delete()
             }
         }

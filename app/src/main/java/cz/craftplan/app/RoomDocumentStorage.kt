@@ -31,7 +31,7 @@ private fun openDocumentRepository(context: Context): DocumentRepository {
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()
     val photos = PrivatePhotoStore(privateDirectory, ::syncPrivateDirectory) {
-        context.resources.openRawResource(R.drawable.synthetic_workbench).use {
+        context.resources.openRawResource(R.raw.synthetic_workbench).use {
             it.readNBytes(StoredPhoto.synthetic.size + 1)
         }
     }

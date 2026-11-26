@@ -38,13 +38,14 @@ internal data class DocumentSnapshot(
 internal fun sha256(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
+internal const val MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+
 /** Versioned, length-bounded snapshot. Geometry uses the editor's Float coordinates.
  * Measurements use only their tagged exact representation and validated provenance. */
 internal object SnapshotCodec {
     private const val FORMAT_VERSION = 1
     private const val MEASUREMENT_VERSION = 1
     private const val MAX_DIMENSIONS = 20_000
-    private const val MAX_BYTES = 8 * 1024 * 1024
 
     fun encode(snapshot: DocumentSnapshot): ByteArray {
         validate(snapshot)
@@ -57,14 +58,14 @@ internal object SnapshotCodec {
             out.writeInt(snapshot.dimensions.size)
             for (dimension in snapshot.dimensions) {
                 out.writeDimension(dimension)
-                require(buffer.size() <= MAX_BYTES) { "Snapshot is too large" }
+                require(buffer.size() <= MAX_SNAPSHOT_BYTES) { "Snapshot is too large" }
             }
         }
         return buffer.toByteArray()
     }
 
     fun decode(bytes: ByteArray): DocumentSnapshot {
-        require(bytes.size <= MAX_BYTES)
+        require(bytes.size <= MAX_SNAPSHOT_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             require(input.readInt() == FORMAT_VERSION)
             require(input.readInt() == MEASUREMENT_VERSION)

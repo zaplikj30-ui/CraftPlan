@@ -84,11 +84,13 @@ internal class DocumentRepository(
         )
 
         // Resolve a possible previous commit before preparing or writing anything.
-        val committed = transactions.read { inspect(proposed) }
-        if (!committed && request.base.revisionId == null) photos.prepare() else photos.readAndSync()
+        val committed = verifyOutcome { transactions.read { inspect(proposed) } }
+        if (!committed) {
+            if (request.base.revisionId == null) photos.prepare() else photos.readAndSync()
+        }
 
-        try {
-            if (!committed) transactions.write {
+        return verifyOutcome {
+            if (committed) photos.readAndSync() else transactions.write {
                 // Recheck inside the serialized writer transaction, including after media preparation.
                 if (!inspect(proposed)) {
                     insertRevision(proposed)
@@ -99,15 +101,19 @@ internal class DocumentRepository(
             syncStorage()
             check(transactions.read { inspect(proposed) })
             photos.readConfirmed()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: DocumentConflict) {
-            throw error
-        } catch (error: Exception) {
-            throw UncertainDocumentSave(error)
+            DocumentAck(request.operationId, request.editGeneration,
+                DocumentVersion(request.base.storageGeneration, request.targetId))
         }
-        return DocumentAck(request.operationId, request.editGeneration,
-            DocumentVersion(request.base.storageGeneration, request.targetId))
+    }
+
+    private suspend fun <T> verifyOutcome(block: suspend () -> T): T = try {
+        block()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: DocumentConflict) {
+        throw error
+    } catch (error: Exception) {
+        throw UncertainDocumentSave(error)
     }
 
     private suspend fun DocumentDao.inspect(proposed: DocumentRevision): Boolean {

@@ -1,6 +1,14 @@
 # CraftPlan
 
-Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokument kót je zatím pouze v paměti.
+Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokončené změny syntetického dokumentu se průběžně ukládají a další otevření načte poslední ověřenou revizi.
+
+## M1 – uložení a opětovné otevření syntetické fotografie
+
+- **Otevřít testovací fotografii** při prvním otevření založí dokument. Další otevření čte ověřené soukromé bajty JPEG a potvrzené kóty ze stejného dokumentu. Revize uchovává identity a kotvy, přesné desetinné a racionální délky, původní jednotky a zápis, nulu a stav NEZMĚŘENO, poznámky a jejich viditelnost, popisky, rovnice a původ potvrzeného výpočtu.
+- Dokončené změny včetně Undo/Redo se ukládají mimo hlavní vlákno. Rozpracovaný tah ani nepotvrzený dialog hodnoty se nepřenášejí do revize. Historie Undo/Redo zůstává v paměti aktuální relace a při novém spuštění se načte poslední uložený výsledek. Při chybě zůstávají dokončené změny v editoru a lze zvolit **Zkusit znovu**. Zpět před odchodem upozorní na nepotvrzené změny. Změny pouze v RAM se po ukončení procesu neobnoví.
+- Soukromý JPEG se zapisuje do dočasného souboru, synchronizuje a ověří podle délky a SHA-256. Finální jméno vzniká atomickým pevným odkazem bez přepsání a před transakcí je synchronizovaný i adresář. Revize, identita operace, digest a ukazatel se potvrzují společně v Room 2.8.5 s BundledSQLiteDriver (SQLite 2.7.1). Zapisující spojení kontroluje `TRUNCATE` a `synchronous=FULL`. Stav **ULOŽENO** vyžaduje ověřenou odpovídající revizi a médium. Při nejasném potvrzení se opakovaně ověřuje stejný pokus se stejným předchůdcem a generací úložiště.
+- Je-li aktuální revize poškozená, lze otevřít ověřitelnou předchozí pouze ke čtení, bez přepsání ukazatele. Ztráta společného JPEG znemožní otevřít každou revizi, která jej potřebuje. Revize se automaticky nemažou. Vývojové zátěžové kóty lze použít pouze se syntetickým dokumentem a velké dávky zvětšují databázi. Budoucí změna přibalené fotografie musí zachovat čitelnost její dosavadní identity a mapy kotev.
+- **Ověření** zahrnuje jednotkové testy s reálným souborem na hostiteli a simulovaným selháním revizního zápisu, konfliktem a ztraceným potvrzením. Fyzický Android reopen, místo na disku, pád procesu během zápisu, výpadek napájení a M2 přenosná záloha a obnova zůstávají **NOT RUN**. Pouze syntetická a nahraditelná data.
 
 ## M1 – ověřený funkční základ APK 83 (26. 11. 2026)
 

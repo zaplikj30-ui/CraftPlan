@@ -12,7 +12,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 internal fun bundledSyntheticPhoto(): ByteArray =
-    File("src/main/res/drawable-nodpi/synthetic_workbench.jpg").readBytes()
+    File("src/main/res/raw/synthetic_workbench.jpg").readBytes()
 
 class PrivatePhotoStoreTest {
     @get:Rule val folder = TemporaryFolder()
