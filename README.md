@@ -2,6 +2,23 @@
 
 Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokončené změny syntetického dokumentu se průběžně ukládají a další otevření načte poslední ověřenou revizi.
 
+## M1 – nezávislý audit implementace (26. 11. 2026)
+
+Auditovaná revize [`d3edc9350d99189f7727d6db1c62eb67a0a95ee3`](https://github.com/zaplikj30-ui/CraftPlan/tree/d3edc9350d99189f7727d6db1c62eb67a0a95ee3). Nezávislý ChatGPT: APPROVE DESIGN / CHANGES REQUIRED; inventura 43 produkčních Kotlin souborů a 22 souborů testů (210 anotací @Test), u rozsáhlých souborů a historických podkladů výběrová statická kontrola. Audit neprováděl kompilaci, testy, lint, měření ani Android runtime. Technologii neměnit, neprovádět plošný refaktoring. Následující pracovní triáž nenahrazuje GO k implementaci.
+
+| ID | Nález a další postup | Stav |
+|---|---|---|
+| A01 / P1 | `PhotoEditorView.onDraw()` počítá cílový `photoBounds` z rozměrů pracovní bitmapy, `PhotoViewport` počítá kotvy z kanonických rozměrů originálu. Lupa používá tentýž obdélník. Potvrzeno v kódu. Sjednotit cílové hranice s viewportem; neměnit přesné délky, ID ani uložené kotvy potichu. Prověřit existující importy, jejichž kotvy mohly vzniknout při chybném zobrazení; případnou nápravu starších dat oddělit a schválit, nelze automaticky odlišit záměrné kotvy mimo foto. Regrese zmenšené bitmapy, EXIF 1–8, lupa/zoom/reopen. | OPEN, před dalším testovacím APK |
+| A03 / P1 | `DocumentAutosave.nextRequest()` drží outstanding i po definitivním odmítnutí serializace (`DocumentRepository.save()` před první DB operací). Opravený snapshot se tak nedostane k zápisu ani po Undo. Potvrzeno v kódu. Bezpečně nahradit jen prokazatelně nikdy nepublikovatelný požadavek; zachovat retry stejného operation ID u nejistého zápisu, konfliktů a opožděného ACK. Regrese překročení limitu, opravy a bezpečného potvrzení. | OPEN, před dalším testovacím APK |
+| A02 / P2 | `PhotoImports.open()/catalogPhoto()` vyžaduje čitelná katalogová metadata ještě před obnovou revize; potvrzeno v kódu. Prověřit nedestruktivní obnovu z ověřené revize a dostupnost fotografie v seznamu i při chybějícím katalogu. Ověřit identity, digest, média a generační/revizní vazby; nepřepisovat automaticky katalog. | OPEN, M1 |
+| A04 / P2 | `PrivatePhotoStore.readAndSync()/readConfirmed()` při běžném save čtou celé médium dvakrát, přestože se nemění. Potvrzeno v kódu; skutečný výkon nezměřen. Před optimalizací zaznamenat výchozí měření v povoleném rozsahu; oddělit streamové ověření délky a SHA-256 od načítání pro dekódování, zachovat pořadí, kontroly a diskové bariéry. | OPEN, M1 výkon |
+| A05 / P2 | Úplné snapshoty bez retence mohou dlouhodobě zvětšovat DB; navrhnout bezpečnou politiku uchovávání před M2, měřit růst, zatím žádné automatické mazání ani složitý event sourcing. | OPEN, před M2 |
+| A06 / P3 | Složitost dialogu kóty a velkých UI souborů; postupné oddělování odpovědností při souvisejících změnách, nikoli plošný refaktoring. | Evidováno, průběžně |
+| A07 / P3 | Potenciální práce při přípravě ML Kit rukopisu na hlavním vlákně; nejprve změřit a až při doloženém problému cíleně upravit. Nejde o potvrzenou příčinu mizení rukopisu. | Evidováno, M1 výkon |
+| A08 / P3 | Při změnách parseru zachovat význam historických přesných měření a kompatibilitu snapshotů; doplnit syntetické referenční fixture z historických formátů a regresní testy. | Evidováno, před uzavřením M1 / při změnách parseru |
+
+Prakticky neověřené zůstávají aktuální import JPEG a EXIF 1–8, kotvy, plný disk, ukončení během zápisu, výkon velkých fotografií a M2 záloha/obnova. Nález A01/A03 neznamená prokázané smazání poslední potvrzené revize. Pouze syntetická a nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Testovací publikace importu (26. 11. 2026):** vlastník schválil sestavení APK na zdrojové revizi `1f1f3be44183b85827f12fa075415df1f9083b9c` pro praktické ověření migrace z APK 85 bez odinstalování, zachování starých kót, importu JPEG, orientace a obnovení rozpracovaného importu. [Actions 45738140516](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45738140516) SUCCESS (JVM testy, lint, sestavení a ověření podpisu). Pouze syntetická a nahraditelná data.
