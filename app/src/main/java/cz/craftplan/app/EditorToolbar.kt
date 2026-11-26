@@ -47,6 +47,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,6 +57,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -75,7 +77,7 @@ private val gripSideOuterHitPadding = 23.dp
 internal fun EditorToolbar(
     state: PhotoEditorState, repeatHintOffset: Dp, modifier: Modifier = Modifier,
     onFixedToolbarTop: (Float) -> Unit = {},
-    onTopGripRegion: (ToolbarTopGripRegion) -> Unit = {},
+    onGripRegion: (ToolbarGripRegion) -> Unit = {},
 ) {
     val tool = state.scene.tool
     val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
@@ -95,16 +97,17 @@ internal fun EditorToolbar(
                 )
             }
         }
-        EditorToolbarSurface(state, onFixedToolbarTop, onTopGripRegion)
+        EditorToolbarSurface(state, onFixedToolbarTop, onGripRegion)
     }
 }
 
 @Composable
 private fun ToolbarExpansionGrip(
     state: PhotoEditorState, modifier: Modifier = Modifier, side: Boolean = false,
-    onTopGripRegion: (ToolbarTopGripRegion) -> Unit,
+    onGripRegion: (ToolbarGripRegion) -> Unit,
 ) {
     val density = LocalDensity.current
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val handleLabel = stringResource(if (state.toolbarExtraExpanded) R.string.toolbar_collapse else R.string.toolbar_expand)
     val activeColors = MaterialTheme.colorScheme
     // Extend only outwards: the visible 9dp strip and the neighbouring buttons keep their layout.
@@ -113,14 +116,17 @@ private fun ToolbarExpansionGrip(
             width = if (side) 9.dp + gripSideOuterHitPadding else gripTopWidth,
             height = if (side) 54.dp else 9.dp + gripTopOuterHitPadding,
         ).onGloballyPositioned { coordinates ->
-            if (!side) {
-                val origin = coordinates.positionInRoot()
-                onTopGripRegion(ToolbarTopGripRegion(
-                    origin.x, origin.y, origin.x + coordinates.size.width,
-                    origin.y + coordinates.size.height,
-                    origin.y + with(density) { gripTopOuterHitPadding.toPx() },
-                ))
+            val origin = coordinates.positionInRoot()
+            val right = origin.x + coordinates.size.width
+            val workspaceEdge = when {
+                !side -> origin.y + with(density) { gripTopOuterHitPadding.toPx() }
+                rtl -> right - with(density) { 9.dp.toPx() }
+                else -> origin.x + with(density) { 9.dp.toPx() }
             }
+            onGripRegion(ToolbarGripRegion(
+                origin.x, origin.y, right, origin.y + coordinates.size.height,
+                workspaceEdge, side = side, rtl = rtl,
+            ))
             if (BuildConfig.ENABLE_STRESS_TOOLS) {
                 val bounds = coordinates.boundsInWindow()
                 state.diagnosticGripBounds = DiagnosticGripBounds(bounds.left, bounds.top, bounds.right, bounds.bottom)
@@ -133,57 +139,7 @@ private fun ToolbarExpansionGrip(
                 state.setToolbarExtraExpansion(!state.toolbarExtraExpanded)
                 true
             }
-        }.then(if (side) Modifier.pointerInput(state) {
-            awaitEachGesture {
-                // The separate side grip keeps its established tap/drag behavior.
-                val down = awaitFirstDown(pass = PointerEventPass.Initial)
-                down.consume()
-                val expanded = state.toolbarExtraExpanded
-                val threshold = viewConfiguration.touchSlop
-                val input = when (down.type) {
-                    PointerType.Touch -> EditorPointerKind.FINGER
-                    PointerType.Stylus -> EditorPointerKind.STYLUS
-                    PointerType.Eraser -> EditorPointerKind.ERASER
-                    PointerType.Mouse -> EditorPointerKind.MOUSE
-                    else -> EditorPointerKind.OTHER
-                }
-                state.diagnostics.toolbarGripStart(input, side, down.position.x, down.position.y,
-                    size.width, size.height, threshold, expanded)
-                var dx = 0f
-                var dy = 0f
-                var maxTravel = 0f
-                var reason = ToolbarGripOutcome.STREAM_CANCELED
-                try {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val change = event.changes.firstOrNull { it.id == down.id }
-                        if (change == null) {
-                            reason = ToolbarGripOutcome.POINTER_MISSING
-                            break
-                        }
-                        if (change.isConsumed) {
-                            reason = ToolbarGripOutcome.CONSUMED
-                            break
-                        }
-                        if (event.changes.any { it.id != down.id && it.pressed }) {
-                            reason = ToolbarGripOutcome.MULTI_POINTER
-                            break
-                        }
-                        dx = change.position.x - down.position.x
-                        dy = change.position.y - down.position.y
-                        maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
-                        change.consume()
-                        if (!change.pressed) {
-                            reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold)
-                            state.setToolbarExtraExpansion(toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold))
-                            break
-                        }
-                    }
-                } finally {
-                    state.diagnostics.toolbarGripEnd(reason, dx, dy, maxTravel, expanded, state.toolbarExtraExpanded)
-                }
-            }
-        } else Modifier),
+        },
         contentAlignment = if (side) Alignment.CenterStart else Alignment.BottomCenter,
     ) {
         Box(
@@ -197,21 +153,23 @@ private fun ToolbarExpansionGrip(
     }
 }
 
-// Observe the top grip from the common parent of the toolbar and AndroidView.
- // Its invisible workspace overlap must not be a pointer-input sibling of the editor.
- // A protected editor contact receives the original DOWN and the entire stream.
-internal fun Modifier.topToolbarGrip(
+// Observe either grip from the common parent of the toolbar and AndroidView.
+// Invisible workspace overlaps must not be pointer-input siblings of the editor.
+// A protected editor contact receives the original DOWN and the entire stream.
+internal fun Modifier.toolbarGrip(
     state: PhotoEditorState,
-    region: () -> ToolbarTopGripRegion?,
+    region: () -> ToolbarGripRegion?,
     editorOrigin: () -> Offset?,
     editorHasPriority: (Float, Float, EditorPointerKind) -> Boolean,
 ): Modifier = pointerInput(state) {
     awaitEachGesture {
         val down = awaitFirstDown(pass = PointerEventPass.Initial)
-        if ((!state.toolbarExpanded && !state.toolbarExtraExpanded) ||
-            state.valueDraft != null || state.saveStatus == DocumentSaveStatus.RECOVERED
-        ) return@awaitEachGesture
+        if (state.valueDraft != null || state.saveStatus == DocumentSaveStatus.RECOVERED)
+            return@awaitEachGesture
         val bounds = region() ?: return@awaitEachGesture
+        // Ignore the old region during the layout transition between grip types.
+        if (bounds.side != (!state.toolbarExpanded && !state.toolbarExtraExpanded))
+            return@awaitEachGesture
         val origin = editorOrigin() ?: return@awaitEachGesture
         val root = origin + down.position
         if (!bounds.contains(root.x, root.y)) return@awaitEachGesture
@@ -222,7 +180,7 @@ internal fun Modifier.topToolbarGrip(
             PointerType.Mouse -> EditorPointerKind.MOUSE
             else -> EditorPointerKind.OTHER
         }
-        val workspace = bounds.inWorkspace(root.y)
+        val workspace = bounds.inWorkspace(root.x, root.y)
         if (!bounds.canTrack(root.x, root.y,
                 workspace && editorHasPriority(down.position.x, down.position.y, input))
         ) return@awaitEachGesture
@@ -232,7 +190,7 @@ internal fun Modifier.topToolbarGrip(
         if (!workspace) down.consume()
         val expanded = state.toolbarExtraExpanded
         val threshold = viewConfiguration.touchSlop
-        state.diagnostics.toolbarGripStart(input, false, root.x - bounds.left, root.y - bounds.top,
+        state.diagnostics.toolbarGripStart(input, bounds.side, root.x - bounds.left, root.y - bounds.top,
             (bounds.right - bounds.left).roundToInt(), (bounds.bottom - bounds.top).roundToInt(), threshold, expanded)
         var dx = 0f
         var dy = 0f
@@ -289,7 +247,7 @@ internal fun Modifier.topToolbarGrip(
                     if (!change.pressed) {
                         reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold)
                         state.setToolbarExtraExpansion(
-                            toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold, tapToggles = false),
+                            toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold),
                         )
                         break
                     }
@@ -400,7 +358,7 @@ private fun Modifier.sharedToolbarGrip(state: PhotoEditorState): Modifier =
 @Composable
 private fun EditorToolbarSurface(
     state: PhotoEditorState, onFixedToolbarTop: (Float) -> Unit,
-    onTopGripRegion: (ToolbarTopGripRegion) -> Unit,
+    onGripRegion: (ToolbarGripRegion) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
@@ -602,7 +560,7 @@ private fun EditorToolbarSurface(
             state,
             Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
             side = sideGrip,
-            onTopGripRegion = onTopGripRegion,
+            onGripRegion = onGripRegion,
         )
     }
 }

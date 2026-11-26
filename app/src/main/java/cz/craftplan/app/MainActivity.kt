@@ -805,12 +805,12 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
                 },
                 toolbarState = editorState,
-                toolbar = { modifier, onFixedToolbarTop, onTopGripRegion ->
+                toolbar = { modifier, onFixedToolbarTop, onGripRegion ->
                     if (editorState.saveStatus != DocumentSaveStatus.RECOVERED) EditorToolbar(
                         editorState, repeatHintOffset,
                         modifier.alpha(if (editorState.valueDraft == null) 1f else 0f),
                         onFixedToolbarTop = onFixedToolbarTop,
-                        onTopGripRegion = onTopGripRegion,
+                        onGripRegion = onGripRegion,
                     )
                 },
             )
@@ -907,16 +907,16 @@ private fun SamplePhoto(
     overlays: @Composable () -> Unit,
     storageStatus: @Composable () -> Unit,
     toolbarState: PhotoEditorState,
-    toolbar: @Composable (Modifier, (Float) -> Unit, (ToolbarTopGripRegion) -> Unit) -> Unit,
+    toolbar: @Composable (Modifier, (Float) -> Unit, (ToolbarGripRegion) -> Unit) -> Unit,
 ) {
     var editorOrigin by remember { mutableStateOf<Offset?>(null) }
     var editorView by remember { mutableStateOf<PhotoEditorView?>(null) }
-    var topGripRegion by remember { mutableStateOf<ToolbarTopGripRegion?>(null) }
+    var gripRegion by remember { mutableStateOf<ToolbarGripRegion?>(null) }
     var fixedToolbarTop by remember { mutableStateOf<Float?>(null) }
     val fixedToolbarTopPx = editorOrigin?.let { origin -> fixedToolbarTop?.let { (it - origin.y).roundToInt() } }
     // The full-size editor and toolbar share this content Box's local coordinates.
-    Box(modifier = modifier.topToolbarGrip(
-        toolbarState, { topGripRegion }, { editorOrigin },
+    Box(modifier = modifier.toolbarGrip(
+        toolbarState, { gripRegion }, { editorOrigin },
         { x, y, input -> editorView?.hasToolbarGesturePriority(x, y, input) ?: true },
     )) {
         AndroidView(
@@ -954,7 +954,7 @@ private fun SamplePhoto(
                 .height(with(density) { statusScrimHeightPx.toDp() })
                 .background(Color.Black.copy(alpha = 0.55f)))
         }
-        toolbar(Modifier.align(Alignment.BottomStart), { fixedToolbarTop = it }, { topGripRegion = it })
+        toolbar(Modifier.align(Alignment.BottomStart), { fixedToolbarTop = it }, { gripRegion = it })
         Box(Modifier.align(Alignment.TopStart)
             .padding(start = 4.dp, top = with(density) { safeOverlayTopPx.toDp() } + 4.dp)) { storageStatus() }
         Box(Modifier.align(Alignment.TopEnd)

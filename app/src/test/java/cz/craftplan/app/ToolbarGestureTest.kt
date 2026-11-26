@@ -11,10 +11,10 @@ class ToolbarGestureTest {
         assertEquals(12.dp, toolbarHintCenterOffset(0.dp, 24.dp))
     }
 
-    @Test fun gripTapAndVerticalDragAreExclusiveAndDirectional() {
+    @Test fun bothGripsIgnoreTapsAndKeepVerticalDragDirectional() {
         for (current in listOf(false, true)) {
-            assertEquals(!current, toolbarGripAfterRelease(current, 0f, 0f, 0f, 8f))
-            assertEquals(!current, toolbarGripAfterRelease(current, 3f, 2f, 3f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 0f, 0f, 0f, 8f))
+            assertEquals(current, toolbarGripAfterRelease(current, 3f, 2f, 3f, 8f))
             assertEquals(true, toolbarGripAfterRelease(current, 2f, -8f, 8f, 8f))
             assertEquals(false, toolbarGripAfterRelease(current, 2f, 8f, 8f, 8f))
             assertEquals(current, toolbarGripAfterRelease(current, 20f, 2f, 20f, 8f))
@@ -25,21 +25,10 @@ class ToolbarGestureTest {
         }
     }
 
-    @Test fun topGripIgnoresTapsButRetainsDirectionalDrags() {
-        for (current in listOf(false, true)) {
-            assertEquals(current, toolbarGripAfterRelease(current, 0f, 0f, 0f, 8f, tapToggles = false))
-            assertEquals(current, toolbarGripAfterRelease(current, 3f, 2f, 3f, 8f, tapToggles = false))
-            assertEquals(true, toolbarGripAfterRelease(current, 2f, -8f, 8f, 8f, tapToggles = false))
-            assertEquals(false, toolbarGripAfterRelease(current, 2f, 8f, 8f, 8f, tapToggles = false))
-            assertEquals(current, toolbarGripAfterRelease(current, 20f, 2f, 20f, 8f, tapToggles = false))
-            assertEquals(current, toolbarGripAfterRelease(current, 0f, 0f, 20f, 8f, tapToggles = false))
-        }
-    }
-
     @Test fun topGripWorkspaceOverlapYieldsToEditorButVisibleGripRemainsReachable() {
         for (width in listOf(400f, 800f)) {
             val center = width / 2f
-            val region = ToolbarTopGripRegion(center - 80f, 300f, center + 80f, 327f, 318f)
+            val region = ToolbarGripRegion(center - 80f, 300f, center + 80f, 327f, 318f)
             assertEquals(false, region.canTrack(center, 310f, editorPriority = true))
             assertEquals(true, region.canTrack(center, 310f, editorPriority = false))
             assertEquals(true, region.canTrack(center, 318f, editorPriority = true))
@@ -47,6 +36,20 @@ class ToolbarGestureTest {
             assertEquals(false, region.canTrack(center, 327f, editorPriority = false))
             assertEquals(false, region.canTrack(center + 80f, 310f, editorPriority = false))
             assertEquals(false, region.canTrack(center, 299f, editorPriority = false))
+        }
+    }
+
+    @Test fun sideGripWorkspaceOverlapYieldsToEditorInBothLayoutDirections() {
+        for (rtl in listOf(false, true)) {
+            val region = ToolbarGripRegion(100f, 200f, 132f, 254f,
+                if (rtl) 123f else 109f, side = true, rtl = rtl)
+            val visibleX = if (rtl) 126f else 104f
+            val workspaceX = if (rtl) 110f else 120f
+            assertEquals(true, region.canTrack(visibleX, 220f, editorPriority = true))
+            assertEquals(false, region.canTrack(workspaceX, 220f, editorPriority = true))
+            assertEquals(true, region.canTrack(workspaceX, 220f, editorPriority = false))
+            assertEquals(false, region.canTrack(workspaceX, 254f, editorPriority = false))
+            assertEquals(false, region.canTrack(132f, 220f, editorPriority = false))
         }
     }
 
