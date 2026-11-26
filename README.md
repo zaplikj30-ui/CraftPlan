@@ -19,6 +19,15 @@ Auditovaná revize [`d3edc9350d99189f7727d6db1c62eb67a0a95ee3`](https://github.c
 
 Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončení importu po opětovném spuštění i zahození běžného importu v APK 87 PASS dle vlastníka; prakticky neověřené zůstávají poškozený import, A03 při odmítnutém snapshotu, plný disk, ukončení během zápisu, výkon velkých fotografií a M2 záloha/obnova. Nález A01/A03 neznamená prokázané smazání poslední potvrzené revize. Pouze syntetická a nahraditelná data.
 
+## M1 – čitelnost kót a lupa (26. 11. 2026)
+
+- **Potvrzené požadavky vlastníka:** lupa má při kreslení a přesunu konce zobrazovat také ostatní viditelné kóty v okolí, včetně skutečné geometrie, barev a stylu. Využít společné existující vykreslování, nepřidávat duplicitní aktivní kótu ani skryté objekty. Zachovat střed lupy na skutečném konci a dosavadní gesta.
+- **Potvrzeno vlastníkem:** tenký černý kontrastní obrys kótovací čáry, hrotů, koncových rysek, čísla a jednotky pro čitelnost na fotografii. Zachovat tvar hrotu, polohu kotev a stávající velikosti úchopů/hit-test. Pozdější možnost vypnutí obrysu v nastavení vzhledu; přesnou tloušťku ověřit na zařízení. Využít stávající Android Canvas, nikoli nový renderer.
+- **Otevřená UX volba:** ImageMeter podle praktického videa natáčí zaměřovací kříž podle směru upravované kóty. CraftPlan má pevný přerušovaný kříž. Návrh ponechat nyní pevný a později porovnat obě varianty, případně nabídnout volbu; zatím nejde o schválenou změnu orientace ani nový přepínač.
+- **Otevřeno k praktickému ověření:** uchopování konců a výběr při těsném překryvu. Příčina ani konkrétní změna hit-testu dosud nepotvrzeny, neměnit naslepo.
+
+Stav: potvrzené funkční požadavky na lupu a obrysy; bez implementace v tomto dokumentačním kroku. Videa a snímky vlastníka nevkládat do veřejného repozitáře.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.
