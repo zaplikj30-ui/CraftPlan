@@ -70,9 +70,13 @@ internal class PhotoViewport(private val imageWidth: Int, private val imageHeigh
     val dimensionOutlineWidth: Float
         get() = 2.95f + 1.05f * dimensionZoomProgress
 
-    /** Increase label size with zoom: 12sp at fit, 15sp at 8x, 18sp at 64x. */
+    /** Trial: smaller labels at fit, same at 8x, larger at 64x. Anchors are unchanged. */
     val dimensionLabelSp: Float
-        get() = 12f + 6f * dimensionZoomProgress
+        get() {
+            val progress = dimensionZoomProgress
+            return if (progress <= 0.5f) 9f + 12f * progress
+                else 15f + 18f * (progress - 0.5f)
+        }
 
     /** Destination edges are in the same space as the normalized anchors. */
     val photoRight: Float get() = left + imageWidth * scale

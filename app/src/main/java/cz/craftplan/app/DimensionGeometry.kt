@@ -108,10 +108,9 @@ internal data class DimensionLabelGeometry(
     val textTouch: LabelRect?,
     val notebookTouch: LabelRect?,
 ) {
-    /** Follow the common scale through 1x; above 1x grow the ruler faster (1.2x -> 1.6x). */
+    /** Retain the ruler's nominal 0.8/1/1.6 range while text uses 0.6/1/1.6. */
     fun rulerScale(labelScale: Float): Float =
-        if (labelScale <= 1f) labelScale
-        else 1f + 3f * (labelScale - 1f)
+        if (labelScale <= 1f) (1f + labelScale) / 2f else labelScale
 
     /** Screen-pixel offset for adjacent note/notebook, retaining their original gap. */
     fun rulerNeighborOffset(labelScale: Float): Float =

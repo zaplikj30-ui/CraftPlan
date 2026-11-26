@@ -127,8 +127,8 @@ class DimensionGeometryTest {
             val hidden = dimensionLabelGeometry(density, null, 18f * density, false, true)
             val shown = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
             val measured = dimensionLabelGeometry(density, 60f * density, 18f * density, false, true)
-            for ((scale, expected) in listOf(0.8f to 0.8f, 0.9f to 0.9f,
-                0.95f to 0.95f, 1f to 1f, 1.1f to 1.3f, 1.2f to 1.6f)) {
+            for ((scale, expected) in listOf(0.6f to 0.8f, 0.8f to 0.9f,
+                1f to 1f, 1.2f to 1.2f, 1.4f to 1.4f, 1.6f to 1.6f)) {
                 for (geometry in listOf(hidden, shown)) {
                     val ruler = requireNotNull(geometry.ruler)
                     val neighbor = requireNotNull(geometry.text ?: geometry.notebook)
@@ -155,6 +155,21 @@ class DimensionGeometryTest {
                 assertEquals(maxOf(1f, scale), measured.cullingScale(scale), 0f)
             }
         }
+    }
+
+    @Test
+    fun smallerFitLabelsReduceEncroachmentWithoutChangingLabelAnchorOrHitMinimum() {
+        val geometry = dimensionLabelGeometry(1f, 60f, 18f, false, false)
+        val bounds = requireNotNull(geometry.text)
+        val touch = requireNotNull(geometry.textTouch)
+        // A neighboring parallel line 18dp above the anchor used to cross the
+        // label rectangle at fit (0.8x); the new 0.6x rectangle fits below it.
+        assertTrue(-18f in (bounds.top * 0.8f)..(bounds.bottom * 0.8f))
+        assertTrue(-18f < bounds.top * 0.6f)
+        assertEquals(0f, bounds.centerX, 0f)
+        assertEquals(0f, requireNotNull(bounds.hit(0f, -10f, 0.6f, touch)).distance, 0f)
+        assertTrue(bounds.hit(34f, -10f, 0.6f, touch) != null)
+        assertNull(bounds.hit(70f, -10f, 0.6f, touch))
     }
 
     @Test

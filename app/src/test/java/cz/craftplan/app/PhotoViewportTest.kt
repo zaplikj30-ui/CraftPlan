@@ -79,24 +79,25 @@ class PhotoViewportTest {
     }
 
     @Test
-    fun labelTextGrowsFromTwelveToEighteenSp() {
+    fun labelTextUsesWiderZoomRangeWithoutMovingAnchors() {
         val viewport = PhotoViewport(1000, 1000)
         viewport.fit(500, 500)
-        assertEquals(12f, viewport.dimensionLabelSp, 0f)
-        for (step in 1..6) {
+        val sizes = listOf(9f, 11f, 13f, 15f, 18f, 21f, 24f)
+        val anchor = PhotoAnchor(0.5f, 0.5f)
+        for (step in sizes.indices) {
+            assertEquals(sizes[step], viewport.dimensionLabelSp, 0.00001f)
+            assertEquals(EditorPoint(250f, 250f), viewport.screenPoint(anchor))
             viewport.transform(250f, 250f, 250f, 250f, 2f)
-            assertEquals(12f + step, viewport.dimensionLabelSp, 0.00001f)
         }
-        viewport.transform(250f, 250f, 250f, 250f, 2f)
-        assertEquals(18f, viewport.dimensionLabelSp, 0f)
+        assertEquals(24f, viewport.dimensionLabelSp, 0f)
         for (step in 5 downTo 0) {
             viewport.transform(250f, 250f, 250f, 250f, 0.5f)
-            assertEquals(12f + step, viewport.dimensionLabelSp, 0.00001f)
+            assertEquals(sizes[step], viewport.dimensionLabelSp, 0.00001f)
         }
         viewport.transform(250f, 250f, 250f, 250f, 0.1f)
-        assertEquals(12f, viewport.dimensionLabelSp, 0f)
+        assertEquals(9f, viewport.dimensionLabelSp, 0f)
         viewport.fit(500, 500)
-        assertEquals(12f, viewport.dimensionLabelSp, 0f)
+        assertEquals(9f, viewport.dimensionLabelSp, 0f)
     }
 
     @Test
