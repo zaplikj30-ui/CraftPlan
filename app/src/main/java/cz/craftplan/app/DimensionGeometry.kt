@@ -191,6 +191,18 @@ internal fun edgePanSpeed(position: Float, size: Int, edgeSize: Float, maxSpeed:
 private fun dimensionTickHalfLength(strokeDensity: Float, tickScale: Float): Float =
     11f * strokeDensity * tickScale
 
+/** Visual ring encloses the same tick geometry including its square outline caps.
+ *  The 2.2dp margin is a 1.5dp clear gap plus half the 1.4dp ring stroke.
+ *  This is deliberately not used by hit testing.
+ */
+internal fun dimensionHandleRadius(
+    density: Float, strokeScale: Float, tickScale: Float, outlineWidth: Float,
+): Float {
+    val strokeDensity = density * strokeScale
+    val halfOutline = outlineWidth * strokeDensity / 2f
+    return hypot(dimensionTickHalfLength(strokeDensity, tickScale) + halfOutline, halfOutline) + 2.2f * density
+}
+
 /** Seven independent segments in the same order as the individually drawn strokes. */
 internal fun writeDimensionSegments(segments: FloatArray, length: Float, density: Float, tickScale: Float = 1f) {
     val tick = dimensionTickHalfLength(density, tickScale)

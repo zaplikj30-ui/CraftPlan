@@ -316,6 +316,28 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun visualHandleEnclosesTickOutlineAtEveryZoomWithoutChangingHitGeometry() {
+        for (progress in listOf(0f, 0.5f, 1f)) {
+            val strokeScale = 0.8f + 1.2f * progress
+            val tickScale = 0.8f + 0.2f * progress
+            val outline = 2.95f + 1.05f * progress
+            val segments = FloatArray(28)
+            writeDimensionSegments(segments, 300f, strokeScale, tickScale)
+            val tick = kotlin.math.abs(segments[5])
+            val halfOutline = outline * strokeScale / 2f
+            val corner = kotlin.math.hypot(tick + halfOutline, halfOutline)
+            val radius = dimensionHandleRadius(1f, strokeScale, tickScale, outline)
+            assertEquals(1.5f, radius - 0.7f - corner, 0.0001f)
+            assertEquals(radius * 2f, dimensionHandleRadius(2f, strokeScale, tickScale, outline), 0.0001f)
+            val targets = dimensionStrokeTargets(EditorPoint(0f, 30f),
+                EditorPoint(0f, 0f), EditorPoint(300f, 0f), 1f, strokeScale, tickScale)
+            assertTrue(targets.any { it.hit == DimensionHit.START })
+            assertTrue(dimensionStrokeTargets(EditorPoint(0f, 31f),
+                EditorPoint(0f, 0f), EditorPoint(300f, 0f), 1f, strokeScale, tickScale).none { it.hit == DimensionHit.START })
+        }
+    }
+
+    @Test
     fun endpointAutoPanUsesFixedToolbarTopRatherThanScreenBottom() {
         for (landscape in listOf(false, true)) {
             val height = if (landscape) 400 else 800

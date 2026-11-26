@@ -58,6 +58,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **GO vlastníka – spodní auto-pan, kroužky a čitelnost (26. 11. 2026), krok 1/3:** při editaci konce kóty je spodní hranice odvozena z reálné polohy pevné řady tlačítek v Compose (pozice v root mínus pozice AndroidView, včetně stávajícího 9 dp okraje pevné lišty). Vysouvací horní řada nemění hranici; kreslení, horní a vodorovný posun i maximální rychlost zachovány. Přidán regresní test geometrie pro obě orientace, hranice, chybějící a nulový prostor, původní kreslení. Praktický test skutečné polohy lišty v Compose, JVM/lint/build NOT RUN. Další schválené kroky samostatně: kroužek kolem koncové rysky s nezměněným úchopem; popisky 14→16 sp podle zoomu, geometrie textu a výběr konzistentní. Metr, šipky, rysky, přesné hodnoty a ukládání mimo GO. Bez publikace APK.
 
+**GO vlastníka, krok 2/3 – kroužky kolem rysek:** poloměr viditelného kroužku vychází ze stejné koncové rysky a černého obrysu se čtvercovými konci, s mezerou 1,5 dp mezi obrysem a vnitřní hranou kroužku. Tloušťka bílého obrysu 1,4 dp beze změny. Culling respektuje skutečný poloměr. Žlutá geometrie ani hit-test nejsou měněny (samostatné tolerance 31/20/4 dp a stávající pravidla překryvů). Regresní test zahrnuje mezery, hustotu a původní hranici úchopu při třech zoomech. JVM/lint/build a fyzické ověření NOT RUN.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.

@@ -332,8 +332,9 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val labelY = y1 + dy * fraction
         val strokeDensity = density * viewport.dimensionStrokeScale
         val showStroke = dimensionBoundsVisible(canvas, x1, y1, x2, y2, 14f * strokeDensity, inMagnifier)
-        val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, 16f * density, inMagnifier)
-        val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, 16f * density, inMagnifier)
+        val handlePadding = anchorRadius + 0.7f * density
+        val showStart = selected && dimensionBoundsVisible(canvas, x1, y1, x1, y1, handlePadding, inMagnifier)
+        val showEnd = selected && dimensionBoundsVisible(canvas, x2, y2, x2, y2, handlePadding, inMagnifier)
         val showLabel = dimensionBoundsVisible(
             canvas, labelX, labelY, labelX, labelY, maxOf(24f * density, decoration.cullingRadius), inMagnifier,
         )
@@ -492,11 +493,15 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.restore()
     }
 
+    private val anchorRadius: Float
+        get() = dimensionHandleRadius(density, viewport.dimensionStrokeScale,
+            viewport.dimensionTickScale, viewport.dimensionOutlineWidth)
+
     private fun drawAnchor(canvas: Canvas, anchor: PhotoAnchor) {
         overlayPaint.color = 0x30FFFFFF
         val x = viewport.screenX(anchor)
         val y = viewport.screenY(anchor)
-        val radius = 14f * density
+        val radius = anchorRadius
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.color = 0xBAFFFFFF.toInt()
         overlayPaint.style = Paint.Style.STROKE
