@@ -215,7 +215,13 @@ class DocumentRepositoryTest {
 
 /** Simulates transaction isolation/rollback independently of the Android Room runtime. */
 internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
-    var headRow: DocumentHead? = null
+    val heads = linkedMapOf<String, DocumentHead>()
+    var headRow: DocumentHead?
+        get() = heads[SYNTHETIC_DOCUMENT_ID]
+        set(value) {
+            if (value == null) heads.remove(SYNTHETIC_DOCUMENT_ID)
+            else heads[SYNTHETIC_DOCUMENT_ID] = value
+        }
     val revisions = linkedMapOf<String, DocumentRevision>()
     var writerActive = false
         private set
@@ -229,13 +235,14 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
             beforeWrite = null
             it()
         }
-        val previousHead = headRow
+        val previousHeads = heads.toMap()
         val previousRevisions = revisions.toMap()
         writerActive = true
         try {
             return block(this)
         } catch (e: Exception) {
-            headRow = previousHead
+            heads.clear()
+            heads.putAll(previousHeads)
             revisions.clear()
             revisions.putAll(previousRevisions)
             throw e
@@ -244,13 +251,13 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
         }
     }
 
-    override suspend fun head(documentId: String): DocumentHead? = headRow?.takeIf { it.documentId == documentId }
+    override suspend fun head(documentId: String): DocumentHead? = heads[documentId]
     override suspend fun revision(id: String): DocumentRevision? = revisions[id]
     override suspend fun operation(id: String): DocumentRevision? = revisions.values.singleOrNull { it.saveOperationId == id }
     override suspend fun hasRevisions(documentId: String): Boolean = revisions.values.any { it.documentId == documentId }
     override suspend fun insertHead(head: DocumentHead) {
-        check(headRow == null)
-        headRow = head
+        check(head.documentId !in heads)
+        heads[head.documentId] = head
     }
     override suspend fun insertRevision(revision: DocumentRevision) {
         check(revision.revisionId !in revisions && operation(revision.saveOperationId) == null)
@@ -260,7 +267,7 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
         if (failPublish) throw IOException("Injected failure before the pointer update")
         val head = head(documentId) ?: return 0
         if (head.storageGeneration != generation || head.revisionId != expected) return 0
-        headRow = head.copy(revisionId = target, previousRevisionId = expected)
+        heads[documentId] = head.copy(revisionId = target, previousRevisionId = expected)
         return 1
     }
 }

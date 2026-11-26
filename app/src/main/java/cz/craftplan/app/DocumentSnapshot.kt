@@ -25,7 +25,9 @@ internal data class StoredPhoto(
         require(size in 1..MAX_PHOTO_BYTES && width > 0 && height > 0 &&
             width.toLong() * height <= MAX_PHOTO_PIXELS)
         require(sourceExifOrientation == null || sourceExifOrientation in 1..8)
-        require(anchorMapVersion == 1 && storedOrientation in 1..8)
+        // Full-quality JPEG is preserved byte-for-byte. Its stored orientation
+        // therefore matches the source orientation, with normal as the default.
+        require(anchorMapVersion == 1 && storedOrientation == (sourceExifOrientation ?: 1))
         require(quality == "full" && mimeType == "image/jpeg")
     }
 

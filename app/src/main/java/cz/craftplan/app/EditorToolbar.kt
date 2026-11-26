@@ -334,7 +334,7 @@ private fun EditorToolbarSurface(state: PhotoEditorState) {
                         ) {
                             Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
                         }
-                        if (BuildConfig.ENABLE_STRESS_TOOLS) StressToolbarMenu(state)
+                        if (BuildConfig.ENABLE_STRESS_TOOLS && state.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) StressToolbarMenu(state)
                     }
                 }
                 Row(

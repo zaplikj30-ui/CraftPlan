@@ -13,14 +13,16 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 
 internal object AppDocumentStorage {
-    private var repository: DocumentRepository? = null
+    private var storage: DocumentStorage? = null
 
     @Synchronized
-    fun repository(context: Context): DocumentRepository =
-        repository ?: openDocumentRepository(context.applicationContext).also { repository = it }
+    fun get(context: Context): DocumentStorage =
+        storage ?: openDocumentStorage(context.applicationContext).also { storage = it }
 }
 
-private fun openDocumentRepository(context: Context): DocumentRepository {
+internal data class DocumentStorage(val synthetic: DocumentRepository, val imports: PhotoImports)
+
+private fun openDocumentStorage(context: Context): DocumentStorage {
     val privateDirectory = context.filesDir
     // Persist the directory entry as well, should Android have just created filesDir.
     syncPrivateDirectory(checkNotNull(privateDirectory.parentFile))
@@ -32,15 +34,24 @@ private fun openDocumentRepository(context: Context): DocumentRepository {
         .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
         .setQueryCoroutineContext(Dispatchers.IO)
         .build()
-    val photos = PrivatePhotoStore(privateDirectory, ::syncPrivateDirectory, rename = { staged, final ->
+    val transactions = RoomDocumentTransactions(database)
+    val sync = ::syncPrivateDirectory
+    val rename: (File, File) -> Unit = { staged, final ->
         // Same private directory. POSIX rename is atomic and is permitted by Android app policy.
         Os.rename(staged.absolutePath, final.absolutePath)
-    }) {
+    }
+    fun repository(photo: StoredPhoto, source: () -> ByteArray) =
+        DocumentRepository(transactions, PrivatePhotoStore(privateDirectory, sync, rename, photo, source)) {
+            sync(privateDirectory)
+        }
+    val synthetic = repository(StoredPhoto.synthetic) {
         context.resources.openRawResource(R.raw.synthetic_workbench).use {
             it.readNBytes(StoredPhoto.synthetic.size + 1)
         }
     }
-    return DocumentRepository(RoomDocumentTransactions(database), photos) { syncPrivateDirectory(privateDirectory) }
+    val imports = PhotoImports(privateDirectory, sync, ImportStaging(privateDirectory, sync, rename),
+        transactions, database.photoImports(), ::repository)
+    return DocumentStorage(synthetic, imports)
 }
 
 private class RoomDocumentTransactions(private val database: DocumentDatabase) : DocumentTransactions {

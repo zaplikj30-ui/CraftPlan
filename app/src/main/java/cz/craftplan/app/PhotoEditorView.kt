@@ -23,8 +23,12 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
-internal class PhotoEditorView(context: Context, private val photo: Bitmap) : View(context) {
-    private val viewport = PhotoViewport(photo.width, photo.height)
+internal class PhotoEditorView(context: Context, private val photo: Bitmap, media: StoredPhoto) : View(context) {
+    private val viewport = if (photoAxes(media.storedOrientation).swapsAxes) {
+        PhotoViewport(media.height, media.width)
+    } else {
+        PhotoViewport(media.width, media.height)
+    }
     private val photoBounds = RectF()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val dimensionSegments = FloatArray(28)

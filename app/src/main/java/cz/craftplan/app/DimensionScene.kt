@@ -45,7 +45,7 @@ internal data class DimensionScene(
     }
 
     fun replaceSynthetic(batch: List<PhotoDimension>): DimensionScene {
-        require(batch.all(SyntheticDimensions::owns))
+        require(photoId == PhotoId.SYNTHETIC_WORKBENCH && batch.all(SyntheticDimensions::owns))
         val manual = dimensions.filterNot(SyntheticDimensions::owns)
         return copy(dimensions = manual + batch, selectedId = selectedId?.takeIf { id -> manual.any { it.id == id } })
     }

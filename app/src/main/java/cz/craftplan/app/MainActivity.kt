@@ -5,7 +5,6 @@ import android.content.res.Configuration
 import android.content.ContentResolver
 import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.Window
@@ -20,6 +19,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -132,6 +133,22 @@ class MainActivity : ComponentActivity() {
 }
 
 internal class PhotoEditorState(application: Application) : AndroidViewModel(application) {
+    var currentPhoto by mutableStateOf<StoredPhoto?>(null)
+        private set
+    var importedPhotos by mutableStateOf(PhotoList(emptyList(), emptyList()))
+        private set
+    var importPreview by mutableStateOf<ImportPreview?>(null)
+        private set
+    var importCandidate by mutableStateOf<ImportCandidate?>(null)
+        private set
+    var importBusy by mutableStateOf(false)
+        private set
+    var importDiagnostic by mutableStateOf<String?>(null)
+        private set
+
+    private val storage get() = AppDocumentStorage.get(getApplication())
+    private var importRefresh: Job? = null
+
     var photo by mutableStateOf<Bitmap?>(null)
         private set
     var openingPhoto by mutableStateOf(false)
@@ -149,39 +166,132 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private var saveJob: Job? = null
     private var retainedHistoryVersion: DocumentVersion? = null
 
-    fun openPhoto() {
-        if (photo != null || openingPhoto) return
+    fun openPhoto(id: PhotoId = PhotoId.SYNTHETIC_WORKBENCH) {
+        if (photo != null || openingPhoto || importBusy) return
         openingPhoto = true
         storageDiagnostic = null
         viewModelScope.launch {
             try {
                 val (document, bitmap) = withContext(Dispatchers.IO) {
-                    val document = AppDocumentStorage.repository(getApplication()).open()
-                    val bytes = document.photoBytes
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        ?: throw IOException("Could not decode verified JPEG")
-                    require(bitmap.width == document.snapshot.photo.width &&
-                        bitmap.height == document.snapshot.photo.height)
-                    document to bitmap
+                    val document = if (id == PhotoId.SYNTHETIC_WORKBENCH) storage.synthetic.open()
+                    else storage.imports.open(id)
+                    document to decodePhoto(document.photoBytes, document.snapshot.photo)
                 }
-                scene = DimensionScene(document.snapshot.dimensions)
-                if (document.recovered || retainedHistoryVersion != document.version) history = DimensionHistory()
-                retainedHistoryVersion = null
-                showNotes = document.snapshot.showNotes
-                if (document.recovered) {
-                    storageStatus = DocumentSaveStatus.RECOVERED
-                } else {
-                    autosave = DocumentAutosave(document.version)
-                    storageStatus = DocumentSaveStatus.SAVED
-                    if (document.version.revisionId == null) queueCompletedChange()
-                }
-                photo = bitmap
+                enterEditor(document, bitmap)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 storageDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
             } finally {
                 openingPhoto = false
+            }
+        }
+    }
+
+    private fun enterEditor(document: OpenDocument, bitmap: Bitmap) {
+        val snapshot = document.snapshot
+        if (snapshot.photo.id != PhotoId.SYNTHETIC_WORKBENCH) stopDiagnostics()
+        currentPhoto = snapshot.photo
+        scene = DimensionScene(snapshot.dimensions, photoId = snapshot.photo.id)
+        if (document.recovered || retainedHistoryVersion != document.version) history = DimensionHistory()
+        retainedHistoryVersion = null
+        showNotes = snapshot.showNotes
+        if (document.recovered) {
+            storageStatus = DocumentSaveStatus.RECOVERED
+        } else {
+            autosave = DocumentAutosave(document.version)
+            storageStatus = DocumentSaveStatus.SAVED
+            if (document.version.revisionId == null) queueCompletedChange()
+        }
+        photo = bitmap
+    }
+
+    fun refreshImports() {
+        if (photo != null || importBusy) return
+        importRefresh?.cancel()
+        importRefresh = viewModelScope.launch {
+            try {
+                importedPhotos = withContext(Dispatchers.IO) { storage.imports.list() }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
+            }
+        }
+    }
+
+    fun receivePhoto(uri: Uri) {
+        if (importCandidate != null) return
+        runImport(StoragePhase.IMPORT_STAGE) {
+            val candidate = withContext(Dispatchers.IO) {
+                val resolver = getApplication<Application>().contentResolver
+                require(uri.scheme == ContentResolver.SCHEME_CONTENT)
+                val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
+                input.use { storage.imports.receive(it) }
+            }
+            loadPreview(candidate)
+        }
+    }
+
+    fun previewImport(candidate: ImportCandidate) {
+        runImport(StoragePhase.IMPORT_PREVIEW) { loadPreview(candidate) }
+    }
+
+    private suspend fun loadPreview(candidate: ImportCandidate) {
+        importCandidate = candidate
+        importPreview = null
+        importPreview = withContext(Dispatchers.IO) { storage.imports.preview(candidate) }
+    }
+
+    fun deferImport() {
+        if (importBusy) return
+        importPreview = null
+        importCandidate = null
+        importDiagnostic = null
+    }
+
+    fun confirmImport() {
+        val preview = importPreview ?: return
+        runImport(StoragePhase.REVISION_CONFIRM) {
+            val document = withContext(Dispatchers.IO) { storage.imports.confirm(preview.candidate, preview.photo) }
+            check(document.snapshot.photo == preview.photo)
+            importPreview = null
+            importCandidate = null
+            enterEditor(document, preview.bitmap)
+        }
+    }
+
+    fun discardImport() {
+        val candidate = importCandidate ?: return
+        runImport(StoragePhase.IMPORT_STAGE) {
+            withContext(Dispatchers.IO) { storage.imports.discard(candidate) }
+            importPreview = null
+            importCandidate = null
+        }
+    }
+
+    private fun runImport(phase: StoragePhase, action: suspend () -> Unit) {
+        if (importBusy || openingPhoto || photo != null) return
+        importRefresh?.cancel()
+        importBusy = true
+        importDiagnostic = null
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                importDiagnostic = storageFailureCode(error, phase)
+            } finally {
+                try {
+                    importedPhotos = withContext(Dispatchers.IO) { storage.imports.list() }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (importDiagnostic == null) importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
+                } finally {
+                    importBusy = false
+                }
             }
         }
     }
@@ -197,6 +307,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         autosave = null
         gestureEditing = false
         photo = null
+        currentPhoto = null
         storageDiagnostic = null
         scene = DimensionScene()
     }
@@ -208,7 +319,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     private fun queueCompletedChange() {
         val session = autosave ?: return
-        session.finishedEdit(DocumentSnapshot(scene.dimensions, showNotes))
+        session.finishedEdit(DocumentSnapshot(scene.dimensions, showNotes, checkNotNull(currentPhoto)))
         if (storageStatus == DocumentSaveStatus.SAVED || storageStatus == DocumentSaveStatus.SAVING) {
             retrySave()
         }
@@ -224,7 +335,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 while (true) {
                     val request = session.nextRequest() ?: break
                     val ack = withContext(Dispatchers.IO) {
-                        AppDocumentStorage.repository(getApplication()).save(request)
+                        if (request.snapshot.photo.id == PhotoId.SYNTHETIC_WORKBENCH) storage.synthetic.save(request)
+                        else storage.imports.save(request)
                     }
                     check(session.acknowledge(ack))
                 }
@@ -310,7 +422,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private var stressJob: Job? = null
 
     fun generateStressBatch(photoId: PhotoId, count: Int) {
-        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH ||
+        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH || scene.photoId != photoId ||
             count !in SyntheticDimensions.counts || stressBusy
         ) return
         stressBusy = true
@@ -336,7 +448,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun clearStressBatch(photoId: PhotoId) {
-        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH || stressBusy) return
+        if (!BuildConfig.ENABLE_STRESS_TOOLS || photoId != PhotoId.SYNTHETIC_WORKBENCH || scene.photoId != photoId || stressBusy) return
         stressGenerationMs = null
         applyDimensionChange(scene.replaceSynthetic(emptyList()))
         diagnostics.action(DiagnosticAction.CLEAR_BATCH, DiagnosticResult.APPLIED)
@@ -587,6 +699,7 @@ internal fun EditorDialogStatusBarEffect(hidden: Boolean) {
 private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
     val photo = editorState.photo
     val photoOpen = photo != null
+    LaunchedEffect(photoOpen) { if (!photoOpen) editorState.refreshImports() }
     var confirmLeave by remember { mutableStateOf(false) }
     if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsRecordingEffects(editorState, window)
     PrepareDimensionDialog(editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording })
@@ -655,6 +768,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 safeOverlayTopPx = safeOverlayTop,
                 statusScrimHeightPx = statusScrimHeight,
                 photo = photo,
+                media = checkNotNull(editorState.currentPhoto),
                 editable = editorState.saveStatus != DocumentSaveStatus.RECOVERED,
                 scene = editorState.scene,
                 onCreateDimension = { editorState.applyDimensionChange(editorState.scene.create(it)) },
@@ -665,12 +779,18 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 fitRequest = editorState.fitRequest,
-                diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS },
+                diagnostics = editorState.diagnostics.takeIf {
+                    BuildConfig.ENABLE_STRESS_TOOLS && editorState.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH
+                },
                 onDrawCounts = { drawn, visible ->
                     editorState.lastDrawnObjects = drawn
                     editorState.visibleDrawCandidates = visible
                 },
-                overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState) },
+                overlays = {
+                    if (BuildConfig.ENABLE_STRESS_TOOLS && editorState.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) {
+                        DiagnosticsOverlay(editorState)
+                    }
+                },
                 storageStatus = {
                     DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
                 },
@@ -701,19 +821,20 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
             }
         } else {
             Column(
-                modifier = screen.padding(24.dp),
+                modifier = screen.verticalScroll(rememberScrollState()).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
                 if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState)
-                Button(onClick = editorState::openPhoto, enabled = !editorState.openingPhoto) {
+                Button(onClick = { editorState.openPhoto() }, enabled = !editorState.openingPhoto && !editorState.importBusy) {
                     Text(stringResource(if (editorState.openingPhoto) R.string.document_opening else R.string.open_sample))
                 }
                 editorState.storageDiagnostic?.let { code ->
                     Text(stringResource(R.string.document_open_failed))
                     Text(stringResource(R.string.document_storage_diagnostic, code))
                 }
+                PhotoImportControls(editorState)
                 val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
                     if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)
@@ -757,6 +878,7 @@ private fun SamplePhoto(
     safeOverlayTopPx: Int,
     statusScrimHeightPx: Int,
     photo: Bitmap,
+    media: StoredPhoto,
     editable: Boolean,
     scene: DimensionScene,
     onCreateDimension: (PhotoDimension) -> Boolean,
@@ -776,7 +898,7 @@ private fun SamplePhoto(
     Box(modifier = modifier) {
         AndroidView(
             factory = { context ->
-                PhotoEditorView(context, photo).apply {
+                PhotoEditorView(context, photo, media).apply {
                     this.diagnostics = diagnostics
                     this.safeOverlayTopPx = safeOverlayTopPx
                     this.scene = scene

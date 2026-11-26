@@ -11,7 +11,7 @@ import java.nio.file.NoSuchFileException
 import kotlinx.coroutines.CancellationException
 
 internal enum class StoragePhase(val photoPreparation: Boolean = false) {
-    OPEN, SNAPSHOT, REVISION_CHECK, REVISION_WRITE, REVISION_CONFIRM, ACK,
+    IMPORT_STAGE, IMPORT_PREVIEW, OPEN, SNAPSHOT, REVISION_CHECK, REVISION_WRITE, REVISION_CONFIRM, ACK,
     DB_JOURNAL_MODE, DB_SYNC_MODE, DB_DIRECTORY_SYNC, CONFLICT,
     PHOTO_BUNDLE(true), PHOTO_STAGE_CREATE(true), PHOTO_STAGE_WRITE(true), PHOTO_STAGE_SYNC(true),
     PHOTO_VERIFY(true), PHOTO_RENAME(true), PHOTO_FILE_SYNC(true), PHOTO_DIRECTORY_SYNC(true),

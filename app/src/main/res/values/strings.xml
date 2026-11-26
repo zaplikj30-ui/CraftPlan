@@ -18,6 +18,16 @@
     <string name="document_leave_warning">Zůstaňte a zkuste uložení znovu. Odchod ukončí tuto pracovní relaci; změny, které se nepotvrdily, se ztratí.</string>
     <string name="document_stay">Zůstat</string>
     <string name="document_leave">Odejít</string>
+    <string name="import_photo">Importovat fotografii JPEG</string>
+    <string name="import_resume">Obnovit rozpracovaný import %1$d</string>
+    <string name="import_open_confirmed">Otevřít importovanou fotografii %1$d</string>
+    <string name="import_working">Zpracovávám fotografii…</string>
+    <string name="import_preview">Náhled importu · Plná</string>
+    <string name="import_discard">Zahodit import</string>
+    <string name="import_discard_warning">Odstraní se pouze rozpracovaný import. Zdrojový soubor zůstane beze změny.</string>
+    <string name="import_confirm">Potvrdit import</string>
+    <string name="import_later">Později</string>
+    <string name="import_failed">Import se nepodařilo dokončit.</string>
     <string name="sample_title">Testovací fotografie</string>
     <string name="back_to_start">Zpět</string>
     <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>

@@ -73,6 +73,26 @@ internal data class PhotoImportRow(
     val metadata: ByteArray,
 )
 
+@Dao
+internal interface PhotoImportDao {
+    @Query("SELECT * FROM photo_import WHERE photoId = :id AND length(metadata) <= 4096")
+    suspend fun find(id: String): PhotoImportRow?
+
+    @Query("""SELECT photo_import.photoId FROM photo_import JOIN document_head
+        ON photo_import.photoId = document_head.documentId WHERE document_head.revisionId IS NOT NULL
+        ORDER BY photo_import.rowid""")
+    suspend fun committedIds(): List<String>
+
+    @Insert
+    suspend fun insert(row: PhotoImportRow)
+
+    @Query("DELETE FROM photo_import WHERE photoId = :id")
+    suspend fun delete(id: String)
+
+    @Query("DELETE FROM document_head WHERE documentId = :id AND revisionId IS NULL")
+    suspend fun deleteEmptyHead(id: String)
+}
+
 internal val PHOTO_CATALOG_MIGRATION = object : Migration(1, 2) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL(PHOTO_CATALOG_SCHEMA)
@@ -85,4 +105,5 @@ internal const val PHOTO_CATALOG_SCHEMA =
 @Database(entities = [DocumentHead::class, DocumentRevision::class, PhotoImportRow::class], version = 2)
 internal abstract class DocumentDatabase : RoomDatabase() {
     abstract fun documents(): DocumentDao
+    abstract fun photoImports(): PhotoImportDao
 }
