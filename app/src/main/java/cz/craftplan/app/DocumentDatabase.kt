@@ -41,6 +41,10 @@ private const val REVISION_COLUMNS = "revisionId, documentId, storageGeneration,
 
 @Dao
 internal interface DocumentDao {
+    @Query("""SELECT documentId FROM document_head WHERE revisionId IS NOT NULL
+        AND documentId != '$SYNTHETIC_DOCUMENT_ID' ORDER BY rowid""")
+    suspend fun confirmedPhotoIds(): List<String>
+
     @Query("SELECT * FROM document_head WHERE documentId = :documentId")
     suspend fun head(documentId: String): DocumentHead?
 
@@ -77,11 +81,6 @@ internal data class PhotoImportRow(
 internal interface PhotoImportDao {
     @Query("SELECT * FROM photo_import WHERE photoId = :id AND length(metadata) <= 4096")
     suspend fun find(id: String): PhotoImportRow?
-
-    @Query("""SELECT photo_import.photoId FROM photo_import JOIN document_head
-        ON photo_import.photoId = document_head.documentId WHERE document_head.revisionId IS NOT NULL
-        ORDER BY photo_import.rowid""")
-    suspend fun committedIds(): List<String>
 
     @Insert
     suspend fun insert(row: PhotoImportRow)

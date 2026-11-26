@@ -291,6 +291,10 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
         }
     }
 
+    override suspend fun confirmedPhotoIds(): List<String> = heads.values
+        .filter { it.revisionId != null && it.documentId != SYNTHETIC_DOCUMENT_ID }
+        .map(DocumentHead::documentId)
+
     override suspend fun head(documentId: String): DocumentHead? = heads[documentId]
     override suspend fun revision(id: String): DocumentRevision? = revisions[id]
     override suspend fun operation(id: String): DocumentRevision? = revisions.values.singleOrNull { it.saveOperationId == id }

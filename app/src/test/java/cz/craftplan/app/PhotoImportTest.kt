@@ -14,6 +14,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -117,6 +118,103 @@ class PhotoImportTest {
     }
 
     @Test
+    fun confirmedPhotoListsAndReopensWithoutTrustingTheCatalog() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val bytes = bundledSyntheticPhoto()
+        val candidate = imports.receive(bytes.inputStream())
+        val photo = testPhoto(candidate, bytes.size)
+        val first = imports.confirm(candidate, photo)
+        val dimension = PhotoDimension(UUID.randomUUID(), photo.id, PhotoAnchor(0.1f, 0.2f), PhotoAnchor(0.7f, 0.8f),
+            measurement = ManualLengthMeasurement.parse("1/3 in"), note = "Synthetic test")
+        val updated = first.snapshot.copy(dimensions = listOf(dimension))
+        val ack = imports.save(DocumentSave(first.version, 2, updated))
+        val originalHead = db.heads[photo.id.documentId]
+        val originalRevisions = db.revisions.toMap()
+        val pending = imports.receive(bytes.inputStream())
+        db.beforeWrite = { error("Opening and listing must not write to the database") }
+
+        val otherPhoto = photo.copy(id = pending.photoId, mediaId = UUID.randomUUID())
+        val catalogMetadata = listOf(
+            null,
+            byteArrayOf(1, 2, 3),
+            SnapshotCodec.encode(DocumentSnapshot(emptyList(), true, otherPhoto)),
+            SnapshotCodec.encode(DocumentSnapshot(emptyList(), true, photo.copy(sha256 = "a".repeat(64)))),
+        )
+        for (metadata in catalogMetadata) {
+            if (metadata == null) catalog.rows.remove(photo.id.name)
+            else catalog.rows[photo.id.name] = PhotoImportRow(photo.id.name, metadata)
+            val before = catalog.rows.toMap()
+            val listed = imports.list()
+            assertEquals(listOf(photo.id), listed.confirmed)
+            assertEquals(listOf(pending), listed.pending)
+            val opened = imports.open(photo.id)
+            assertEquals(ack.version, opened.version)
+            assertFalse(opened.recovered)
+            assertEquals(updated, opened.snapshot)
+            assertArrayEquals(bytes, opened.photoBytes)
+            assertEquals(before, catalog.rows)
+            assertEquals(originalHead, db.heads[photo.id.documentId])
+            assertEquals(originalRevisions, db.revisions)
+        }
+    }
+
+    @Test
+    fun catalogIndependentRecoveryChecksRevisionAndMediaBeforeOpening() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val bytes = bundledSyntheticPhoto()
+        val candidate = imports.receive(bytes.inputStream())
+        val photo = testPhoto(candidate, bytes.size)
+        val first = imports.confirm(candidate, photo)
+        val latest = imports.save(DocumentSave(first.version, 2, first.snapshot.copy(showNotes = false)))
+        catalog.rows.clear()
+
+        val latestId = checkNotNull(latest.version.revisionId)
+        val row = db.revisions.getValue(latestId)
+        val foreign = photo.copy(id = PhotoId(UUID.randomUUID().toString()))
+        val mismatched = SnapshotCodec.encode(DocumentSnapshot(emptyList(), true, foreign))
+        // Include a correct digest for the wrong photo. Hash equality cannot replace identity checks.
+        db.revisions[latestId] = row.copy(snapshot = mismatched, snapshotDigest = sha256(mismatched))
+        val fallback = imports.open(photo.id)
+        assertEquals(first.version, fallback.version)
+        assertEquals(first.snapshot, fallback.snapshot)
+        assertEquals(true, fallback.recovered)
+        assertEquals(latestId, db.heads[photo.id.documentId]?.revisionId)
+        assertEquals(emptyMap<String, PhotoImportRow>(), catalog.rows)
+
+        val wrongMedia = photo.copy(sha256 = "a".repeat(64))
+        val wrongMediaSnapshot = SnapshotCodec.encode(first.snapshot.copy(photo = wrongMedia, showNotes = false))
+        db.revisions[latestId] = row.copy(snapshot = wrongMediaSnapshot, snapshotDigest = sha256(wrongMediaSnapshot))
+        assertEquals(first.version, imports.open(photo.id).version)
+        val wrongFile = File(dir, wrongMedia.mediaFileName())
+        assertTrue(wrongFile.mkdir())
+        assertThrows(IOException::class.java) { runBlocking { imports.open(photo.id) } }
+        assertTrue(wrongFile.delete())
+        wrongFile.writeBytes(bytes)
+        assertEquals(fallback.snapshot, imports.open(photo.id).snapshot)
+
+        val firstId = checkNotNull(first.version.revisionId)
+        val earlierRow = db.revisions.getValue(firstId)
+        db.revisions[firstId] = earlierRow.copy(storageGeneration = UUID.randomUUID().toString())
+        assertThrows(IOException::class.java) { runBlocking { imports.open(photo.id) } }
+        db.revisions[firstId] = earlierRow
+        File(dir, photo.mediaFileName()).writeBytes(bytes.clone().also {
+            it[100] = (it[100].toInt() xor 1).toByte()
+        })
+        assertThrows(IOException::class.java) { runBlocking { imports.open(photo.id) } }
+        assertEquals(latestId, db.heads[photo.id.documentId]?.revisionId)
+    }
+
+    @Test
     fun stagingPreservesInputForDecoderWithoutInterpretingEndMarkers() {
         val dir = folder.newFolder()
         val files = staging(dir)
@@ -173,10 +271,9 @@ class PhotoImportTest {
 }
 
 private class TestCatalog(private val db: TestDocumentTransactions) : PhotoImportDao {
-    private val rows = linkedMapOf<String, PhotoImportRow>()
+    val rows = linkedMapOf<String, PhotoImportRow>()
 
     override suspend fun find(id: String): PhotoImportRow? = rows[id]
-    override suspend fun committedIds(): List<String> = rows.keys.filter { db.heads[it]?.revisionId != null }
     override suspend fun insert(row: PhotoImportRow) {
         check(row.photoId !in rows)
         rows[row.photoId] = row

@@ -20,7 +20,14 @@ internal class PhotoImports(
     private val repository: (StoredPhoto, () -> ByteArray) -> DocumentRepository,
 ) {
     suspend fun list(): PhotoList {
-        val confirmed = transactions.read { catalog.committedIds().map(::PhotoId) }
+        // Listing is lightweight. Verify the reachable revision and media when a photo opens.
+        val confirmed = transactions.read { confirmedPhotoIds() }.mapNotNull { id ->
+            try {
+                PhotoId(id).takeIf { it.documentId == id }
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
         val committed = confirmed.toHashSet()
         return PhotoList(confirmed, staging.candidates().filterNot { it.photoId in committed })
     }
@@ -56,15 +63,11 @@ internal class PhotoImports(
         }
     }
 
-    suspend fun open(id: PhotoId): OpenDocument {
-        val photo = transactions.read {
-            check(head(id.documentId)?.revisionId != null)
-            requireNotNull(catalogPhoto(id))
-        }
-        return existingRepository(photo).open().also { verified ->
+    suspend fun open(id: PhotoId): OpenDocument =
+        DocumentRepository.openConfirmed(transactions, id, ::existingRepository).also { verified ->
+            val photo = verified.snapshot.photo
             if (!verified.recovered) removeRedundantStage(ImportCandidate(photo.id, photo.sha256))
         }
-    }
 
     suspend fun save(request: DocumentSave): DocumentAck =
         existingRepository(request.snapshot.photo).save(request)

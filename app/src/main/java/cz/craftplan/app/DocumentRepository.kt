@@ -43,38 +43,19 @@ internal class DocumentRepository(
     private val documentId = photo.id.documentId
 
     suspend fun open(): OpenDocument {
-        val exists = transactions.read { checkedHead(allowRecovery = true) != null }
+        val exists = transactions.read { checkedHead(documentId, allowRecovery = true) != null }
         if (!exists) transactions.write {
-            if (checkedHead() == null) {
+            if (checkedHead(documentId) == null) {
                 insertHead(DocumentHead(documentId, UUID.randomUUID().toString(), null, null))
             }
         }
         return transactions.read {
-            val head = checkNotNull(checkedHead(allowRecovery = true))
+            val head = checkNotNull(checkedHead(documentId, allowRecovery = true))
             val latest = head.revisionId
             if (latest == null) {
                 OpenDocument(head.version(), DocumentSnapshot(emptyList(), true, photo), photos.readBundled())
             } else {
-                val current = if (isUuid(latest) && latest != head.previousRevisionId) revision(latest) else null
-                val snapshot = validatedSnapshot(current, head, latest)
-                    ?.takeIf { current?.previousRevisionId == head.previousRevisionId }
-                if (snapshot != null) {
-                    OpenDocument(head.version(), snapshot, photos.readAndSync())
-                } else {
-                    val visited = hashSetOf(latest)
-                    var candidate = head.previousRevisionId
-                    while (candidate != null && visited.add(candidate)) {
-                        val older = revision(candidate) ?: break
-                        if (!belongsTo(older, head, candidate)) break
-                        val recovery = validatedSnapshot(older, head, candidate)
-                        if (recovery != null) return@read OpenDocument(
-                            DocumentVersion(head.storageGeneration, candidate), recovery,
-                            photos.readAndSync(), recovered = true,
-                        )
-                        candidate = older.previousRevisionId
-                    }
-                    throw IOException("No valid confirmed revision can be opened")
-                }
+                openConfirmedRevision(head, latest, photo.id, expectedPhoto = photo) { photos.readAndSync() }
             }
         }
     }
@@ -138,7 +119,7 @@ internal class DocumentRepository(
     }
 
     private suspend fun DocumentDao.inspect(proposed: DocumentRevision): Boolean {
-        val head = checkedHead() ?: throw DocumentConflict()
+        val head = checkedHead(documentId) ?: throw DocumentConflict()
         if (head.storageGeneration != proposed.storageGeneration) throw DocumentConflict()
         val known = operation(proposed.saveOperationId)
         if (known != null) {
@@ -152,48 +133,11 @@ internal class DocumentRepository(
         }
         head.revisionId?.let { id ->
             val previous = revision(id)
-            if (validatedSnapshot(previous, head, id) == null ||
+            if (validatedSnapshot(previous, head, id, photo.id, expectedPhoto = photo) == null ||
                 previous?.previousRevisionId != head.previousRevisionId
             ) throw IOException("Current revision failed integrity validation")
         }
         return false
-    }
-
-    private suspend fun DocumentDao.checkedHead(allowRecovery: Boolean = false): DocumentHead? {
-        val head = head(documentId)
-        if (head?.revisionId == null && hasRevisions(documentId)) {
-            throw IOException("Missing revision pointer")
-        }
-        if (head != null && (head.documentId != documentId || !isUuid(head.storageGeneration) ||
-            (head.revisionId == null && head.previousRevisionId != null) ||
-            (!allowRecovery && head.revisionId != null &&
-                (!isUuid(head.revisionId) || head.revisionId == head.previousRevisionId)) ||
-            (head.previousRevisionId != null && !isUuid(head.previousRevisionId))
-        )) throw IOException("Invalid revision pointer")
-        return head
-    }
-
-    private fun DocumentHead.version() = DocumentVersion(storageGeneration, revisionId)
-
-    private fun belongsTo(row: DocumentRevision, head: DocumentHead, revisionId: String): Boolean =
-        row.revisionId == revisionId && row.documentId == head.documentId &&
-            row.storageGeneration == head.storageGeneration
-
-    private fun validatedSnapshot(row: DocumentRevision?, head: DocumentHead, revisionId: String): DocumentSnapshot? {
-        if (row == null || !belongsTo(row, head, revisionId) ||
-            !isUuid(row.saveOperationId) || row.editGeneration <= 0 ||
-            (row.previousRevisionId != null && (!isUuid(row.previousRevisionId) || row.previousRevisionId == revisionId)) ||
-            sha256(row.snapshot) != row.snapshotDigest
-        ) return null
-        return try {
-            SnapshotCodec.decode(row.snapshot).takeIf { it.photo == photo }
-        } catch (_: IOException) {
-            null
-        } catch (_: IllegalArgumentException) {
-            null
-        } catch (_: IllegalStateException) {
-            null
-        }
     }
 
     private fun matches(known: DocumentRevision, proposed: DocumentRevision): Boolean =
@@ -202,10 +146,117 @@ internal class DocumentRepository(
             known.saveOperationId == proposed.saveOperationId && known.editGeneration == proposed.editGeneration &&
             known.snapshotDigest == proposed.snapshotDigest && known.snapshot.contentEquals(proposed.snapshot)
 
-    private fun isUuid(value: String): Boolean =
-        value.length == 36 && try {
-            UUID.fromString(value).toString() == value
-        } catch (_: IllegalArgumentException) {
-            false
+    companion object {
+        /** Reopen an already published import without consulting its staging catalog. */
+        suspend fun openConfirmed(
+            transactions: DocumentTransactions,
+            photoId: PhotoId,
+            repository: (StoredPhoto) -> DocumentRepository,
+        ): OpenDocument = transactions.read {
+            val head = checkedHead(photoId.documentId, allowRecovery = true)
+                ?: throw IOException("Missing document head")
+            val latest = head.revisionId ?: throw IOException("Document has no confirmed revision")
+            openConfirmedRevision(head, latest, photoId) { media ->
+                repository(media).photos.readAndSync()
+            }
         }
+    }
 }
+
+private suspend fun DocumentDao.openConfirmedRevision(
+    head: DocumentHead,
+    latest: String,
+    photoId: PhotoId,
+    expectedPhoto: StoredPhoto? = null,
+    readMedia: (StoredPhoto) -> ByteArray,
+): OpenDocument {
+    var failedPhoto: StoredPhoto? = null
+    var mediaFailure: StorageFailure? = null
+
+    fun verifiedMedia(snapshot: DocumentSnapshot): ByteArray? {
+        if (snapshot.photo == failedPhoto) return null
+        return try {
+            readMedia(snapshot.photo)
+        } catch (error: StorageFailure) {
+            val cause = error.cause
+            if (error.phase != StoragePhase.PHOTO_VERIFY ||
+                (cause !is MissingConfirmedPhoto && cause !is IllegalArgumentException)
+            ) throw error
+            failedPhoto = snapshot.photo
+            mediaFailure = error
+            null
+        }
+    }
+
+    val current = if (isUuid(latest) && latest != head.previousRevisionId) revision(latest) else null
+    val snapshot = validatedSnapshot(current, head, latest, photoId, expectedPhoto)
+        ?.takeIf { current?.previousRevisionId == head.previousRevisionId }
+    if (snapshot != null) {
+        verifiedMedia(snapshot)?.let { return OpenDocument(head.version(), snapshot, it) }
+    }
+
+    val visited = hashSetOf(latest)
+    var candidate = head.previousRevisionId
+    while (candidate != null && visited.add(candidate)) {
+        val older = revision(candidate) ?: break
+        if (!belongsTo(older, head, candidate)) break
+        val recovery = validatedSnapshot(older, head, candidate, photoId, expectedPhoto)
+        if (recovery != null) {
+            val bytes = verifiedMedia(recovery)
+            if (bytes != null) return OpenDocument(
+                DocumentVersion(head.storageGeneration, candidate), recovery, bytes, recovered = true,
+            )
+        }
+        candidate = older.previousRevisionId
+    }
+    throw (mediaFailure ?: IOException("No valid confirmed revision can be opened"))
+}
+
+private suspend fun DocumentDao.checkedHead(documentId: String, allowRecovery: Boolean = false): DocumentHead? {
+    val head = head(documentId)
+    if (head?.revisionId == null && hasRevisions(documentId)) {
+        throw IOException("Missing revision pointer")
+    }
+    if (head != null && (head.documentId != documentId || !isUuid(head.storageGeneration) ||
+        (head.revisionId == null && head.previousRevisionId != null) ||
+        (!allowRecovery && head.revisionId != null &&
+            (!isUuid(head.revisionId) || head.revisionId == head.previousRevisionId)) ||
+        (head.previousRevisionId != null && !isUuid(head.previousRevisionId))
+    )) throw IOException("Invalid revision pointer")
+    return head
+}
+
+private fun DocumentHead.version() = DocumentVersion(storageGeneration, revisionId)
+
+private fun belongsTo(row: DocumentRevision, head: DocumentHead, revisionId: String): Boolean =
+    row.revisionId == revisionId && row.documentId == head.documentId &&
+        row.storageGeneration == head.storageGeneration
+
+private fun validatedSnapshot(
+    row: DocumentRevision?, head: DocumentHead, revisionId: String, photoId: PhotoId,
+    expectedPhoto: StoredPhoto?,
+): DocumentSnapshot? {
+    if (row == null || !belongsTo(row, head, revisionId) ||
+        !isUuid(row.saveOperationId) || row.editGeneration <= 0 ||
+        (row.previousRevisionId != null && (!isUuid(row.previousRevisionId) || row.previousRevisionId == revisionId)) ||
+        sha256(row.snapshot) != row.snapshotDigest
+    ) return null
+    return try {
+        SnapshotCodec.decode(row.snapshot).takeIf {
+            it.photo.id == photoId && (expectedPhoto == null || it.photo == expectedPhoto)
+        }
+    } catch (_: IOException) {
+        null
+    } catch (_: IllegalArgumentException) {
+        null
+    } catch (_: IllegalStateException) {
+        null
+    }
+}
+
+private fun isUuid(value: String): Boolean =
+    value.length == 36 && try {
+        UUID.fromString(value).toString() == value
+    } catch (_: IllegalArgumentException) {
+        false
+    }

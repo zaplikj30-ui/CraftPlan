@@ -2,10 +2,13 @@ package cz.craftplan.app
 
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
+
+internal class MissingConfirmedPhoto : FileNotFoundException("Confirmed photo file absent")
 
 /** One immutable copy under a content-addressed name inside the app's private directory. */
 internal class PrivatePhotoStore(
@@ -60,7 +63,14 @@ internal class PrivatePhotoStore(
 
     fun readAndSync(): ByteArray {
         val bytes = storagePhase(StoragePhase.PHOTO_VERIFY) {
-            FileInputStream(finalFile).use {
+            val input = try {
+                FileInputStream(finalFile)
+            } catch (error: FileNotFoundException) {
+                // FileInputStream also uses this exception for paths it cannot open.
+                if (Files.notExists(finalFile.toPath(), LinkOption.NOFOLLOW_LINKS)) throw MissingConfirmedPhoto()
+                throw error
+            }
+            input.use {
                 val verified = verify(it.readNBytes(photo.size + 1))
                 storagePhase(StoragePhase.PHOTO_FILE_SYNC) { it.fd.sync() }
                 verified
