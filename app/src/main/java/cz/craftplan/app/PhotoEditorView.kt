@@ -355,7 +355,15 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.scale(labelScale, labelScale)
         val label = decoration.text
         val geometry = decoration.geometry
-        if (geometry.ruler != null) drawUnmeasuredMarker(canvas, geometry.ruler)
+        if (geometry.ruler != null) {
+            canvas.save()
+            val rulerRatio = geometry.rulerScale(labelScale) / labelScale
+            canvas.scale(rulerRatio, rulerRatio)
+            drawUnmeasuredMarker(canvas, geometry.ruler)
+            canvas.restore()
+        }
+        // Move only adjacent decorations to keep the gap beside the larger ruler.
+        canvas.translate(geometry.rulerNeighborOffset(labelScale) / labelScale, 0f)
         val textBounds = geometry.text
         if (label != null && textBounds != null) {
             overlayPaint.color = WORKSPACE_COLOR
@@ -408,15 +416,17 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val labelScale = dimensionLabelScale
         val geometry = decoration.geometry
         val candidates = mutableListOf<LabelCandidate>()
-        fun candidate(bounds: LabelRect?, touch: LabelRect?, notebook: Boolean = false) {
+        val neighborOffset = geometry.rulerNeighborOffset(labelScale)
+        fun candidate(bounds: LabelRect?, touch: LabelRect?, scale: Float, offset: Float,
+            notebook: Boolean = false) {
             if (bounds == null || touch == null) return
-            bounds.hit(along, across, labelScale, touch)?.let {
+            bounds.hit(along - offset, across, scale, touch)?.let {
                 candidates += LabelCandidate(it, notebook)
             }
         }
-        candidate(geometry.ruler, geometry.rulerTouch)
-        candidate(geometry.text, geometry.textTouch)
-        candidate(geometry.notebook, geometry.notebookTouch, notebook = true)
+        candidate(geometry.ruler, geometry.rulerTouch, geometry.rulerScale(labelScale), 0f)
+        candidate(geometry.text, geometry.textTouch, labelScale, neighborOffset)
+        candidate(geometry.notebook, geometry.notebookTouch, labelScale, neighborOffset, notebook = true)
         return candidates
     }
 

@@ -108,7 +108,16 @@ internal data class DimensionLabelGeometry(
     val textTouch: LabelRect?,
     val notebookTouch: LabelRect?,
 ) {
+    /** Only the ruler has a readability floor; the common label scale remains unchanged. */
+    fun rulerScale(labelScale: Float): Float = maxOf(0.95f, labelScale)
+
+    /** Screen-pixel offset for adjacent note/notebook, retaining their original gap. */
+    fun rulerNeighborOffset(labelScale: Float): Float =
+        (ruler?.right ?: 0f) * (rulerScale(labelScale) - labelScale)
+
     // Includes every visible corner even when the decoration rotates.
+    // The ruler floor is below 1x, and shifting its neighbors by the extra
+    // half-width cannot put their right edge beyond their 1x baseline extent.
     val cullingRadius: Float = listOfNotNull(ruler, text, notebook).maxOfOrNull {
         hypot(maxOf(kotlin.math.abs(it.left), kotlin.math.abs(it.right)),
             maxOf(kotlin.math.abs(it.top), kotlin.math.abs(it.bottom)))
