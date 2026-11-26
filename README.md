@@ -4,13 +4,15 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 
 ## M1 – jednotlivé fotografie a bezpečný import
 
-**Testovací publikace importu (26. 11. 2026):** vlastník schválil sestavení APK na zdrojové revizi `1f1f3be44183b85827f12fa075415df1f9083b9c` pro praktické ověření migrace z APK 85 bez odinstalování, zachování starých kót, importu JPEG, orientace a obnovení rozpracovaného importu. Výsledek CI a fyzických testů zatím nepotvrzen; pouze syntetická a nahraditelná data.
+**Testovací publikace importu (26. 11. 2026):** vlastník schválil sestavení APK na zdrojové revizi `1f1f3be44183b85827f12fa075415df1f9083b9c` pro praktické ověření migrace z APK 85 bez odinstalování, zachování starých kót, importu JPEG, orientace a obnovení rozpracovaného importu. [Actions 45738140516](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45738140516) SUCCESS (JVM testy, lint, sestavení a ověření podpisu). Pouze syntetická a nahraditelná data.
+
+**APK 86 – praktická migrace Room 1→2: PASS dle vlastníka (26. 11. 2026).** Po aktualizaci bez odinstalování APK 85 zůstaly dosavadní kóty, poznámky a ostatní obsah zachované. Jde o uživatelské ověření na jeho zařízení, nikoli úplnou matici migrací nebo důkaz odolnosti proti pádu během migrace. Praktické testy importu zatím NOT RUN.
 
 - **Základ APK 85:** vlastník prakticky ověřil uložení, reopen, restart a následné úpravy. Migrace Room 1→2 přidává katalog importů. Stávající tabulky, syntetický dokument, jeho fotografie, revize a kóty zůstávají použitelné. Čtení snapshotů verze 1 je zachováno.
 - Na úvodní obrazovce vyber **Importovat fotografii JPEG**. Android zpřístupní jeden soubor ke čtení. CraftPlan ověří bajty ve svém soukromém úložišti a nabídne náhled. **Později** ponechá dokončenou přípravu k obnovení i po restartu. **Zahodit import** vyžaduje potvrzení a týká se pouze rozpracované kopie. Externí zdroj se nemění.
 - **Potvrdit import** po ověření finálního souboru a synchronizaci souboru i adresáře založí první úplnou revizi. Každý import má vlastní identitu a samostatné kóty. Z úvodní obrazovky jde znovu otevřít každý potvrzený snímek. EXIF 1–8 se použije jako jedna uložená mapa pro zobrazení a kotvy. JPEG se při importu v režimu Plná nepřekomprimuje. Import má limit 32 MiB a 120 Mpx. Zobrazení dekóduje pracovní bitmapu se stranou nejvýše 2 048 px.
 - Pád při neúplném čtení může nechat izolovaný soubor `.part`. K obnovení se nabízejí až kandidáti s dokončeným zápisem a ověřitelným SHA‑256. Revize a chráněná média se automaticky nemažou. Pro testy používej pouze syntetické nebo nahraditelné fotografie.
-- **Ověření:** jednotkové testy pokrývají obnovu přípravy po odstranění zdroje, nezávislé identity, kontrolu poškozeného a nedokončeného JPEG, pořadí potvrzení a ochranu při zahození. Matice EXIF a SQL migrace byly ověřeny na hostiteli. Fyzický test Android migrace z APK 85, systémového výběru souboru, skutečných otočených a zrcadlených JPEG, plného disku a přerušení napájení zůstává **NOT RUN**.
+- **Ověření:** jednotkové testy pokrývají obnovu přípravy po odstranění zdroje, nezávislé identity, kontrolu poškozeného a nedokončeného JPEG, pořadí potvrzení a ochranu při zahození. Matice EXIF a SQL migrace byly ověřeny na hostiteli. Fyzický test Android migrace z APK 85 je PASS dle vlastníka (viz výše). Testy systémového výběru souboru, skutečných otočených a zrcadlených JPEG, plného disku a přerušení napájení zůstávají **NOT RUN**.
 
 ### Návrh kvality a dvou cest focení
 
