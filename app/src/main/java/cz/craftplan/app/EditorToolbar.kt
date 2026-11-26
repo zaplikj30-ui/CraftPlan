@@ -186,9 +186,9 @@ internal fun Modifier.toolbarGrip(
         ) return@awaitEachGesture
 
         // Only reserve a DOWN on the visible grip itself; in the workspace
-        // a blank-area pan remains eligible until the first decisive vertical motion.
+        // a blank-area pan remains eligible until the first decisive motion along this grip's axis.
         if (!workspace) down.consume()
-        val expanded = state.toolbarExtraExpanded
+        val expanded = if (bounds.side) state.toolbarExpanded else state.toolbarExtraExpanded
         val threshold = viewConfiguration.touchSlop
         state.diagnostics.toolbarGripStart(input, bounds.side, root.x - bounds.left, root.y - bounds.top,
             (bounds.right - bounds.left).roundToInt(), (bounds.bottom - bounds.top).roundToInt(), threshold, expanded)
@@ -217,12 +217,17 @@ internal fun Modifier.toolbarGrip(
                 dy = change.position.y - down.position.y
                 maxTravel = maxOf(maxTravel, abs(dx), abs(dy))
                 if (!claimed) {
-                    when (toolbarSharedDecision(dx, dy, threshold,
-                        change.uptimeMillis - down.uptimeMillis, viewConfiguration.longPressTimeoutMillis)) {
-                        ToolbarSharedDecision.VERTICAL -> claimed = true
-                        ToolbarSharedDecision.HORIZONTAL -> {
-                            reason = ToolbarGripOutcome.SHARED_HORIZONTAL
-                            break
+                    val decision = toolbarSharedDecision(dx, dy, threshold,
+                        change.uptimeMillis - down.uptimeMillis, viewConfiguration.longPressTimeoutMillis)
+                    when (decision) {
+                        ToolbarSharedDecision.VERTICAL, ToolbarSharedDecision.HORIZONTAL -> {
+                            if (toolbarGripClaimsMotion(bounds.side, decision)) {
+                                claimed = true
+                            } else {
+                                reason = if (bounds.side) ToolbarGripOutcome.NON_HORIZONTAL
+                                    else ToolbarGripOutcome.SHARED_HORIZONTAL
+                                break
+                            }
                         }
                         ToolbarSharedDecision.LONG_PRESS -> {
                             reason = ToolbarGripOutcome.SHARED_LONG_PRESS
@@ -245,16 +250,21 @@ internal fun Modifier.toolbarGrip(
                     // when Compose consumes motion; never synthesize or replay DOWN.
                     change.consume()
                     if (!change.pressed) {
-                        reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold)
-                        state.setToolbarExtraExpansion(
-                            toolbarGripAfterRelease(expanded, dx, dy, maxTravel, threshold),
-                        )
+                        reason = toolbarGripReleaseReason(dx, dy, maxTravel, threshold, side = bounds.side)
+                        when (reason) {
+                            ToolbarGripOutcome.RIGHT, ToolbarGripOutcome.LEFT ->
+                                state.applyToolbarHorizontalDrag(dx, threshold)
+                            ToolbarGripOutcome.UP -> state.setToolbarExtraExpansion(true)
+                            ToolbarGripOutcome.DOWN -> state.setToolbarExtraExpansion(false)
+                            else -> Unit
+                        }
                         break
                     }
                 }
             }
         } finally {
-            state.diagnostics.toolbarGripEnd(reason, dx, dy, maxTravel, expanded, state.toolbarExtraExpanded)
+            state.diagnostics.toolbarGripEnd(reason, dx, dy, maxTravel, expanded,
+                if (bounds.side) state.toolbarExpanded else state.toolbarExtraExpanded)
         }
     }
 }

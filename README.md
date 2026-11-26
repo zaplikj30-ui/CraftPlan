@@ -102,6 +102,8 @@ Základní import JPEG, kotvy, nezávislost fotografií, odložení a dokončen�
 
 **APK 99 – upřesnění zachování gest lišty (26. 11. 2026):** vlastník výslovně požaduje zachovat vysouvání a zasouvání přejetím přes samotnou lištu, nejen tahem za madlo. Při opravě bočního madla zachovat existující `detectHorizontalDragGestures` pevné skupiny tlačítek i `sharedToolbarGrip`, jejich směry, klepnutí a dlouhé stisky nástrojů; prakticky ověřit oba způsoby ovládání. Bez změny kódu či sestavení.
 
+**GO vlastníka – oprava osy bočního madla (26. 11. 2026):** schváleno opravit a rovnou sestavit APK 100. Společný detektor volí osu podle typu madla; boční přijímá rozhodný vodorovný tah a při platném uvolnění používá existující `applyToolbarHorizontalDrag` (doprava otevře, doleva zavře), horní zachovává svislou osu a původní změnu horní řady. Diagnostika rozlišuje LEFT/RIGHT a stav odpovídající řady. Bez změny dotykových oblastí, priority kót, sdíleného gesta uvnitř lišty, vodorovného gesta přes tlačítka, accessibility akcí, klepnutí nástrojů či dlouhých stisků. Regresní testy výběru osy, prahu, směru, klepnutí, diagonály a návratu; skutečná distribuce událostí a praktické ověření obou madel i přejetí přes lištu NOT RUN. JVM/lint/build před publikací NOT RUN. Pouze nahraditelná data.
+
 ## M1 – jednotlivé fotografie a bezpečný import
 
 **Schválená testovací publikace po opravách A01/A03 (26. 11. 2026):** GO vlastníka pro sestavení zdrojové revize `0c352dc66e8a86bc0eb9c1491b8833bc1e5628d7` přes existující podepsanou M1 Actions. Cíl: praktické ověření importu JPEG, zmenšené bitmapy, lupy, kotev, ukládání a reopen. Pouze nahraditelná data. Fyzické testy zatím NOT RUN.

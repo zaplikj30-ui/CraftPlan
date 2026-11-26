@@ -32,18 +32,26 @@ internal enum class ToolbarGripOutcome {
     TAP, UP, DOWN, BELOW_VERTICAL_THRESHOLD, NON_VERTICAL, INVALID,
     POINTER_MISSING, CONSUMED, MULTI_POINTER, STREAM_CANCELED,
     SHARED_TAP, SHARED_HORIZONTAL, SHARED_LONG_PRESS,
+    LEFT, RIGHT, BELOW_HORIZONTAL_THRESHOLD, NON_HORIZONTAL,
 }
 
-internal fun toolbarGripReleaseReason(dx: Float, dy: Float, maxTravel: Float, threshold: Float): ToolbarGripOutcome {
+internal fun toolbarGripReleaseReason(
+    dx: Float, dy: Float, maxTravel: Float, threshold: Float, side: Boolean = false,
+): ToolbarGripOutcome {
     if (!dx.isFinite() || !dy.isFinite() || !maxTravel.isFinite() || maxTravel < 0f ||
         !threshold.isFinite() || threshold <= 0f) return ToolbarGripOutcome.INVALID
     if (maxOf(abs(dx), abs(dy), maxTravel) < threshold) return ToolbarGripOutcome.TAP
+    if (side) {
+        if (abs(dx) < threshold) return ToolbarGripOutcome.BELOW_HORIZONTAL_THRESHOLD
+        if (abs(dx) <= abs(dy)) return ToolbarGripOutcome.NON_HORIZONTAL
+        return if (dx > 0f) ToolbarGripOutcome.RIGHT else ToolbarGripOutcome.LEFT
+    }
     if (abs(dy) < threshold) return ToolbarGripOutcome.BELOW_VERTICAL_THRESHOLD
     if (abs(dy) <= abs(dx)) return ToolbarGripOutcome.NON_VERTICAL
     return if (dy < 0f) ToolbarGripOutcome.UP else ToolbarGripOutcome.DOWN
 }
 
-/** Both grips use the same directional drag; physical taps never toggle. */
+/** Vertical release policy retained for the shared vertical gesture tests. */
 internal fun toolbarGripAfterRelease(
     expanded: Boolean, dx: Float, dy: Float, maxTravel: Float, threshold: Float,
 ): Boolean =
@@ -84,6 +92,10 @@ internal fun toolbarSharedDecision(
     if (maxOf(abs(dx), abs(dy)) < threshold) return ToolbarSharedDecision.WAIT
     return if (abs(dy) > abs(dx)) ToolbarSharedDecision.VERTICAL else ToolbarSharedDecision.HORIZONTAL
 }
+
+/** The first decisive motion must match the grip's axis; never change owners mid-stream. */
+internal fun toolbarGripClaimsMotion(side: Boolean, decision: ToolbarSharedDecision): Boolean =
+    if (side) decision == ToolbarSharedDecision.HORIZONTAL else decision == ToolbarSharedDecision.VERTICAL
 
 /** The strip is inside the surface, immediately below the dedicated top grip. */
 internal fun toolbarSharedContains(x: Float, y: Float, width: Float, gripWidth: Float,

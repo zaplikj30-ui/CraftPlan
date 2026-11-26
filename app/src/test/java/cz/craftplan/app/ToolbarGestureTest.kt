@@ -11,7 +11,7 @@ class ToolbarGestureTest {
         assertEquals(12.dp, toolbarHintCenterOffset(0.dp, 24.dp))
     }
 
-    @Test fun bothGripsIgnoreTapsAndKeepVerticalDragDirectional() {
+    @Test fun topGripIgnoresTapsAndKeepsVerticalDragDirectional() {
         for (current in listOf(false, true)) {
             assertEquals(current, toolbarGripAfterRelease(current, 0f, 0f, 0f, 8f))
             assertEquals(current, toolbarGripAfterRelease(current, 3f, 2f, 3f, 8f))
@@ -23,6 +23,28 @@ class ToolbarGestureTest {
             assertEquals(current, toolbarGripAfterRelease(current, 0f, -20f, 20f, 0f))
             assertEquals(current, toolbarGripAfterRelease(current, 0f, Float.NaN, 20f, 8f))
         }
+    }
+
+    @Test fun dedicatedGripsClaimOnlyTheirOwnAxis() {
+        for (decision in ToolbarSharedDecision.entries) {
+            assertEquals(decision == ToolbarSharedDecision.HORIZONTAL, toolbarGripClaimsMotion(true, decision))
+            assertEquals(decision == ToolbarSharedDecision.VERTICAL, toolbarGripClaimsMotion(false, decision))
+        }
+    }
+
+    @Test fun sideGripReleaseIsHorizontalAndNeverTogglesOnTap() {
+        assertEquals(ToolbarGripOutcome.RIGHT, toolbarGripReleaseReason(8f, 2f, 8f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.LEFT, toolbarGripReleaseReason(-8f, 2f, 8f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.TAP, toolbarGripReleaseReason(0f, 0f, 0f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.TAP, toolbarGripReleaseReason(3f, 2f, 3f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.BELOW_HORIZONTAL_THRESHOLD, toolbarGripReleaseReason(2f, -20f, 20f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.NON_HORIZONTAL, toolbarGripReleaseReason(9f, -9f, 9f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.BELOW_HORIZONTAL_THRESHOLD, toolbarGripReleaseReason(0f, 0f, 20f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.INVALID, toolbarGripReleaseReason(Float.NaN, 0f, 20f, 8f, side = true))
+        assertEquals(ToolbarGripOutcome.BELOW_VERTICAL_THRESHOLD, toolbarGripReleaseReason(8f, 2f, 8f, 8f))
+        assertEquals(ToolbarGripOutcome.UP, toolbarGripReleaseReason(2f, -8f, 8f, 8f))
+        assertEquals(true to false, toolbarHorizontalExpansionAfterDrag(false, false, 8f, 8f))
+        assertEquals(false to false, toolbarHorizontalExpansionAfterDrag(true, true, -8f, 8f))
     }
 
     @Test fun topGripWorkspaceOverlapYieldsToEditorButVisibleGripRemainsReachable() {
