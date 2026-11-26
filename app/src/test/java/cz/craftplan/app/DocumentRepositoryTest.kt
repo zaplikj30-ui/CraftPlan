@@ -1,13 +1,15 @@
 package cz.craftplan.app
 
 import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -54,16 +56,48 @@ class DocumentRepositoryTest {
     }
 
     @Test
+    fun firstSaveRenamesOnlyInsideWriterAndPermissionFailureCanBeRetried() = runBlocking {
+        val storage = TestDocumentTransactions()
+        val dir = folder.newFolder()
+        var denyRename = true
+        var renameCount = 0
+        val photos = PrivatePhotoStore(dir, {
+            assertTrue(storage.writerActive)
+            assertTrue(storage.revisions.isEmpty())
+        }, rename = { staged, final ->
+            assertTrue(storage.writerActive)
+            assertEquals(staged.parentFile, final.parentFile)
+            assertTrue(!final.exists())
+            assertArrayEquals(bundledSyntheticPhoto(), staged.readBytes())
+            if (denyRename) throw AccessDeniedException("/private/path/never-display")
+            Files.move(staged.toPath(), final.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            renameCount++
+        }, bundledBytes = ::bundledSyntheticPhoto)
+        val repository = DocumentRepository(storage, photos) {}
+        val request = DocumentSave(repository.open().version, 1, measuredSnapshot())
+        val failure = fails<StorageFailure> { repository.save(request) }
+        assertEquals("PHOTO_RENAME / ACCESS_DENIED", storageFailureCode(failure, StoragePhase.ACK))
+        assertNull(storage.headRow?.revisionId)
+        assertTrue(dir.listFiles()!!.isEmpty())
+
+        denyRename = false
+        assertEquals(request.targetId, repository.save(request).version.revisionId)
+        assertEquals(1, renameCount)
+        assertArrayEquals(bundledSyntheticPhoto(), dir.listFiles()!!.single().readBytes())
+    }
+
+    @Test
     fun missingMediaBarrierCannotPublishARevision() = runBlocking {
         val storage = TestDocumentTransactions()
         val dir = folder.newFolder()
         var mediaFails = true
         val repository = DocumentRepository(storage, PrivatePhotoStore(dir, {
             if (mediaFails) throw IOException("Injected media directory sync error")
-        }, ::bundledSyntheticPhoto)) {}
+        }, bundledBytes = ::bundledSyntheticPhoto)) {}
         val base = repository.open()
         val request = DocumentSave(base.version, 1, measuredSnapshot())
-        fails<IOException> { repository.save(request) }
+        val error = fails<StorageFailure> { repository.save(request) }
+        assertEquals("PHOTO_DIRECTORY_SYNC / IO_ERROR", storageFailureCode(error, StoragePhase.ACK))
         assertNull(storage.headRow?.revisionId)
         assertTrue(storage.revisions.isEmpty())
         mediaFails = false
@@ -75,10 +109,11 @@ class DocumentRepositoryTest {
     fun postCommitLostAckIsResolvedAcrossNewRepositoryInstances() = runBlocking {
         val storage = TestDocumentTransactions()
         val dir = folder.newFolder()
-        val photos = PrivatePhotoStore(dir, {}, ::bundledSyntheticPhoto)
+        val photos = PrivatePhotoStore(dir, {}, bundledBytes = ::bundledSyntheticPhoto)
         val repository = DocumentRepository(storage, photos) { throw IOException("Injected lost ACK") }
         val request = DocumentSave(repository.open().version, 1, measuredSnapshot())
-        fails<UncertainDocumentSave> { repository.save(request) }
+        val error = fails<UncertainDocumentSave> { repository.save(request) }
+        assertEquals("DB_DIRECTORY_SYNC / IO_ERROR", storageFailureCode(error, StoragePhase.ACK))
         assertEquals(request.targetId, storage.headRow!!.revisionId)
 
         val restarted = DocumentRepository(storage, photos) {}
@@ -136,7 +171,7 @@ class DocumentRepositoryTest {
     fun refusesReopenWhenAllConfirmedRevisionsHaveLostTheirSharedPhoto() = runBlocking {
         val storage = TestDocumentTransactions()
         val dir = folder.newFolder()
-        val repository = DocumentRepository(storage, PrivatePhotoStore(dir, {}, ::bundledSyntheticPhoto)) {}
+        val repository = DocumentRepository(storage, PrivatePhotoStore(dir, {}, bundledBytes = ::bundledSyntheticPhoto)) {}
         val version = repository.open().version
         val ack = repository.save(DocumentSave(version, 1, measuredSnapshot()))
         val media = dir.listFiles()!!.single()
@@ -147,7 +182,7 @@ class DocumentRepositoryTest {
     }
 
     private fun newRepository(storage: TestDocumentTransactions) =
-        DocumentRepository(storage, PrivatePhotoStore(folder.newFolder(), {}, ::bundledSyntheticPhoto)) {}
+        DocumentRepository(storage, PrivatePhotoStore(folder.newFolder(), {}, bundledBytes = ::bundledSyntheticPhoto)) {}
 
     private fun measuredSnapshot() = DocumentSnapshot(
         listOf(PhotoDimension(
@@ -166,12 +201,13 @@ class DocumentRepositoryTest {
         assertEquals(measuredSnapshot(), recovery.snapshot)
     }
 
-    private suspend inline fun <reified T : Exception> fails(crossinline block: suspend () -> Unit) {
+    private suspend inline fun <reified T : Exception> fails(crossinline block: suspend () -> Unit): T {
         try {
             block()
-            fail("Expected ${T::class.simpleName}")
+            throw AssertionError("Expected ${T::class.simpleName}")
         } catch (e: Exception) {
-            if (e !is T) throw e
+            if (e is T) return e
+            throw e
         }
     }
 
@@ -181,6 +217,8 @@ class DocumentRepositoryTest {
 internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
     var headRow: DocumentHead? = null
     val revisions = linkedMapOf<String, DocumentRevision>()
+    var writerActive = false
+        private set
     var failPublish = false
     var beforeWrite: (suspend () -> Unit)? = null
 
@@ -193,6 +231,7 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
         }
         val previousHead = headRow
         val previousRevisions = revisions.toMap()
+        writerActive = true
         try {
             return block(this)
         } catch (e: Exception) {
@@ -200,6 +239,8 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
             revisions.clear()
             revisions.putAll(previousRevisions)
             throw e
+        } finally {
+            writerActive = false
         }
     }
 

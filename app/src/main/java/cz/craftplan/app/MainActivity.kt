@@ -136,7 +136,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var openingPhoto by mutableStateOf(false)
         private set
-    var openFailed by mutableStateOf(false)
+    var storageDiagnostic by mutableStateOf<String?>(null)
         private set
     private var storageStatus by mutableStateOf(DocumentSaveStatus.SAVING)
     private var gestureEditing by mutableStateOf(false)
@@ -152,7 +152,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     fun openPhoto() {
         if (photo != null || openingPhoto) return
         openingPhoto = true
-        openFailed = false
+        storageDiagnostic = null
         viewModelScope.launch {
             try {
                 val (document, bitmap) = withContext(Dispatchers.IO) {
@@ -178,8 +178,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 photo = bitmap
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: Exception) {
-                openFailed = true
+            } catch (error: Exception) {
+                storageDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
             } finally {
                 openingPhoto = false
             }
@@ -197,6 +197,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         autosave = null
         gestureEditing = false
         photo = null
+        storageDiagnostic = null
         scene = DimensionScene()
     }
 
@@ -217,6 +218,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         val session = autosave ?: return
         if (!session.hasPendingChanges || saveJob?.isActive == true) return
         storageStatus = DocumentSaveStatus.SAVING
+        storageDiagnostic = null
         saveJob = viewModelScope.launch {
             try {
                 while (true) {
@@ -229,12 +231,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 storageStatus = DocumentSaveStatus.SAVED
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: DocumentConflict) {
-                storageStatus = DocumentSaveStatus.CONFLICT
-            } catch (_: UncertainDocumentSave) {
-                storageStatus = DocumentSaveStatus.UNCERTAIN
-            } catch (_: Exception) {
-                storageStatus = DocumentSaveStatus.FAILED
+            } catch (error: Exception) {
+                storageDiagnostic = storageFailureCode(error, StoragePhase.ACK)
+                storageStatus = when (error) {
+                    is DocumentConflict -> DocumentSaveStatus.CONFLICT
+                    is UncertainDocumentSave -> DocumentSaveStatus.UNCERTAIN
+                    else -> DocumentSaveStatus.FAILED
+                }
             }
         }
     }
@@ -668,7 +671,9 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     editorState.visibleDrawCandidates = visible
                 },
                 overlays = { if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState) },
-                storageStatus = { DocumentStatus(editorState.saveStatus, editorState::retrySave) },
+                storageStatus = {
+                    DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
+                },
                 toolbar = { modifier ->
                     if (editorState.saveStatus != DocumentSaveStatus.RECOVERED) EditorToolbar(
                         editorState, repeatHintOffset,
@@ -705,7 +710,10 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 Button(onClick = editorState::openPhoto, enabled = !editorState.openingPhoto) {
                     Text(stringResource(if (editorState.openingPhoto) R.string.document_opening else R.string.open_sample))
                 }
-                if (editorState.openFailed) Text(stringResource(R.string.document_open_failed))
+                editorState.storageDiagnostic?.let { code ->
+                    Text(stringResource(R.string.document_open_failed))
+                    Text(stringResource(R.string.document_storage_diagnostic, code))
+                }
                 val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
                     if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)
@@ -718,7 +726,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
 }
 
 @Composable
-private fun DocumentStatus(status: DocumentSaveStatus, retry: () -> Unit) {
+private fun DocumentStatus(status: DocumentSaveStatus, diagnostic: String?, retry: () -> Unit) {
     val label = when (status) {
         DocumentSaveStatus.SAVING -> R.string.document_saving
         DocumentSaveStatus.SAVED -> R.string.document_saved
@@ -734,6 +742,10 @@ private fun DocumentStatus(status: DocumentSaveStatus, retry: () -> Unit) {
         if (status == DocumentSaveStatus.FAILED || status == DocumentSaveStatus.UNCERTAIN ||
             status == DocumentSaveStatus.CONFLICT
         ) {
+            diagnostic?.let { code ->
+                Text(stringResource(R.string.document_storage_diagnostic, code),
+                    Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelSmall)
+            }
             TextButton(onClick = retry) { Text(stringResource(R.string.document_retry)) }
         }
     }

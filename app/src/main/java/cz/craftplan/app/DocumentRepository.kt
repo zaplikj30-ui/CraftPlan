@@ -2,7 +2,6 @@ package cz.craftplan.app
 
 import java.io.IOException
 import java.util.UUID
-import kotlinx.coroutines.CancellationException
 
 internal interface DocumentTransactions {
     suspend fun <T> read(block: suspend DocumentDao.() -> T): T
@@ -74,31 +73,35 @@ internal class DocumentRepository(
     }
 
     suspend fun save(request: DocumentSave): DocumentAck {
-        require(request.editGeneration > 0 && isUuid(request.operationId) && isUuid(request.targetId))
-        require(request.targetId != request.base.revisionId)
-        val bytes = SnapshotCodec.encode(request.snapshot)
-        require(SnapshotCodec.decode(bytes) == request.snapshot)
-        val proposed = DocumentRevision(
-            request.targetId, SYNTHETIC_DOCUMENT_ID, request.base.storageGeneration,
-            request.base.revisionId, request.operationId, request.editGeneration, sha256(bytes), bytes,
-        )
-
-        // Resolve a possible previous commit before preparing or writing anything.
-        val committed = verifyOutcome { transactions.read { inspect(proposed) } }
-        if (!committed) {
-            if (request.base.revisionId == null) photos.prepare() else photos.readAndSync()
+        val proposed = storagePhase(StoragePhase.SNAPSHOT) {
+            require(request.editGeneration > 0 && isUuid(request.operationId) && isUuid(request.targetId))
+            require(request.targetId != request.base.revisionId)
+            val bytes = SnapshotCodec.encode(request.snapshot)
+            require(SnapshotCodec.decode(bytes) == request.snapshot)
+            DocumentRevision(
+                request.targetId, SYNTHETIC_DOCUMENT_ID, request.base.storageGeneration,
+                request.base.revisionId, request.operationId, request.editGeneration, sha256(bytes), bytes,
+            )
         }
 
-        return verifyOutcome {
-            if (committed) photos.readAndSync() else transactions.write {
-                // Recheck inside the serialized writer transaction, including after media preparation.
-                if (!inspect(proposed)) {
-                    insertRevision(proposed)
-                    check(publish(proposed.documentId, proposed.storageGeneration,
-                        proposed.previousRevisionId, proposed.revisionId) == 1)
+        // Resolve a possible previous commit before preparing or writing anything.
+        val committed = verifyOutcome(StoragePhase.REVISION_CHECK) { transactions.read { inspect(proposed) } }
+        if (!committed) {
+            verifyOutcome(StoragePhase.REVISION_WRITE, preparingPhoto = true) {
+                transactions.write {
+                    if (!inspect(proposed)) {
+                        if (request.base.revisionId == null) photos.prepareForNewRevision() else photos.readAndSync()
+                        insertRevision(proposed)
+                        check(publish(proposed.documentId, proposed.storageGeneration,
+                            proposed.previousRevisionId, proposed.revisionId) == 1)
+                    }
                 }
             }
-            syncStorage()
+        }
+
+        return verifyOutcome(StoragePhase.REVISION_CONFIRM) {
+            if (committed) photos.readAndSync()
+            storagePhase(StoragePhase.DB_DIRECTORY_SYNC) { syncStorage() }
             check(transactions.read { inspect(proposed) })
             photos.readConfirmed()
             DocumentAck(request.operationId, request.editGeneration,
@@ -106,13 +109,16 @@ internal class DocumentRepository(
         }
     }
 
-    private suspend fun <T> verifyOutcome(block: suspend () -> T): T = try {
-        block()
-    } catch (error: CancellationException) {
-        throw error
-    } catch (error: DocumentConflict) {
-        throw error
-    } catch (error: Exception) {
+    private suspend fun <T> verifyOutcome(
+        phase: StoragePhase,
+        preparingPhoto: Boolean = false,
+        block: suspend () -> T,
+    ): T = try {
+        storagePhase(phase) { block() }
+    } catch (error: StorageFailure) {
+        // In the writer block, all photo barriers precede the first revision mutation.
+        // A known committed operation must keep uncertain status if re-verification fails.
+        if (preparingPhoto && error.phase.photoPreparation) throw error
         throw UncertainDocumentSave(error)
     }
 

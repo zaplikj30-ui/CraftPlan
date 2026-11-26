@@ -28,7 +28,7 @@ class PrivatePhotoStoreTest {
             FileChannel.open(it.toPath(), StandardOpenOption.READ).use { channel -> channel.force(true) }
             synchronized++
         }) { original }
-        assertArrayEquals(original, store.prepare())
+        assertArrayEquals(original, store.prepareForNewRevision())
         assertEquals(1, synchronized)
         assertEquals(1, dir.listFiles()!!.size)
         val reopened = PrivatePhotoStore(dir, { error("Read must not write") }) { error("No bundled access") }
@@ -39,11 +39,11 @@ class PrivatePhotoStoreTest {
     fun refusesCorruptionAndPreservesExistingFile() {
         val dir = folder.newFolder()
         val store = PrivatePhotoStore(dir, {}) { bundledSyntheticPhoto() }
-        store.prepare()
+        store.prepareForNewRevision()
         val file = dir.listFiles()!!.single()
         file.writeBytes(byteArrayOf(0))
         assertThrows(IOException::class.java) { store.readConfirmed() }
-        assertThrows(IOException::class.java) { store.prepare() }
+        assertThrows(IOException::class.java) { store.prepareForNewRevision() }
         assertArrayEquals(byteArrayOf(0), file.readBytes())
     }
 
@@ -54,9 +54,9 @@ class PrivatePhotoStoreTest {
         val store = PrivatePhotoStore(dir, { if (fail) throw IOException("Injected directory sync failure") }) {
             bundledSyntheticPhoto()
         }
-        assertThrows(IOException::class.java) { store.prepare() }
+        assertThrows(IOException::class.java) { store.prepareForNewRevision() }
         assertEquals(1, dir.listFiles()!!.count { it.name.startsWith("photo-") })
         fail = false
-        assertArrayEquals(bundledSyntheticPhoto(), store.prepare())
+        assertArrayEquals(bundledSyntheticPhoto(), store.prepareForNewRevision())
     }
 }

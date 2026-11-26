@@ -3,65 +3,79 @@ package cz.craftplan.app
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.IOException
-import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.StandardCopyOption
 
 /** One immutable copy under a content-addressed name inside the app's private directory. */
 internal class PrivatePhotoStore(
     private val directory: File,
     private val syncDirectory: (File) -> Unit,
+    private val rename: (File, File) -> Unit = { staged, final ->
+        Files.move(staged.toPath(), final.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    },
     private val bundledBytes: () -> ByteArray,
 ) {
     private val photo = StoredPhoto.synthetic
     private val finalFile = File(directory, "photo-${photo.sha256}.jpg")
 
-    fun prepare(): ByteArray {
-        if (!finalFile.exists()) {
+    /** Only the serialized database writer may publish a photo. It holds the writer
+     * transaction across the absence check, rename, media barriers and revision publication. */
+    fun prepareForNewRevision(): ByteArray {
+        // Require positive proof of absence. Treat unreadable entries and symlinks as existing.
+        val absent = storagePhase(StoragePhase.PHOTO_VERIFY) {
+            Files.notExists(finalFile.toPath(), LinkOption.NOFOLLOW_LINKS)
+        }
+        if (absent) {
             val bytes = readBundled()
-            val staged = Files.createTempFile(directory.toPath(), ".photo-staged-", ".jpg").toFile()
+            val staged = storagePhase(StoragePhase.PHOTO_STAGE_CREATE) {
+                Files.createTempFile(directory.toPath(), ".photo-staged-", ".jpg").toFile()
+            }
             try {
-                FileOutputStream(staged).use {
-                    it.write(bytes)
-                    it.fd.sync()
+                storagePhase(StoragePhase.PHOTO_STAGE_WRITE) {
+                    FileOutputStream(staged).use {
+                        it.write(bytes)
+                        storagePhase(StoragePhase.PHOTO_STAGE_SYNC) { it.fd.sync() }
+                    }
                 }
                 read(staged)
-                try {
-                    // Link is atomic and refuses to replace an existing protected file.
-                    Files.createLink(finalFile.toPath(), staged.toPath())
-                } catch (_: FileAlreadyExistsException) {
-                    // A concurrent installer won. Verify and sync its actual file below.
-                }
+                storagePhase(StoragePhase.PHOTO_RENAME) { rename(staged, finalFile) }
                 return readAndSync()
             } finally {
                 // Only this attempt's temporary copy of the verified bundled fixture.
-                // Never unlink a final name or sweep stages left by a prior process.
-                staged.delete()
+                try {
+                    staged.delete()
+                } catch (_: SecurityException) {
+                    // A cleanup denial must not hide the original write failure.
+                }
             }
         }
         return readAndSync()
     }
 
-    fun readBundled(): ByteArray = verify(bundledBytes())
+    fun readBundled(): ByteArray = storagePhase(StoragePhase.PHOTO_BUNDLE) { verify(bundledBytes()) }
 
     fun readConfirmed(): ByteArray = read(finalFile)
 
     fun readAndSync(): ByteArray {
-        val bytes = FileInputStream(finalFile).use {
-            val verified = verify(it.readNBytes(photo.size + 1))
-            it.fd.sync()
-            verified
+        val bytes = storagePhase(StoragePhase.PHOTO_VERIFY) {
+            FileInputStream(finalFile).use {
+                val verified = verify(it.readNBytes(photo.size + 1))
+                storagePhase(StoragePhase.PHOTO_FILE_SYNC) { it.fd.sync() }
+                verified
+            }
         }
-        syncDirectory(directory)
+        storagePhase(StoragePhase.PHOTO_DIRECTORY_SYNC) { syncDirectory(directory) }
         return bytes
     }
 
-    private fun read(file: File): ByteArray =
+    private fun read(file: File): ByteArray = storagePhase(StoragePhase.PHOTO_VERIFY) {
         FileInputStream(file).use { verify(it.readNBytes(photo.size + 1)) }
+    }
 
     private fun verify(bytes: ByteArray): ByteArray {
-        if (bytes.size != photo.size || sha256(bytes) != photo.sha256) {
-            throw IOException("Synthetic photo length or SHA-256 differs")
+        require(bytes.size == photo.size && sha256(bytes) == photo.sha256) {
+            "Synthetic photo length or SHA-256 differs"
         }
         return bytes
     }

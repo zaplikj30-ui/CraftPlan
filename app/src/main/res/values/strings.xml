@@ -11,6 +11,7 @@
     <string name="document_save_uncertain">NEPOTVRZENO</string>
     <string name="document_save_conflict">NEULOŽENO – uložená revize se změnila.</string>
     <string name="document_recovered">Novější revizi nelze otevřít. Zobrazena starší ověřená revize, pouze ke čtení.</string>
+    <string name="document_storage_diagnostic">Diagnostika úložiště: %1$s</string>
     <string name="document_retry">Zkusit znovu</string>
     <string name="document_leave_title">Práce zatím není potvrzená</string>
     <string name="document_leave_wait">Ukládání probíhá. Počkejte na potvrzení.</string>
