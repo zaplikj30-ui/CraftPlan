@@ -1,10 +1,14 @@
 package cz.craftplan.app
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.absoluteOffset
@@ -31,7 +35,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -48,6 +56,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -60,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -394,9 +404,15 @@ private fun EditorToolbarSurface(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
-    val expanded = state.toolbarExpanded
-    val verticalExpanded = state.toolbarExtraExpanded
-    val sideGrip = !expanded && !verticalExpanded
+    val reorder = remember { ToolbarReorder() }
+    val dragging = reorder.icon != null
+    // Expose both drop targets for the duration of the gesture without changing the saved expansion.
+    val expanded = state.toolbarExpanded || dragging
+    val verticalExpanded = state.toolbarExtraExpanded || dragging
+    val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val feedback = LocalHapticFeedback.current
+    val haptic = remember(feedback) { { feedback.performHapticFeedback(HapticFeedbackType.LongPress) } }
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
     val extraScrollState = rememberScrollState()
@@ -408,7 +424,9 @@ private fun EditorToolbarSurface(
     if (settingsOpen) {
         EditorSettingsDialog(state, onDismiss = { state.clearToolbarHint(); settingsOpen = false })
     }
-    Box {
+    ToolbarReorderScroll(reorder, state.toolbarLayout, rtl, scrollState, extraScrollState)
+    val dropColor = activeColors.primary
+    Box(Modifier.onGloballyPositioned { reorder.coordinates = it }.reorderToolbar(state, reorder, rtl, haptic)) {
         Surface(
             modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
                 .padding(top = if (sideGrip) 0.dp else gripTopOuterHitPadding, end = if (sideGrip) gripSideOuterHitPadding else 0.dp),
@@ -432,37 +450,12 @@ private fun EditorToolbarSurface(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 3.dp).horizontalScroll(extraScrollState), horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { state.requestFit(); state.showToolbarHint(R.string.toolbar_fit) }, modifier = toolbarButtonSize) {
-                            Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
-                        }
-                        IconButton(
-                            onClick = {
-                                state.toggleNotes()
-                                state.showToolbarHint(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden)
-                            },
-                            modifier = toolbarButtonSize.background(
-                                if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
-                            ),
-                        ) {
-                            Icon(
-                                painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
-                                stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
-                                Modifier.size(toolbarIconSize),
-                            )
-                        }
-                        IconButton(
-                            enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
-                            onClick = {
-                                state.scene = state.scene.closePhoto()
-                                state.showToolbarHint(R.string.toolbar_deselect)
-                            },
-                            modifier = toolbarButtonSize,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
-                        }
-                        DimensionMoveAction(state)
+                    ToolbarIconRow(
+                        ToolbarRow.EXTRA, state, reorder, extraScrollState,
+                        Modifier.fillMaxWidth().padding(bottom = 3.dp),
+                        Arrangement.Center,
+                        onSettings = { settingsOpen = true },
+                    ) {
                         if (BuildConfig.ENABLE_STRESS_TOOLS && state.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) StressToolbarMenu(state)
                     }
                     if (state.dimensionTestAppearances.values.isNotEmpty()) {
@@ -568,70 +561,12 @@ private fun EditorToolbarSurface(
                     }
                     if (expanded) {
                         Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outline))
-                        Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    state.showToolbarHint(R.string.editor_settings)
-                                    settingsOpen = true
-                                },
-                                modifier = toolbarButtonSize,
-                            ) {
-                                Icon(painterResource(R.drawable.ic_toolbar_settings), stringResource(R.string.editor_settings), Modifier.size(toolbarIconSize))
-                            }
-                            HistoryAction(false, R.string.toolbar_undo, state.history.canUndo) {
-                                val before = state.history
-                                state.undo()
-                                if (state.history !== before) state.showToolbarHint(R.string.toolbar_undo)
-                            }
-                            HistoryAction(true, R.string.toolbar_redo, state.history.canRedo) {
-                                val before = state.history
-                                state.redo()
-                                if (state.history !== before) state.showToolbarHint(R.string.toolbar_redo)
-                            }
-                            IconButton(
-                                enabled = state.scene.selectedId != null,
-                                onClick = {
-                                    val target = state.scene.selectedId
-                                    state.deleteSelected()
-                                    if (target != null && state.scene.find(target) == null) {
-                                        state.showToolbarHint(R.string.toolbar_deleted)
-                                    }
-                                },
-                                modifier = toolbarButtonSize,
-                            ) {
-                                Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
-                            }
-                            val locked = state.labelsLocked
-                            val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
-                            IconToggleButton(
-                                checked = locked,
-                                onCheckedChange = {
-                                    state.toggleLabelLock()
-                                    state.showToolbarHint(if (state.labelsLocked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
-                                },
-                                colors = IconButtonDefaults.iconToggleButtonColors(
-                                    containerColor = Color.Transparent,
-                                    contentColor = activeColors.onSurface,
-                                    checkedContainerColor = Color.Transparent,
-                                    checkedContentColor = activeColors.onPrimaryContainer,
-                                ),
-                                modifier = toolbarButtonSize
-                                    .background(if (locked) activeColors.primaryContainer else Color.Transparent, toolbarShape)
-                                    .semantics { contentDescription = lockLabel },
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("123", style = MaterialTheme.typography.labelSmall)
-                                        Icon(
-                                            painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
-                                            null, Modifier.size(15.dp),
-                                        )
-                                    }
-                                    Icon(
-                                        painterResource(R.drawable.ic_toolbar_label_motion), null, Modifier.size(32.dp, 12.dp),
-                                    )
-                                }
-                            }
+                        ToolbarIconRow(
+                            ToolbarRow.MAIN, state, reorder, scrollState,
+                            Modifier.weight(1f),
+                            Arrangement.Start,
+                            onSettings = { settingsOpen = true },
+                        ) {
                             if (BuildConfig.ENABLE_STRESS_TOOLS) ReservedToolbarActions()
                         }
                     }
@@ -644,6 +579,177 @@ private fun EditorToolbarSurface(
             side = sideGrip,
             onGripRegion = onGripRegion,
         )
+        if (dragging) Canvas(Modifier.matchParentSize()) {
+            val preview = reorder.preview(state.toolbarLayout, rtl) ?: return@Canvas
+            val origin = reorder.coordinates?.takeIf { it.isAttached }?.positionInRoot() ?: return@Canvas
+            val stroke = 3.dp.toPx()
+            val x = preview.markerX.coerceIn(
+                preview.rowBounds.left + stroke / 2,
+                maxOf(preview.rowBounds.left + stroke / 2, preview.rowBounds.right - stroke / 2),
+            ) - origin.x
+            drawLine(dropColor, Offset(x, preview.rowBounds.top - origin.y + stroke),
+                Offset(x, preview.rowBounds.bottom - origin.y - stroke), stroke)
+        }
+    }
+}
+
+@Composable
+private fun ToolbarReorderScroll(
+    reorder: ToolbarReorder, layout: ToolbarLayout, rtl: Boolean,
+    main: ScrollState, extra: ScrollState,
+) {
+    val edge = with(LocalDensity.current) { 24.dp.toPx() }
+    val step = with(LocalDensity.current) { 8.dp.toPx() }
+    LaunchedEffect(reorder.icon, layout, rtl, edge, step) {
+        if (reorder.icon == null) return@LaunchedEffect
+        while (true) {
+            val pointer = reorder.position
+            val preview = reorder.preview(layout, rtl)
+            if (pointer != null && preview != null) {
+                val bounds = preview.rowBounds
+                val edgeWidth = minOf(edge, bounds.width / 3f)
+                val direction = when {
+                    pointer.x < bounds.left + edgeWidth -> -1
+                    pointer.x >= bounds.right - edgeWidth -> 1
+                    else -> 0
+                }
+                if (direction != 0) {
+                    val scroll = if (preview.drop.row == ToolbarRow.MAIN) main else extra
+                    scroll.scrollBy(step * if (rtl) -direction else direction)
+                }
+            }
+            delay(24)
+        }
+    }
+}
+
+@Composable
+private fun ToolbarIconRow(
+    row: ToolbarRow, state: PhotoEditorState, reorder: ToolbarReorder, scroll: ScrollState,
+    modifier: Modifier, arrangement: Arrangement.Horizontal, onSettings: () -> Unit,
+    trailing: @Composable () -> Unit,
+) {
+    DisposableEffect(row, reorder) {
+        onDispose { reorder.rows.remove(row) }
+    }
+    Box(
+        modifier.height(56.dp).onGloballyPositioned { reorder.rows[row] = it.toolbarBounds() },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(scroll),
+            horizontalArrangement = arrangement,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            for (icon in state.toolbarLayout.icons(row)) key(icon) {
+                DisposableEffect(icon, reorder) {
+                    onDispose { reorder.slots.remove(icon) }
+                }
+                val outline = if (reorder.icon == icon)
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, toolbarShape) else Modifier
+                Box(toolbarButtonSize.then(outline).onGloballyPositioned {
+                    reorder.slots[icon] = it.toolbarBounds()
+                }) {
+                    MovableToolbarAction(icon, state, onSettings)
+                }
+            }
+            trailing()
+        }
+    }
+}
+
+@Composable
+private fun MovableToolbarAction(icon: ToolbarIcon, state: PhotoEditorState, onSettings: () -> Unit) {
+    when (icon) {
+        ToolbarIcon.SETTINGS -> IconButton(
+            onClick = { state.showToolbarHint(R.string.editor_settings); onSettings() },
+            modifier = toolbarButtonSize,
+        ) {
+            Icon(painterResource(R.drawable.ic_toolbar_settings), stringResource(R.string.editor_settings), Modifier.size(toolbarIconSize))
+        }
+        ToolbarIcon.UNDO -> HistoryAction(false, R.string.toolbar_undo, state.history.canUndo) {
+            val before = state.history
+            state.undo()
+            if (state.history !== before) state.showToolbarHint(R.string.toolbar_undo)
+        }
+        ToolbarIcon.REDO -> HistoryAction(true, R.string.toolbar_redo, state.history.canRedo) {
+            val before = state.history
+            state.redo()
+            if (state.history !== before) state.showToolbarHint(R.string.toolbar_redo)
+        }
+        ToolbarIcon.DELETE -> IconButton(
+            enabled = state.scene.selectedId != null,
+            onClick = {
+                val target = state.scene.selectedId
+                state.deleteSelected()
+                if (target != null && state.scene.find(target) == null) state.showToolbarHint(R.string.toolbar_deleted)
+            },
+            modifier = toolbarButtonSize,
+        ) {
+            Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
+        }
+        ToolbarIcon.LABEL_LOCK -> ToolbarLabelLock(state)
+        ToolbarIcon.FIT -> IconButton(
+            onClick = { state.requestFit(); state.showToolbarHint(R.string.toolbar_fit) },
+            modifier = toolbarButtonSize,
+        ) {
+            Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
+        }
+        ToolbarIcon.NOTES -> IconButton(
+            onClick = {
+                state.toggleNotes()
+                state.showToolbarHint(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden)
+            },
+            modifier = toolbarButtonSize.background(
+                if (state.showNotes) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, toolbarShape,
+            ),
+        ) {
+            Icon(
+                painterResource(if (state.showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden),
+                stringResource(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden),
+                Modifier.size(toolbarIconSize),
+            )
+        }
+        ToolbarIcon.DESELECT -> IconButton(
+            enabled = state.scene.selectedId != null || state.scene.tool != DimensionTool.SELECT,
+            onClick = { state.scene = state.scene.closePhoto(); state.showToolbarHint(R.string.toolbar_deselect) },
+            modifier = toolbarButtonSize,
+        ) {
+            Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
+        }
+        ToolbarIcon.DIMENSION_MOVE -> DimensionMoveAction(state)
+    }
+}
+
+@Composable
+private fun ToolbarLabelLock(state: PhotoEditorState) {
+    val locked = state.labelsLocked
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
+    IconToggleButton(
+        checked = locked,
+        onCheckedChange = {
+            state.toggleLabelLock()
+            state.showToolbarHint(if (state.labelsLocked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
+        },
+        colors = IconButtonDefaults.iconToggleButtonColors(
+            containerColor = Color.Transparent,
+            contentColor = colors.onSurface,
+            checkedContainerColor = Color.Transparent,
+            checkedContentColor = colors.onPrimaryContainer,
+        ),
+        modifier = toolbarButtonSize
+            .background(if (locked) colors.primaryContainer else Color.Transparent, toolbarShape)
+            .semantics { contentDescription = label },
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("123", style = MaterialTheme.typography.labelSmall)
+                Icon(painterResource(if (locked) R.drawable.ic_number_locked else R.drawable.ic_number_unlocked),
+                    null, Modifier.size(15.dp))
+            }
+            Icon(painterResource(R.drawable.ic_toolbar_label_motion), null, Modifier.size(32.dp, 12.dp))
+        }
     }
 }
 

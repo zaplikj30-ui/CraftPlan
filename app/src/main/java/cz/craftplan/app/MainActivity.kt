@@ -480,6 +480,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var dimensionsRequireSelection by mutableStateOf(false)
         private set
+    var toolbarLayout by mutableStateOf(ToolbarLayout.Default)
+        private set
     var toolbarHintsEnabled by mutableStateOf(true)
         private set
     var toolbarHint by mutableStateOf<Int?>(null)
@@ -526,6 +528,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         dimensionsRequireSelection = source.getBoolean("dimensions_require_selection", false)
+        toolbarLayout = ToolbarLayout.fromPreference(source.all["toolbar_icon_layout"] as? String)
         toolbarHintsEnabled = source.getBoolean("toolbar_hints_enabled", true)
         labelsLocked = source.getBoolean("labels_locked", false)
         val legacyAppearance = source.getInt("dimension_appearance_calibration", 0) < 1
@@ -559,6 +562,20 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
             landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,
         )
+    }
+
+    fun moveToolbarIcon(icon: ToolbarIcon, drop: ToolbarDrop) {
+        updateToolbarLayout(toolbarLayout.move(icon, drop))
+    }
+
+    fun resetToolbarLayout() {
+        updateToolbarLayout(ToolbarLayout.Default)
+    }
+
+    private fun updateToolbarLayout(layout: ToolbarLayout) {
+        if (layout == toolbarLayout) return
+        toolbarLayout = layout
+        preferences?.edit()?.putString("toolbar_icon_layout", layout.toPreference())?.apply()
     }
 
     fun updateToolbarHintsEnabled(enabled: Boolean) {

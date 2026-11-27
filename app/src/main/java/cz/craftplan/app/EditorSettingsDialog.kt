@@ -61,6 +61,18 @@ internal fun EditorSettingsDialog(state: PhotoEditorState, onDismiss: () -> Unit
                             }
                             Switch(checked = state.toolbarHintsEnabled, onCheckedChange = null)
                         }
+                        Text(
+                            stringResource(R.string.editor_settings_toolbar_section),
+                            Modifier.padding(top = 16.dp, bottom = 8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        TextButton(
+                            enabled = state.toolbarLayout != ToolbarLayout.Default,
+                            onClick = state::resetToolbarLayout,
+                        ) {
+                            Text(stringResource(R.string.editor_settings_toolbar_reset))
+                        }
                     }
                 }
                 if (state.toolbarHintsEnabled && state.toolbarHint == R.string.editor_settings) {
