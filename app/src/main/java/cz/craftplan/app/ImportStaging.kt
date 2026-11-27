@@ -69,6 +69,14 @@ internal class ImportStaging(
         return ImportCandidate(id, digest)
     }
 
+    fun rejectedCaptureIds(): List<PhotoId> =
+        checkNotNull(directory.list()).mapNotNull { name ->
+            val prefix = ".camera-rejected-"
+            if (!name.startsWith(prefix)) return@mapNotNull null
+            val id = runCatching { PhotoId(name.removePrefix(prefix)) }.getOrNull()
+            id?.takeUnless { it == PhotoId.SYNTHETIC_WORKBENCH }
+        }
+
     fun recordCaptureRejection(candidate: ImportCandidate) {
         val existing = rejectedCapture(candidate.photoId)
         if (existing == null) {

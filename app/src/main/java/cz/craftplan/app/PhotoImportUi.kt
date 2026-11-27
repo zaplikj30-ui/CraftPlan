@@ -40,11 +40,29 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     Button(onClick = { picker.launch(arrayOf("image/jpeg")) }, enabled = enabled) {
         Text(stringResource(R.string.import_photo))
     }
-    state.importedPhotos.captures.filterNot { it == state.captureInFlight }.forEachIndexed { index, id ->
-        TextButton(onClick = { state.previewCapture(id) }, enabled = enabled) {
-            Text(stringResource(R.string.camera_resume, index + 1))
+    val recovery = state.interruptedCaptures.filter { it.id in state.importedPhotos.captures && it.id != state.captureInFlight }
+    for (offer in recovery) {
+        Column {
+            Text(stringResource(R.string.camera_interrupted))
+            TextButton(onClick = { state.previewCapture(offer.id) }, enabled = enabled) {
+                Text(stringResource(R.string.camera_show_interrupted))
+            }
+            if (offer.discardCandidate != null) {
+                TextButton(onClick = { state.discardInterruptedCapture(offer) }, enabled = enabled) {
+                    Text(stringResource(R.string.camera_discard_interrupted))
+                }
+            }
+            TextButton(onClick = { state.deferInterruptedCapture(offer.id) }, enabled = enabled) {
+                Text(stringResource(R.string.import_later))
+            }
         }
     }
+    state.importedPhotos.captures.filterNot { id -> id == state.captureInFlight || recovery.any { it.id == id } }
+        .forEachIndexed { index, id ->
+            TextButton(onClick = { state.previewCapture(id) }, enabled = enabled) {
+                Text(stringResource(R.string.camera_resume, index + 1))
+            }
+        }
     state.importedPhotos.pending.forEachIndexed { index, candidate ->
         TextButton(onClick = { state.previewImport(candidate) }, enabled = enabled) {
             Text(stringResource(R.string.import_resume, index + 1))

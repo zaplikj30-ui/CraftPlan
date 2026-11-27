@@ -30,6 +30,8 @@ internal sealed interface CaptureSource {
 
 internal data class CaptureCopy(val candidate: ImportCandidate, val bytes: ByteArray)
 
+internal data class InterruptedCapture(val id: PhotoId, val discardCandidate: ImportCandidate?)
+
 internal class PhotoImports(
     private val directory: File,
     private val syncDirectory: (File) -> Unit,
@@ -71,7 +73,11 @@ internal class PhotoImports(
         storagePhase(StoragePhase.CAMERA_CAPTURE) {
             // Some camera apps write even when they return CANCELED. Keep any real output for
             // an explicit recovery/discard decision, and never promote it from this callback.
-            captures.discardEmpty(id)
+            transactions.write {
+                if (head(id.documentId) == null && !hasRevisions(id.documentId) && !catalog.exists(id.name) &&
+                    staging.candidates().none { it.photoId == id } && staging.rejectedCapture(id) == null
+                ) captures.discardEmpty(id)
+            }
         }
     }
 
@@ -95,6 +101,62 @@ internal class PhotoImports(
             if (captures.hasOutput(id)) add(CaptureSource.Camera(id))
             staging.candidates().filter { it.photoId == id }.forEach { add(CaptureSource.Stage(it)) }
         }
+    }
+
+    /** Startup offers are read-only until the user acts. A previous explicit rejection may finish. */
+    suspend fun interruptedCaptures(
+        active: PhotoId?,
+        releaseOutput: (PhotoId) -> Unit,
+        verifyImage: (CaptureCopy) -> Unit = { copy ->
+            previewJpeg(copy.candidate, copy.bytes, null).bitmap.recycle()
+        },
+    ): List<InterruptedCapture> {
+        for (id in staging.rejectedCaptureIds()) {
+            if (id == active) continue
+            inspectCameraRecovery {
+                releaseOutput(id)
+                captureLock.withLock {
+                    staging.rejectedCapture(id)?.let { finishCaptureRejection(it) }
+                }
+            }
+        }
+        val offers = mutableListOf<InterruptedCapture>()
+        for (id in list().captures) {
+            if (id == active) continue
+            val offer = inspectCameraRecovery {
+                releaseOutput(id)
+                val sources = captureSources(id)
+                val digests = sources.map { source ->
+                    inspectCameraRecovery {
+                        val copy = readCaptureCopy(source)
+                        verifyImage(copy)
+                        copy.candidate.digest
+                    }
+                }
+                if (digests.none { it != null }) return@inspectCameraRecovery null
+                val sameDigest = digests.first()?.takeIf { digest -> digests.all { it == digest } }
+                val canReject = sameDigest != null && staging.rejectedCapture(id) == null &&
+                    transactions.read { head(id.documentId) == null && !hasRevisions(id.documentId) && !catalog.exists(id.name) }
+                InterruptedCapture(id, sameDigest?.takeIf { canReject }?.let { ImportCandidate(id, it) })
+            }
+            if (offer != null) offers.add(offer)
+        }
+        return offers
+    }
+
+    private suspend fun <T> inspectCameraRecovery(action: suspend () -> T): T? = try {
+        action()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        // Leave unverified or conflicted sources on disk and do not describe them as a verified image.
+        null
+    }
+
+    suspend fun discardInterruptedCapture(candidate: ImportCandidate) {
+        val actual = stageCapture(candidate.photoId)
+        check(actual == candidate)
+        rejectCaptureForRetake(actual)
     }
 
     suspend fun readCaptureCopy(source: CaptureSource): CaptureCopy = captureLock.withLock {

@@ -21,7 +21,10 @@
     <string name="document_leave">Odejít</string>
     <string name="camera_take_picture">Vyfotit fotografii</string>
     <string name="camera_stop_waiting">Ukončit čekání na fotoaparát</string>
-    <string name="camera_resume">Pokračovat ve focení %1$d</string>
+    <string name="camera_resume">Zkontrolovat výstup fotoaparátu %1$d</string>
+    <string name="camera_interrupted">Nedokončené fotografování</string>
+    <string name="camera_show_interrupted">Zobrazit snímek</string>
+    <string name="camera_discard_interrupted">Zahodit</string>
     <string name="camera_preview">Náhled snímku – plná kvalita</string>
     <string name="camera_retake">Vyfotit znovu</string>
     <string name="camera_confirm">Použít fotografii</string>

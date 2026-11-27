@@ -182,6 +182,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     private val storage get() = AppDocumentStorage.get(getApplication())
     private var importRefresh: Job? = null
+    private var cameraRecoveryScanned = false
+    var interruptedCaptures by mutableStateOf<List<InterruptedCapture>>(emptyList())
+        private set
 
     var photo by mutableStateOf<Bitmap?>(null)
         private set
@@ -261,12 +264,37 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         importRefresh?.cancel()
         importRefresh = viewModelScope.launch {
             try {
+                if (!cameraRecoveryScanned) {
+                    val active = captureInFlight
+                    interruptedCaptures = withContext(Dispatchers.IO) {
+                        storage.imports.interruptedCaptures(active, releaseOutput = {
+                            revokeCameraOutput(getApplication(), it)
+                        })
+                    }
+                    cameraRecoveryScanned = true
+                }
                 importedPhotos = withContext(Dispatchers.IO) { storage.imports.list() }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
             }
+        }
+    }
+
+    fun deferInterruptedCapture(id: PhotoId) {
+        interruptedCaptures = interruptedCaptures.filterNot { it.id == id }
+    }
+
+    fun discardInterruptedCapture(offer: InterruptedCapture) {
+        val candidate = offer.discardCandidate ?: return
+        if (offer !in interruptedCaptures || candidate.photoId == captureInFlight) return
+        runImport(StoragePhase.CAMERA_CAPTURE) {
+            withContext(Dispatchers.IO) {
+                revokeCameraOutput(getApplication(), candidate.photoId)
+                storage.imports.discardInterruptedCapture(candidate)
+            }
+            deferInterruptedCapture(offer.id)
         }
     }
 

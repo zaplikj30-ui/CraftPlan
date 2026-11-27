@@ -23,6 +23,47 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun startupOffersOnlyVerifiedImagesAndFinishesPriorDurableRejection() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        fun imports() = PhotoImports(dir, {}, staging(dir), db, catalog) { _, _ -> error("No revision expected") }
+        val bytes = bundledSyntheticPhoto()
+        fun attempt(payload: ByteArray): PhotoId = imports().beginCapture().also {
+            CameraCaptureStore.outputFile(dir, it).writeBytes(payload)
+        }
+        val ready = attempt(bytes)
+        val active = attempt(bytes)
+        val empty = attempt(byteArrayOf())
+        val invalid = attempt(byteArrayOf(1))
+        val conflicted = attempt(bytes)
+        imports().stageCapture(conflicted)
+        CameraCaptureStore.outputFile(dir, conflicted).writeBytes(bytes + byteArrayOf(1))
+        val rejected = attempt(bytes)
+        staging(dir).recordCaptureRejection(imports().stageCapture(rejected))
+        val pending = attempt(bytes)
+        catalog.rows[pending.name] = PhotoImportRow(pending.name, ByteArray(4097))
+        val released = mutableSetOf<PhotoId>()
+
+        val offers = imports().interruptedCaptures(active, releaseOutput = { released += it }) {
+            check(it.bytes.size >= bytes.size)
+        }.associateBy { it.id }
+        assertEquals(setOf(ready, conflicted, pending), offers.keys)
+        assertFalse(active in released)
+        assertNull(offers.getValue(conflicted).discardCandidate)
+        assertNull(offers.getValue(pending).discardCandidate)
+        assertFalse(CameraCaptureStore.outputFile(dir, rejected).exists())
+        assertNull(staging(dir).rejectedCapture(rejected))
+        assertTrue(CameraCaptureStore.outputFile(dir, empty).exists())
+        assertTrue(CameraCaptureStore.outputFile(dir, invalid).exists())
+        val token = checkNotNull(offers.getValue(ready).discardCandidate)
+        assertTrue(staging(dir).candidates().none { it.photoId == ready })
+        imports().discardInterruptedCapture(token)
+        assertFalse(CameraCaptureStore.outputFile(dir, ready).exists())
+        assertTrue(CameraCaptureStore.outputFile(dir, active).exists())
+    }
+
+    @Test
     fun retakeRecordsRejectionBeforeRemovingOnlyTheApprovedDraft(): Unit = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()
