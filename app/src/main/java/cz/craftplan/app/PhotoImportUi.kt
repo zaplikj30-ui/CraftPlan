@@ -112,6 +112,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val cases = state.importedPhotos.recoveryCases(state.captureInFlight, state.failedPhotoRecovery)
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
     var recoveryOffered by rememberSaveable { mutableStateOf(false) }
+    var automaticRecovery by rememberSaveable { mutableStateOf(false) }
     var recoveryIndex by rememberSaveable { mutableStateOf(0) }
     var listPage by rememberSaveable { mutableStateOf<String?>(null) }
     val listStatus = state.photoListStatus
@@ -133,7 +134,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             else stringResource(R.string.photo_list_saved_title))
     }
     if (cases.isNotEmpty() && listStatus == PhotoListStatus.READY) {
-        TextButton(onClick = { recoveryOffered = true; recoveryOpen = true }, enabled = listEnabled) {
+        TextButton(onClick = { recoveryOffered = true; automaticRecovery = false; recoveryOpen = true }, enabled = listEnabled) {
             Text(stringResource(R.string.photo_recovery_continue, cases.size))
         }
     }
@@ -146,17 +147,23 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     }
     val noReview = state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden
     val canOffer = noReview && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
-    LaunchedEffect(canOffer, cases.isNotEmpty()) {
+    LaunchedEffect(canOffer, cases, state.importedPhotos.emptyCaptureOnly) {
         if (canOffer && cases.isNotEmpty() && !recoveryOffered) {
             recoveryOffered = true
-            recoveryOpen = true
+            val index = state.importedPhotos.automaticRecoveryIndex(cases, state.failedPhotoRecovery)
+            if (index >= 0) {
+                recoveryIndex = index
+                automaticRecovery = true
+                recoveryOpen = true
+            }
         }
     }
     if (recoveryOpen && cases.isNotEmpty() && noReview && listPage == null) {
         val index = recoveryIndex.coerceIn(cases.indices)
         PhotoRecoveryDialog(
             state, cases[index], index, cases.size,
-            onStep = { recoveryIndex = index + it },
+            requirePreview = automaticRecovery && cases[index].id != state.failedPhotoRecovery,
+            onStep = { automaticRecovery = false; recoveryIndex = index + it },
             onDismiss = { recoveryOpen = false },
             onOpen = { case ->
                 recoveryOpen = false
@@ -314,6 +321,7 @@ private fun PhotoRecoveryDialog(
     case: PhotoRecoveryCase,
     index: Int,
     count: Int,
+    requirePreview: Boolean,
     onStep: (Int) -> Unit,
     onDismiss: () -> Unit,
     onOpen: (PhotoRecoveryCase) -> Unit,
@@ -327,6 +335,12 @@ private fun PhotoRecoveryDialog(
         preview = state.recoveryPreview(case)
         loading = false
     }
+    // An automatic offer is not a technical inspection dialog. Keep all cases
+    // available on request, but do not interrupt the user for a missing thumbnail.
+    LaunchedEffect(requirePreview, loading, preview) {
+        if (requirePreview && !loading && preview == null) onDismiss()
+    }
+    if (requirePreview && (loading || preview == null)) return
     val title = when (case) {
         is PhotoRecoveryCase.Camera -> R.string.camera_interrupted
         is PhotoRecoveryCase.Import -> R.string.import_preview

@@ -53,6 +53,16 @@ internal class CameraCaptureStore(
         }
     }
 
+    // Used only as a lightweight list hint; an external writer may still change the file.
+    fun isEmptyOutput(id: PhotoId): Boolean = try {
+        val attributes = Files.readAttributes(file(id).toPath(), BasicFileAttributes::class.java, NOFOLLOW_LINKS)
+        attributes.isRegularFile && attributes.size() == 0L
+    } catch (_: java.io.IOException) {
+        false
+    } catch (_: SecurityException) {
+        false
+    }
+
     fun discardEmpty(id: PhotoId) {
         val output = file(id).toPath()
         if (Files.isRegularFile(output, NOFOLLOW_LINKS) && Files.size(output) == 0L) remove(id)

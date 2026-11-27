@@ -86,6 +86,12 @@ class PhotoImportTest {
         val cases = imports().list().copy(confirmedWithRecoverySources = listOf(saved)).recoveryCases(active, saved)
         assertEquals(setOf(ready, empty, invalid, malformed, conflict, uncertain, oldImport.photoId, saved), cases.map { it.id }.toSet())
         assertEquals(1, cases.count { it is PhotoRecoveryCase.Saved })
+        val listing = imports().list()
+        assertEquals(setOf(empty), listing.emptyCaptureOnly)
+        assertEquals(saved, cases[listing.automaticRecoveryIndex(cases, saved)].id)
+        assertEquals(-1, listing.automaticRecoveryIndex(listOf(PhotoRecoveryCase.Camera(empty)), null))
+        assertEquals(1, listing.automaticRecoveryIndex(listOf(PhotoRecoveryCase.Camera(empty), PhotoRecoveryCase.Camera(ready)), null))
+        assertTrue(CameraCaptureStore.outputFile(dir, empty).exists())
         val decoded = mutableListOf<Int>()
         suspend fun inspect(id: PhotoId) =
             imports().inspectRecovery(cases.single { it.id == id }, { releases += it }) {

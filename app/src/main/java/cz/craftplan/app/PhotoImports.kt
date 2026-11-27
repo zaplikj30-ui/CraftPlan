@@ -31,6 +31,8 @@ internal data class ImportPreview(
 internal data class PhotoList(
     val confirmed: List<PhotoId>, val pending: List<ImportCandidate>, val captures: List<PhotoId> = emptyList(),
     val confirmedWithRecoverySources: List<PhotoId> = emptyList(),
+    // Presentation hint only: never permission to delete or hide a protected source.
+    val emptyCaptureOnly: Set<PhotoId> = emptySet(),
 )
 
 internal sealed interface CaptureSource {
@@ -58,6 +60,12 @@ internal fun PhotoList.recoveryCases(active: PhotoId?, failed: PhotoId?): List<P
     pending.forEach { add(PhotoRecoveryCase.Import(it)) }
     (listOfNotNull(failed) + confirmedWithRecoverySources).distinct().filterNot { it == active }
         .forEach { add(PhotoRecoveryCase.Saved(it)) }
+}
+
+internal fun PhotoList.automaticRecoveryIndex(cases: List<PhotoRecoveryCase>, failed: PhotoId?): Int {
+    val failedIndex = cases.indexOfFirst { it is PhotoRecoveryCase.Saved && it.id == failed }
+    if (failedIndex >= 0) return failedIndex
+    return cases.indexOfFirst { it.id !in emptyCaptureOnly }
 }
 
 internal data class RecoveryImage<T>(val image: T, val sourceDamaged: Boolean)
@@ -94,8 +102,12 @@ internal class PhotoImports(
         val pendingCaptures = (cameraAttempts + conflictingStages).distinct().filterNot { it in committed }
         val represented = (confirmed + pendingCaptures).toHashSet()
         val recoveryIds = (cameraAttempts + staged.map { it.photoId }).toHashSet()
+        val stagedIds = staged.mapTo(hashSetOf()) { it.photoId }
+        val emptyCaptureOnly = pendingCaptures.filterTo(hashSetOf()) {
+            it !in stagedIds && captures.isEmptyOutput(it)
+        }
         return PhotoList(confirmed, staged.filterNot { it.photoId in represented },
-            pendingCaptures, confirmed.filter { it in recoveryIds })
+            pendingCaptures, confirmed.filter { it in recoveryIds }, emptyCaptureOnly)
     }
 
     fun receive(input: InputStream): ImportCandidate = storagePhase(StoragePhase.IMPORT_STAGE) {
