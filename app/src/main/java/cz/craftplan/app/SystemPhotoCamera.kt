@@ -37,6 +37,7 @@ internal class SystemPhotoCamera(
 ) {
     private var active: PhotoId? = null
     private var launcher: ActivityResultLauncher<Uri>? = null
+    private var mode = CameraResultMode.CRAFTPLAN_PREVIEW
 
     fun restore(saved: Bundle?) {
         val name = saved?.getString(SavedAttempt) ?: run {
@@ -48,21 +49,24 @@ internal class SystemPhotoCamera(
         } catch (_: IllegalArgumentException) {
             null
         }
-        if (id == null) state.updateCaptureInFlight(null) else register(id)
+        val restoredMode = if (saved.getBoolean(SavedDirectMode)) CameraResultMode.DIRECT_AFTER_SUCCESS
+            else CameraResultMode.CRAFTPLAN_PREVIEW
+        if (id == null) state.updateCaptureInFlight(null) else register(id, restoredMode)
     }
 
     fun save(out: Bundle) {
         out.putString(SavedAttempt, active?.name)
+        out.putBoolean(SavedDirectMode, mode == CameraResultMode.DIRECT_AFTER_SUCCESS)
     }
 
-    fun launch(id: PhotoId) {
+    fun launch(id: PhotoId, resultMode: CameraResultMode = CameraResultMode.CRAFTPLAN_PREVIEW) {
         if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             state.cameraLaunchFailed(id, "CAMERA_CAPTURE / LAUNCH_INTERRUPTED")
             return
         }
         try {
             abandon()
-            register(id)
+            register(id, resultMode)
             checkNotNull(launcher).launch(cameraUri(activity, id))
         } catch (error: Exception) {
             if (active == id) {
@@ -87,15 +91,16 @@ internal class SystemPhotoCamera(
         state.updateCaptureInFlight(null)
     }
 
-    private fun register(id: PhotoId) {
+    private fun register(id: PhotoId, resultMode: CameraResultMode) {
         active = id
+        mode = resultMode
         state.updateCaptureInFlight(id)
         // Use the attempt key also when the Activity is recreated over the system camera.
         val registered = activity.activityResultRegistry.register("take-photo-${id.name}", TakeFullPhoto()) { ok ->
             if (active == id) {
                 unregister()
                 state.updateCaptureInFlight(null)
-                state.cameraResult(id, ok)
+                state.cameraResult(id, ok, resultMode)
             }
         }
         // A pending result can be delivered synchronously by register().
@@ -110,6 +115,7 @@ internal class SystemPhotoCamera(
 
     private companion object {
         const val SavedAttempt = "craftplan.system_camera_attempt"
+        const val SavedDirectMode = "craftplan.system_camera_direct"
     }
 }
 

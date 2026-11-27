@@ -23,6 +23,18 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun directCameraConfirmationRequiresSuccessAndAnUndamagedImage() {
+        assertTrue(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(true, false))
+        assertFalse(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(false, false))
+        assertFalse(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(true, true))
+        assertFalse(CameraResultMode.CRAFTPLAN_PREVIEW.confirmsAutomatically(true, false))
+        assertFalse(PhotoConfirmation.AUTOMATIC.permits(true))
+        assertFalse(PhotoConfirmation.EXPLICIT.permits(true))
+        assertTrue(PhotoConfirmation.EXPLICIT_DAMAGED.permits(true))
+        assertFalse(PhotoConfirmation.EXPLICIT_DAMAGED.permits(false))
+    }
+
+    @Test
     fun startupOffersOnlyVerifiedImagesAndFinishesPriorDurableRejection() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()

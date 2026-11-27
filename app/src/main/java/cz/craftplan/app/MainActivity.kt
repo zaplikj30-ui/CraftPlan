@@ -98,7 +98,7 @@ class MainActivity : ComponentActivity() {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
                 CraftPlan(
-                    editorState, window, onCapture = { editorState.requestCapture(systemCamera::launch) },
+                    editorState, window, onCapture = { editorState.requestCapture { id -> systemCamera.launch(id) } },
                     onStopCameraWait = systemCamera::stopWaiting,
                 )
             }
@@ -350,7 +350,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun cameraResult(id: PhotoId, success: Boolean) {
+    fun cameraResult(id: PhotoId, success: Boolean, mode: CameraResultMode) {
         try {
             revokeCameraOutput(getApplication(), id)
         } catch (error: Exception) {
@@ -363,11 +363,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 withContext(Dispatchers.IO) { storage.imports.finishCanceledCapture(id) }
             }
         } else if (cameraPreviewId == null && importCandidate == null) {
-            previewCapture(id)
+            loadCameraResult(id, mode)
         }
     }
 
-    fun previewCapture(id: PhotoId) {
+    fun previewCapture(id: PhotoId) = loadCameraResult(id, CameraResultMode.CRAFTPLAN_PREVIEW)
+
+    private fun loadCameraResult(id: PhotoId, mode: CameraResultMode) {
         if (captureInFlight == id) return
         runImport(StoragePhase.CAMERA_CAPTURE) {
             clearImportPreview()
@@ -383,6 +385,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             } catch (error: Exception) {
                 captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
                 throw error
+            }
+            val preview = checkNotNull(importPreview)
+            if (mode.confirmsAutomatically(resultSucceeded = true, sourceDamaged = preview.sourceDamaged)) {
+                saveConfirmedPreview(preview, PhotoConfirmation.AUTOMATIC, source = null)
             }
         }
     }
@@ -475,18 +481,20 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         recoveringConfirmedPhoto = false
     }
 
-    fun confirmImport() {
-        val preview = importPreview ?: return
+    fun confirmImport(displayed: ImportCandidate, confirmation: PhotoConfirmation) {
+        val preview = importPreview?.takeIf { it.candidate == displayed } ?: return
+        require(confirmation != PhotoConfirmation.AUTOMATIC)
         val source = selectedCaptureSource
-        runImport(StoragePhase.REVISION_CONFIRM) {
-            val document = withContext(Dispatchers.IO) {
-                if (source != null) storage.imports.stageCaptureCopy(source, preview.candidate)
-                storage.imports.confirm(preview.candidate, preview.photo)
-            }
-            check(document.snapshot.photo == preview.photo)
-            clearImportPreview()
-            enterEditor(document, preview.bitmap)
-        }
+        runImport(StoragePhase.REVISION_CONFIRM) { saveConfirmedPreview(preview, confirmation, source) }
+    }
+
+    private suspend fun saveConfirmedPreview(
+        preview: ImportPreview, confirmation: PhotoConfirmation, source: CaptureSource?,
+    ) {
+        val document = withContext(Dispatchers.IO) { storage.imports.confirmPreview(preview, confirmation, source) }
+        check(document.snapshot.photo == preview.photo)
+        clearImportPreview()
+        enterEditor(document, preview.bitmap)
     }
 
     fun discardImport() {
@@ -507,11 +515,15 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     private fun runImport(phase: StoragePhase, after: () -> Unit = {}, action: suspend () -> Unit) {
         if (importBusy || openingPhoto || photo != null) return
-        importRefresh?.cancel()
+        val refresh = importRefresh
+        refresh?.cancel()
         importBusy = true
         importDiagnostic = null
         viewModelScope.launch {
             try {
+                // A canceled startup scan may still be leaving a blocking filesystem call.
+                // Wait before creating a new camera output it could otherwise discover.
+                refresh?.join()
                 action()
             } catch (error: CancellationException) {
                 throw error

@@ -167,7 +167,14 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = state::confirmImport, enabled = enabled && state.importPreview != null) {
+                    val shown = state.importPreview
+                    TextButton(onClick = {
+                        if (shown != null) {
+                            val consent = if (shown.sourceDamaged) PhotoConfirmation.EXPLICIT_DAMAGED
+                                else PhotoConfirmation.EXPLICIT
+                            state.confirmImport(shown.candidate, consent)
+                        }
+                    }, enabled = enabled && shown != null) {
                         val label = if (state.selectedCaptureSource != null) {
                             if (state.importPreview?.sourceDamaged == true) R.string.camera_recovery_save_damaged
                             else R.string.camera_recovery_save

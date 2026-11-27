@@ -8,8 +8,23 @@ import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+internal enum class PhotoConfirmation {
+    AUTOMATIC, EXPLICIT, EXPLICIT_DAMAGED;
+
+    fun permits(sourceDamaged: Boolean): Boolean = sourceDamaged == (this == EXPLICIT_DAMAGED)
+}
+
+internal enum class CameraResultMode {
+    CRAFTPLAN_PREVIEW, DIRECT_AFTER_SUCCESS;
+
+    fun confirmsAutomatically(resultSucceeded: Boolean, sourceDamaged: Boolean): Boolean =
+        this == DIRECT_AFTER_SUCCESS && resultSucceeded && PhotoConfirmation.AUTOMATIC.permits(sourceDamaged)
+}
 
 internal data class ImportPreview(
     val candidate: ImportCandidate, val photo: StoredPhoto, val bitmap: Bitmap, val sourceDamaged: Boolean,
@@ -114,6 +129,7 @@ internal class PhotoImports(
         for (id in staging.rejectedCaptureIds()) {
             if (id == active) continue
             inspectCameraRecovery {
+                currentCoroutineContext().ensureActive()
                 releaseOutput(id)
                 captureLock.withLock {
                     staging.rejectedCapture(id)?.let { finishCaptureRejection(it) }
@@ -124,6 +140,7 @@ internal class PhotoImports(
         for (id in list().captures) {
             if (id == active) continue
             val offer = inspectCameraRecovery {
+                currentCoroutineContext().ensureActive()
                 releaseOutput(id)
                 val sources = captureSources(id)
                 val digests = sources.map { source ->
@@ -266,6 +283,17 @@ internal class PhotoImports(
         // Earlier versions could write the catalog before finishing the first revision.
         val existing = transactions.read { catalogPhoto(candidate.photoId) }
         previewJpeg(candidate, bytes, existing)
+    }
+
+    suspend fun confirmPreview(
+        preview: ImportPreview, confirmation: PhotoConfirmation, copySource: CaptureSource? = null,
+    ): OpenDocument {
+        require(confirmation.permits(preview.sourceDamaged))
+        if (copySource != null) {
+            require(confirmation != PhotoConfirmation.AUTOMATIC)
+            stageCaptureCopy(copySource, preview.candidate)
+        }
+        return confirm(preview.candidate, preview.photo)
     }
 
     suspend fun confirm(candidate: ImportCandidate, photo: StoredPhoto): OpenDocument {
