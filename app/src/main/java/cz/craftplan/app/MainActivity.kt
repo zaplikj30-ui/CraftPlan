@@ -111,6 +111,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // A previously empty external output may receive bytes after an interruption.
+        // Reclassify on foreground return, without deleting or continuously polling it.
+        if (editorState.photoListStatus == PhotoListStatus.READY &&
+            editorState.importedPhotos.emptyCaptureOnly.isNotEmpty() &&
+            editorState.cameraPreviewId == null && editorState.importCandidate == null
+        ) editorState.refreshImports()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         systemCamera.save(outState)
         super.onSaveInstanceState(outState)

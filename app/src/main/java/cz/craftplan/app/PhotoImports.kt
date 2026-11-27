@@ -56,11 +56,15 @@ internal sealed interface PhotoRecoveryCase {
 }
 
 internal fun PhotoList.recoveryCases(active: PhotoId?, failed: PhotoId?): List<PhotoRecoveryCase> = buildList {
-    captures.filterNot { it == active }.forEach { add(PhotoRecoveryCase.Camera(it)) }
+    captures.filterNot { it == active || it in emptyCaptureOnly }.forEach { add(PhotoRecoveryCase.Camera(it)) }
     pending.forEach { add(PhotoRecoveryCase.Import(it)) }
     (listOfNotNull(failed) + confirmedWithRecoverySources).distinct().filterNot { it == active }
         .forEach { add(PhotoRecoveryCase.Saved(it)) }
 }
+
+// Technical inspection is separate from the user's photo recovery list.
+internal fun PhotoList.emptyTechnicalCaptures(active: PhotoId?, failed: PhotoId?): List<PhotoId> =
+    captures.filter { it in emptyCaptureOnly && it != active && it != failed }
 
 internal fun PhotoList.automaticRecoveryIndex(cases: List<PhotoRecoveryCase>, failed: PhotoId?): Int {
     val failedIndex = cases.indexOfFirst { it is PhotoRecoveryCase.Saved && it.id == failed }

@@ -110,6 +110,8 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         Text(stringResource(R.string.import_photo))
     }
     val cases = state.importedPhotos.recoveryCases(state.captureInFlight, state.failedPhotoRecovery)
+    val technicalCaptures = if (BuildConfig.ENABLE_STRESS_TOOLS && state.diagnosticsEnabled)
+        state.importedPhotos.emptyTechnicalCaptures(state.captureInFlight, state.failedPhotoRecovery) else emptyList()
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
     var recoveryOffered by rememberSaveable { mutableStateOf(false) }
     var automaticRecovery by rememberSaveable { mutableStateOf(false) }
@@ -138,6 +140,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             Text(stringResource(R.string.photo_recovery_continue, cases.size))
         }
     }
+    if (technicalCaptures.isNotEmpty() && listStatus == PhotoListStatus.READY) {
+        TextButton(onClick = { listPage = "technical" }, enabled = listEnabled) {
+            Text(stringResource(R.string.photo_technical_attempts, technicalCaptures.size))
+        }
+    }
     when (listStatus) {
         PhotoListStatus.LOADING -> Text(stringResource(R.string.photo_list_loading))
         PhotoListStatus.FAILED -> TextButton(onClick = state::refreshImports, enabled = enabled) {
@@ -153,7 +160,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             recoveryOpen = false
         }
     }
-    LaunchedEffect(canOffer, cases, state.importedPhotos.emptyCaptureOnly) {
+    LaunchedEffect(canOffer, cases) {
         if (canOffer && cases.isNotEmpty() && !recoveryOffered) {
             recoveryOffered = true
             val index = state.importedPhotos.automaticRecoveryIndex(cases, state.failedPhotoRecovery)
@@ -184,6 +191,22 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
 
     if (noReview && (!recoveryOpen || cases.isEmpty())) {
         when (listPage) {
+            "technical" -> PhotoListDialog(R.string.photo_technical_title, { listPage = null }) {
+                if (listStatus != PhotoListStatus.READY) {
+                    item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
+                        R.string.photo_list_loading else R.string.photo_list_retry)) }
+                } else {
+                    if (technicalCaptures.isEmpty()) item { Text(stringResource(R.string.photo_list_empty)) }
+                    itemsIndexed(technicalCaptures, key = { _, id -> "technical-${id.name}" }) { index, id ->
+                        TextButton(onClick = {
+                            listPage = null
+                            state.previewCapture(id)
+                        }, enabled = listEnabled, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.photo_technical_attempt, index + 1))
+                        }
+                    }
+                }
+            }
             "saved" -> PhotoListDialog(R.string.photo_list_saved_title, { listPage = null }) {
                 if (listStatus != PhotoListStatus.READY) {
                     item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
