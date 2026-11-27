@@ -23,6 +23,28 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun testAppearanceCheckboxTracksOverrideAndRemovingOnePreservesOthers() {
+        val global = DimensionAppearance()
+        val other = dimension.copy(id = UUID.randomUUID())
+        val foreign = dimension.copy(photoId = PhotoId(UUID.randomUUID().toString()))
+        // Checking the box creates an override even before changing any setting.
+        val checked = DimensionTestAppearances().withOverride(dimension, global)
+        assertEquals(global, checked.values[dimension.id])
+        val changed = global.copy(geometryPercent = 160)
+        val otherStyle = global.copy(labelPercent = 175)
+        val both = checked.withOverride(dimension, changed).withOverride(other, otherStyle)
+        assertEquals(changed, both.values[dimension.id])
+        assertEquals(both, both.withoutOverride(foreign))
+        val unchecked = both.withoutOverride(dimension)
+        val newGlobal = global.copy(transparent = !global.transparent)
+        assertEquals(null, unchecked.values[dimension.id])
+        assertEquals(newGlobal, unchecked.effective(dimension, newGlobal))
+        assertEquals(otherStyle, unchecked.effective(other, newGlobal))
+        assertEquals(unchecked, unchecked.withoutOverride(dimension))
+        assertEquals(DimensionTestAppearances(), unchecked.withoutOverride(other))
+    }
+
+    @Test
     fun testAppearancesIsolateAllSettingsByPhotoAndDimensionAndResetToCurrentGlobal() {
         val other = dimension.copy(id = UUID.randomUUID())
         // Even a matching dimension UUID must not leak a test style across photos.

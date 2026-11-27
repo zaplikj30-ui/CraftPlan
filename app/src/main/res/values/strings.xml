@@ -166,7 +166,6 @@
     <string name="dimension_reset_drag_tolerance">Obnovit %1$d°</string>
     <string name="dimension_test_only">Pouze pro tuto kótu (testovací režim)</string>
     <string name="dimension_test_only_explanation">Dočasné nastavení této kóty. Po zavření fotografie se zruší.</string>
-    <string name="dimension_test_override_active">Tato kóta má testovací nastavení. Globální změny ji nepřepíšou.</string>
     <string name="toolbar_clear_test_appearances">Zrušit všechna testovací nastavení</string>
     <string name="editor_status_bar_settings">Horní systémová lišta</string>
     <string name="editor_status_bar_explanation">Vypnuto: průhledná a viditelná. Zapnuto: automaticky skrývaná, dočasně ji vysune tah od horního okraje. Volba platí i při zadávání kóty.</string>

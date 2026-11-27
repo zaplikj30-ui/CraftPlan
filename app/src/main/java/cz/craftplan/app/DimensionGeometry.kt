@@ -237,6 +237,12 @@ internal data class DimensionTestAppearances(
     fun withOverride(dimension: PhotoDimension, value: DimensionAppearance): DimensionTestAppearances =
         DimensionTestAppearances(dimension.photoId,
             (if (photoId == dimension.photoId) values else emptyMap()) + (dimension.id to value))
+
+    fun withoutOverride(dimension: PhotoDimension): DimensionTestAppearances {
+        if (dimension.photoId != photoId || dimension.id !in values) return this
+        val remaining = values - dimension.id
+        return if (remaining.isEmpty()) DimensionTestAppearances() else copy(values = remaining)
+    }
 }
 
 internal data class DimensionLineSpan(val start: Float, val end: Float)

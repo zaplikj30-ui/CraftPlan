@@ -162,7 +162,7 @@ internal fun DimensionValueDialog(
     appearance: DimensionAppearance,
     onAppearanceChange: (DimensionAppearance) -> Unit,
     testAppearance: DimensionAppearance?,
-    onTestAppearanceChange: (DimensionAppearance) -> Unit,
+    onTestAppearanceChange: (DimensionAppearance?) -> Unit,
     diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
@@ -228,7 +228,6 @@ internal fun DimensionValueDialog(
     var settingsOpen by remember { mutableStateOf(false) }
     var statusBarSettingsOpen by rememberSaveable { mutableStateOf(false) }
     var appearanceSettingsOpen by rememberSaveable { mutableStateOf(false) }
-    var testAppearanceOnly by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
         if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
@@ -802,7 +801,7 @@ internal fun DimensionValueDialog(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.dimension_appearance_settings)) },
-                                onClick = { settingsOpen = false; testAppearanceOnly = false; appearanceSettingsOpen = true },
+                                onClick = { settingsOpen = false; appearanceSettingsOpen = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.editor_status_bar_settings)) },
@@ -1138,7 +1137,8 @@ internal fun DimensionValueDialog(
             )
         }
         if (appearanceSettingsOpen) {
-            val activeAppearance = if (testAppearanceOnly) testAppearance ?: appearance else appearance
+            val testAppearanceOnly = testAppearance != null
+            val activeAppearance = testAppearance ?: appearance
             val applyAppearance: (DimensionAppearance) -> Unit = {
                 if (testAppearanceOnly) onTestAppearanceChange(it) else onAppearanceChange(it)
             }
@@ -1151,12 +1151,13 @@ internal fun DimensionValueDialog(
                 text = {
                     Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = testAppearanceOnly, onCheckedChange = { testAppearanceOnly = it })
+                            Checkbox(checked = testAppearanceOnly, onCheckedChange = { checked ->
+                                onTestAppearanceChange(if (checked) appearance else null)
+                            })
                             Text(stringResource(R.string.dimension_test_only), Modifier.weight(1f))
                         }
-                        if (testAppearanceOnly || testAppearance != null) {
-                            Text(stringResource(if (testAppearanceOnly) R.string.dimension_test_only_explanation
-                                else R.string.dimension_test_override_active))
+                        if (testAppearanceOnly) {
+                            Text(stringResource(R.string.dimension_test_only_explanation))
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(if (activeAppearance.inline) R.string.dimension_label_inline

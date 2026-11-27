@@ -485,10 +485,14 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     var dimensionTestAppearances by mutableStateOf(DimensionTestAppearances())
         private set
 
-    fun updateTestAppearance(id: UUID, value: DimensionAppearance) {
+    fun updateTestAppearance(id: UUID, value: DimensionAppearance?) {
         val dimension = scene.find(id) ?: return
         if (currentPhoto?.id != dimension.photoId || autosave == null) return
-        dimensionTestAppearances = dimensionTestAppearances.withOverride(dimension, value)
+        dimensionTestAppearances = if (value == null) {
+            dimensionTestAppearances.withoutOverride(dimension)
+        } else {
+            dimensionTestAppearances.withOverride(dimension, value)
+        }
     }
 
     fun clearTestAppearances() {
