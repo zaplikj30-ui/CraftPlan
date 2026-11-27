@@ -45,8 +45,24 @@ internal class ImportValidationFailure(
 
 private data class DecodedJpeg(val bitmap: Bitmap, val partial: Boolean)
 
-internal fun previewJpeg(candidate: ImportCandidate, bytes: ByteArray, existing: StoredPhoto?): ImportPreview {
-    val photo = existing ?: inspectJpeg(candidate, bytes)
+internal fun previewJpeg(
+    candidate: ImportCandidate, bytes: ByteArray, existing: StoredPhoto?,
+    verifyMalformedHeader: Boolean = false,
+): ImportPreview {
+    val photo = existing ?: try {
+        inspectJpeg(candidate, bytes)
+    } catch (failure: ImportValidationFailure) {
+        // A failed BitmapFactory bounds probe is not proof of a malformed source.
+        // For a fresh, fully staged JPEG only, let ImageDecoder independently check it.
+        if (verifyMalformedHeader && failure.reason == ImportRejection.JPEG_DECODE_MALFORMED &&
+            bytes.size >= 2 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte()
+        ) {
+            // Accept partial images for this probe too; a returned bitmap must never
+            // turn into permission to delete the source. Raw bounds are still required.
+            decodeJpeg(bytes, null, maximumEdge = 768).bitmap.recycle()
+        }
+        throw failure
+    }
     require(photo.id == candidate.photoId && photo.sha256 == candidate.digest && photo.size == bytes.size)
     val decoded = if (photo.anchorMapVersion == 1) {
         // A resumed legacy import can still need approval for partial content.
@@ -94,16 +110,16 @@ internal fun canShowPartialJpeg(error: Int): Boolean =
         error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA
 
 private fun decodeJpeg(
-    bytes: ByteArray, photo: StoredPhoto, minimumSample: Int = 1, maximumEdge: Int? = null,
+    bytes: ByteArray, photo: StoredPhoto?, minimumSample: Int = 1, maximumEdge: Int? = null,
 ): DecodedJpeg {
-    val expectedSize = photoDimensions(photo.width, photo.height, photo.storedOrientation)
+    val expectedSize = photo?.let { photoDimensions(it.width, it.height, it.storedOrientation) }
     var partial = false
     val bitmap = try {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
             if (info.mimeType != "image/jpeg") throw ImportValidationFailure(ImportRejection.JPEG_SIGNATURE)
             val width = info.size.width
             val height = info.size.height
-            if (photo.anchorMapVersion == 2 && expectedSize != (width to height)) {
+            if (photo?.anchorMapVersion == 2 && expectedSize != (width to height)) {
                 throw ImportValidationFailure(ImportRejection.JPEG_METADATA_INVALID)
             }
             if (width.toLong() * height > MAX_PHOTO_PIXELS) {

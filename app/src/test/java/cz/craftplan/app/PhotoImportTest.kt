@@ -51,6 +51,13 @@ class PhotoImportTest {
         imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_DECODE_MALFORMED))
         imports.rejectMalformedNewImport(candidate, failure(ImportRejection.PHOTO_PIXEL_LIMIT))
         imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_TRUNCATED))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_DECODE_FAILED))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_SIGNATURE))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_METADATA_INVALID))
+        imports.rejectMalformedNewImport(candidate, StorageFailure(StoragePhase.IMPORT_PREVIEW, IOException()))
+        imports.rejectMalformedNewImport(candidate, StorageFailure(StoragePhase.IMPORT_PREVIEW, PhotoSpaceUnavailable()))
+        imports.rejectMalformedNewImport(candidate, StorageFailure(StoragePhase.OPEN,
+            ImportValidationFailure(ImportRejection.JPEG_DECODE_MALFORMED, true)))
         assertArrayEquals(payload, files.read(candidate))
         val protected = imports.receive(payload.inputStream())
         catalog.rows[protected.photoId.name] = PhotoImportRow(protected.photoId.name, ByteArray(4097))

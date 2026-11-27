@@ -323,11 +323,13 @@ internal class PhotoImports(
         head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)
     }
 
-    suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
+    suspend fun preview(
+        candidate: ImportCandidate, newExternalImport: Boolean = false,
+    ): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         val bytes = staging.read(candidate)
         // Earlier versions could write the catalog before finishing the first revision.
         val existing = transactions.read { catalogPhoto(candidate.photoId) }
-        previewJpeg(candidate, bytes, existing)
+        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = newExternalImport)
     }
 
     suspend fun confirmPreview(

@@ -576,7 +576,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         val (preview, confirmationExists) = withContext(Dispatchers.IO) {
             val imports = storage.imports
             val preview = try {
-                imports.preview(candidate)
+                imports.preview(candidate, newExternalImport = newExternalImport)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
