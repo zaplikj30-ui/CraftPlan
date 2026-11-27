@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,6 +15,17 @@ internal data class ImportPreview(
 internal data class PhotoList(
     val confirmed: List<PhotoId>, val pending: List<ImportCandidate>, val captures: List<PhotoId> = emptyList(),
 )
+
+internal sealed interface CaptureSource {
+    val photoId: PhotoId
+
+    data class Camera(override val photoId: PhotoId) : CaptureSource
+    data class Stage(val candidate: ImportCandidate) : CaptureSource {
+        override val photoId get() = candidate.photoId
+    }
+}
+
+internal data class CaptureCopy(val candidate: ImportCandidate, val bytes: ByteArray)
 
 internal class PhotoImports(
     private val directory: File,
@@ -67,6 +79,52 @@ internal class PhotoImports(
                 if (input.channel.size() == 0L) throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_EMPTY)
                 staging.receive(input, id, beforePublish = ::checkCaptureBytes)
             }
+        }
+    }
+
+    suspend fun captureSources(id: PhotoId): List<CaptureSource> = captureLock.withLock {
+        buildList {
+            if (captures.hasOutput(id)) add(CaptureSource.Camera(id))
+            staging.candidates().filter { it.photoId == id }.forEach { add(CaptureSource.Stage(it)) }
+        }
+    }
+
+    suspend fun readCaptureCopy(source: CaptureSource): CaptureCopy = captureLock.withLock {
+        val bytes = readCaptureSource(source)
+        CaptureCopy(copyCandidate(source.photoId, sha256(bytes)), bytes)
+    }
+
+    suspend fun previewCaptureCopy(source: CaptureSource): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
+        val copy = readCaptureCopy(source)
+        previewJpeg(copy.candidate, copy.bytes, transactions.read { catalogPhoto(copy.candidate.photoId) })
+    }
+
+    suspend fun stageCaptureCopy(source: CaptureSource, expected: ImportCandidate): Unit = captureLock.withLock {
+        require(expected == copyCandidate(source.photoId, expected.digest))
+        // The approved bytes may already have survived a failed write or lost acknowledgement.
+        if (transactions.read { head(expected.photoId.documentId)?.revisionId != null }) return@withLock
+        if (expected in staging.candidates()) {
+            staging.read(expected)
+        } else {
+            val bytes = readCaptureSource(source)
+            require(sha256(bytes) == expected.digest)
+            check(staging.receive(bytes.inputStream(), expected.photoId) == expected)
+        }
+    }
+
+    private fun copyCandidate(sourceId: PhotoId, digest: String): ImportCandidate {
+        val id = UUID.nameUUIDFromBytes("craftplan-camera-rescue:${sourceId.name}:$digest".toByteArray(Charsets.US_ASCII))
+        return ImportCandidate(PhotoId(id.toString()), digest)
+    }
+
+    private fun readCaptureSource(source: CaptureSource): ByteArray = when (source) {
+        is CaptureSource.Stage -> staging.read(source.candidate)
+        is CaptureSource.Camera -> {
+            val bytes = captures.readOutput(source.photoId) { it.readNBytes(MAX_PHOTO_BYTES + 1) }
+            if (bytes.isEmpty()) throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_EMPTY)
+            if (bytes.size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
+            checkCaptureBytes(ImportCandidate(source.photoId, sha256(bytes)))
+            bytes
         }
     }
 

@@ -94,19 +94,35 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             }
                             Text(stringResource(R.string.document_storage_diagnostic, it))
                         }
+                        if (state.captureSources.isNotEmpty()) {
+                            Text(stringResource(R.string.camera_recovery_sources))
+                            var stageIndex = 0
+                            for (source in state.captureSources) {
+                                val label = when (source) {
+                                    is CaptureSource.Camera -> stringResource(R.string.camera_recovery_output)
+                                    is CaptureSource.Stage -> stringResource(R.string.camera_recovery_stage, ++stageIndex)
+                                }
+                                TextButton(onClick = { state.previewCaptureSource(source) }, enabled = enabled) { Text(label) }
+                            }
+                        }
                         if (capture != null) {
                             TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
                                 Text(stringResource(R.string.camera_retake))
                             }
                         }
-                        TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
-                            Text(stringResource(discardLabel))
+                        if (state.captureSources.size < 2) {
+                            TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
+                                Text(stringResource(discardLabel))
+                            }
                         }
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = state::confirmImport, enabled = enabled && state.importPreview != null) {
-                        val label = if (state.importPreview?.sourceDamaged == true) {
+                        val label = if (state.selectedCaptureSource != null) {
+                            if (state.importPreview?.sourceDamaged == true) R.string.camera_recovery_save_damaged
+                            else R.string.camera_recovery_save
+                        } else if (state.importPreview?.sourceDamaged == true) {
                             R.string.import_confirm_damaged
                         } else if (capture != null) R.string.camera_confirm else R.string.import_confirm
                         Text(stringResource(label))

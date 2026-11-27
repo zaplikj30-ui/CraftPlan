@@ -23,6 +23,72 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun conflictingSourcesAreIndependentlyVerifiedAndRetriedWithoutReplacingEither() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        var failStageBarrier = false
+        fun imports() = PhotoImports(dir, {}, staging(dir) {
+            if (failStageBarrier) throw IOException("Injected stage barrier failure")
+        }, db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val id = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val original = bundledSyntheticPhoto()
+        val current = original + byteArrayOf(1, 2, 3)
+        raw.writeBytes(original)
+        val staged = imports().stageCapture(id)
+        raw.writeBytes(current)
+        val camera = CaptureSource.Camera(id)
+        val stage = CaptureSource.Stage(staged)
+        assertEquals(listOf(camera, stage), imports().captureSources(id))
+        val stageCopy = imports().readCaptureCopy(stage)
+        val rawCopy = imports().readCaptureCopy(camera)
+        assertArrayEquals(original, stageCopy.bytes)
+        assertArrayEquals(current, rawCopy.bytes)
+        assertNotEquals(id, rawCopy.candidate.photoId)
+        assertNotEquals(stageCopy.candidate.photoId, rawCopy.candidate.photoId)
+
+        File(dir, staged.fileName).writeBytes(byteArrayOf(8))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports().readCaptureCopy(stage) } }
+        assertArrayEquals(current, imports().readCaptureCopy(camera).bytes)
+        failStageBarrier = true
+        assertThrows(IOException::class.java) { runBlocking { imports().stageCaptureCopy(camera, rawCopy.candidate) } }
+        failStageBarrier = false
+        assertEquals(rawCopy.candidate, imports().readCaptureCopy(camera).candidate)
+        val later = current + byteArrayOf(4)
+        raw.writeBytes(later)
+        imports().stageCaptureCopy(camera, rawCopy.candidate)
+        val photo = testPhoto(rawCopy.candidate, current.size)
+        val stored = imports().confirm(rawCopy.candidate, photo)
+        imports().stageCaptureCopy(camera, rawCopy.candidate)
+        assertEquals(stored.version, imports().confirm(rawCopy.candidate, photo).version)
+        assertEquals(1, db.revisions.size)
+        assertArrayEquals(current, imports().open(photo.id).photoBytes)
+        assertArrayEquals(later, raw.readBytes())
+        assertArrayEquals(byteArrayOf(8), File(dir, staged.fileName).readBytes())
+    }
+
+    @Test
+    fun changedSourceCannotCommitWhatWasNotPreviewed() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val imports = PhotoImports(dir, {}, staging(dir), db, TestCatalog(db)) { _, _ -> error("No revision expected") }
+        val id = imports.beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val bytes = bundledSyntheticPhoto()
+        raw.writeBytes(bytes)
+        val source = CaptureSource.Camera(id)
+        val preview = imports.readCaptureCopy(source)
+        raw.writeBytes(bytes + byteArrayOf(1))
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { imports.stageCaptureCopy(source, preview.candidate) }
+        }
+        assertTrue(staging(dir).candidates().isEmpty())
+    }
+
+    @Test
     fun cameraAttemptSurvivesRestartAndFailedConfirmationWithOriginalBytes() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()

@@ -26,6 +26,11 @@
     <string name="camera_confirm">Použít fotografii</string>
     <string name="camera_discard">Storno</string>
     <string name="camera_discard_warning">Zahodit tento nepotvrzený snímek?</string>
+    <string name="camera_recovery_sources">Ověřit jednotlivé zdroje snímku</string>
+    <string name="camera_recovery_output">Náhled výstupu fotoaparátu</string>
+    <string name="camera_recovery_stage">Náhled pracovní kopie %1$d</string>
+    <string name="camera_recovery_save">Zachránit jako novou fotografii</string>
+    <string name="camera_recovery_save_damaged">Zachránit poškozený snímek jako novou fotografii</string>
     <string name="camera_failed">Snímek ze systémového fotoaparátu se nepodařilo převzít.</string>
     <string name="import_photo">Importovat fotografii JPEG</string>
     <string name="import_resume">Obnovit rozpracovaný import %1$d</string>
