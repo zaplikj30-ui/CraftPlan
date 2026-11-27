@@ -60,7 +60,11 @@ internal fun PhotoList.recoveryCases(active: PhotoId?, failed: PhotoId?): List<P
         .forEach { add(PhotoRecoveryCase.Saved(it)) }
 }
 
-internal data class PhotoRecoveryPreview<T>(val image: T, val discardCandidate: ImportCandidate?)
+internal data class RecoveryImage<T>(val image: T, val sourceDamaged: Boolean)
+
+internal data class PhotoRecoveryPreview<T>(
+    val image: T, val discardCandidate: ImportCandidate?, val sourceDamaged: Boolean,
+)
 
 internal class PhotoImports(
     private val directory: File,
@@ -149,7 +153,7 @@ internal class PhotoImports(
 
     /** No bitmap or source bytes are prepared until a single case is selected. */
     suspend fun <T : Any> inspectRecovery(
-        case: PhotoRecoveryCase, releaseOutput: (PhotoId) -> Unit, decode: (CaptureCopy) -> T,
+        case: PhotoRecoveryCase, releaseOutput: (PhotoId) -> Unit, decode: (CaptureCopy) -> RecoveryImage<T>,
     ): PhotoRecoveryPreview<T>? = recoveryPreviewLock.withLock {
         val sources = when (case) {
             is PhotoRecoveryCase.Import -> listOf(CaptureSource.Stage(case.candidate))
@@ -167,7 +171,8 @@ internal class PhotoImports(
                     canRejectRecoveryCapture(candidate)
                 } == true
                 currentCoroutineContext().ensureActive()
-                PhotoRecoveryPreview(decode(copy), candidate.takeIf { canDiscard })
+                val decoded = decode(copy)
+                PhotoRecoveryPreview(decoded.image, candidate.takeIf { canDiscard }, decoded.sourceDamaged)
             }
             if (result != null) return@withLock result
         }

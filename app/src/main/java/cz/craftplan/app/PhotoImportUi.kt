@@ -375,6 +375,9 @@ private fun PhotoRecoveryDialog(
         }
     }
     val actions: @Composable () -> Unit = {
+        if (preview?.sourceDamaged == true) {
+            Text(stringResource(R.string.import_damage_warning), color = MaterialTheme.colorScheme.error)
+        }
         state.importDiagnostic?.let {
             Text(stringResource(R.string.document_storage_diagnostic, it),
                 color = MaterialTheme.colorScheme.error)

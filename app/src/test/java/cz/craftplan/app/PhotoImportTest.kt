@@ -91,10 +91,12 @@ class PhotoImportTest {
             imports().inspectRecovery(cases.single { it.id == id }, { releases += it }) {
                 decoded += it.bytes.size
                 check(it.bytes.size >= bytes.size)
-                it.bytes.size
+                RecoveryImage(it.bytes.size, sourceDamaged = true)
             }
         assertTrue(decoded.isEmpty())
-        assertNull(inspect(ready)?.discardCandidate) // Raw-only attempt is offered without destructive action.
+        val readyPreview = checkNotNull(inspect(ready))
+        assertNull(readyPreview.discardCandidate) // Raw-only attempt is offered without destructive action.
+        assertTrue(readyPreview.sourceDamaged)
         assertEquals(listOf(bytes.size), decoded)
         assertNull(inspect(conflict)?.discardCandidate)
         assertNull(inspect(uncertain)?.discardCandidate)

@@ -55,8 +55,10 @@ internal fun previewJpeg(candidate: ImportCandidate, bytes: ByteArray, existing:
     return ImportPreview(candidate, photo, decoded.bitmap, decoded.partial)
 }
 
-internal fun decodeRecoveryPreview(copy: CaptureCopy): Bitmap =
-    decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 768).bitmap
+internal fun decodeRecoveryPreview(copy: CaptureCopy): RecoveryImage<Bitmap> {
+    val decoded = decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 768)
+    return RecoveryImage(decoded.bitmap, decoded.partial)
+}
 
 private fun inspectJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPhoto {
     // Header-only probe supplies raw dimensions. ImageDecoder returns oriented dimensions.
