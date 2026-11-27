@@ -35,6 +35,10 @@
     <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>
     <string name="photo_gestures_short">Posun / zoom</string>
     <string name="sample_description">Syntetický snímek dílenského stolu.</string>
+    <string name="dimension_move_mode">Posouvání kót</string>
+    <string name="dimension_move_direct">Přímým tahem</string>
+    <string name="dimension_move_selected">Až po označení</string>
+    <string name="dimension_move_done">Hotovo</string>
     <string name="add_dimension">Přidat kótu</string>
     <string name="toolbar_dimension">Kóta</string>
     <string name="toolbar_tools">Nabídka nástrojů</string>

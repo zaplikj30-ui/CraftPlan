@@ -200,6 +200,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private var lastY = 0f
     private var dragging = false
     private var clickCandidate = false
+    private var panTapTarget: DimensionTarget? = null
+    var dimensionsRequireSelection = false
 
     private val scaleDetector = ScaleGestureDetector(
         context,
@@ -738,25 +740,31 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
                 clickCandidate = event.flags and MotionEvent.FLAG_CANCELED == 0
             }
             MotionEvent.ACTION_MOVE -> {
+                if (canceled && panTapTarget != null) {
+                    panTapTarget = null
+                    clickCandidate = false
+                }
                 if (event.pointerCount == 1 && !scaleDetector.isInProgress) pan(event)
             }
             MotionEvent.ACTION_UP -> {
                 if (event.flags and MotionEvent.FLAG_CANCELED == 0 &&
                     clickCandidate && hypot(event.x - lastX, event.y - lastY) < touchSlop
                 ) {
-                    activeDiagnostics?.action(DiagnosticAction.TAP, DiagnosticResult.MISSED)
-                    onSelectDimension(null)
+                    val target = panTapTarget
+                    selectTarget(target)
                     invalidate()
-                    performClick()
+                    if (target == null) performClick()
                 }
                 if (dragging && event.flags and MotionEvent.FLAG_CANCELED == 0) activeDiagnostics?.action(
                     DiagnosticAction.PAN, if (panChanged) DiagnosticResult.APPLIED else DiagnosticResult.UNCHANGED,
                 )
                 clickCandidate = false
+                panTapTarget = null
                 activePointerId = MotionEvent.INVALID_POINTER_ID
             }
             MotionEvent.ACTION_CANCEL -> {
                 clickCandidate = false
+                panTapTarget = null
                 activePointerId = MotionEvent.INVALID_POINTER_ID
             }
         }
@@ -822,7 +830,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val pointerId = event.getPointerId(0)
         val profile = editorInputProfile(inputKind(event, 0), density)
         val target = if (scene.tool == DimensionTool.SINGLE) null else targetAt(down, profile)
-        if (target != null && (scene.tool == DimensionTool.SELECT || target.dimension.id == scene.selectedId)) {
+        if (target != null && canDragDimension(scene.tool, target, scene.selectedId, dimensionsRequireSelection)) {
             val dimension = target.dimension
             // Above-line labels and notebooks keep their established gestures.
             // Inline movable labels defer direction arbitration until the drag threshold.
@@ -847,6 +855,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             )
             invalidate()
         } else {
+            // A tap can still select the hit at DOWN. Dragging follows the existing pan path.
+            panTapTarget = target
             return false
         }
         onGestureEditing(true)
@@ -1115,6 +1125,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val needsRedraw = dimensionDrag != null || dimensionEdit != null
         dimensionDrag = null
         dimensionEdit = null
+        if (panTapTarget != null) clickCandidate = false
+        panTapTarget = null
         lensOnRight = null
         lensContact = null
         ownsDimensionStream = false
@@ -1144,6 +1156,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         if (!dragging) activeDiagnostics?.action(DiagnosticAction.PAN, DiagnosticResult.START)
         dragging = true
         clickCandidate = false
+        panTapTarget = null
         val previousLeft = viewport.left
         val previousTop = viewport.top
         viewport.transform(lastX, lastY, x, y)

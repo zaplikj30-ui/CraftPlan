@@ -2,11 +2,51 @@ package cz.craftplan.app
 
 import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
 class DimensionSceneTest {
+    @Test
+    fun moveModeAppliesToBodyLabelAndEndpointsWithoutChangingTapSelection() {
+        val targetDimension = dimension(1)
+        val other = dimension(2)
+        for ((hit, label) in listOf(
+            DimensionHit.BODY to false, DimensionHit.BODY to true,
+            DimensionHit.START to false, DimensionHit.END to false,
+        )) {
+            val target = DimensionTarget(targetDimension, hit, label, distance = 0f)
+            assertTrue(canDragDimension(DimensionTool.SELECT, target, null, requireSelection = false))
+            assertTrue(canDragDimension(DimensionTool.SELECT, target, other.id, requireSelection = false))
+            assertFalse(canDragDimension(DimensionTool.SELECT, target, null, requireSelection = true))
+            assertFalse(canDragDimension(DimensionTool.SELECT, target, other.id, requireSelection = true))
+            val tap = checkNotNull(decideDimensionTap(target, other.id))
+            assertEquals(targetDimension.id, tap.target.dimension.id)
+            assertFalse(tap.openValue)
+            assertTrue(canDragDimension(DimensionTool.SELECT, target, tap.target.dimension.id, requireSelection = true))
+            assertEquals(label, decideDimensionTap(target, targetDimension.id)?.openValue)
+        }
+    }
+
+    @Test
+    fun moveModeKeepsDrawingPriorityAndDoesNotRetargetAnOverlap() {
+        val selected = dimension(1)
+        val other = dimension(2)
+        val selectedBody = DimensionTarget(selected, DimensionHit.BODY, label = false, distance = 1f, direct = false)
+        val directEnd = DimensionTarget(other, DimensionHit.END, label = false, distance = 0f)
+        val target = checkNotNull(preferredDimensionTarget(listOf(selectedBody, directEnd), selected.id, 1f))
+        assertSame(directEnd, target)
+        assertFalse(canDragDimension(DimensionTool.SELECT, target, selected.id, requireSelection = true))
+        assertTrue(canDragDimension(DimensionTool.SELECT, target, selected.id, requireSelection = false))
+        for (requireSelection in listOf(false, true)) {
+            assertFalse(canDragDimension(DimensionTool.SINGLE, selectedBody, selected.id, requireSelection))
+            assertTrue(canDragDimension(DimensionTool.REPEAT, selectedBody, selected.id, requireSelection))
+            assertFalse(canDragDimension(DimensionTool.REPEAT, target, selected.id, requireSelection))
+        }
+    }
+
     @Test
     fun labelMovesOnlyAlongItsOwnAxisAndLockLeavesGeometryEditable() {
         val original = dimension(1).withManualLength("1/16 in")

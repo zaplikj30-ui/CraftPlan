@@ -4,6 +4,14 @@ import java.util.UUID
 
 internal enum class DimensionTool { SELECT, SINGLE, REPEAT }
 
+internal fun canDragDimension(
+    tool: DimensionTool, target: DimensionTarget, selectedId: UUID?, requireSelection: Boolean,
+): Boolean = when (tool) {
+    DimensionTool.SINGLE -> false
+    DimensionTool.REPEAT -> target.dimension.id == selectedId
+    DimensionTool.SELECT -> !requireSelection || target.dimension.id == selectedId
+}
+
 internal data class DimensionScene(
     val dimensions: List<PhotoDimension> = emptyList(),
     val selectedId: UUID? = null,

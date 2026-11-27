@@ -2,6 +2,8 @@
 
 Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová verze M1 otevírá přibalenou syntetickou fotografii. Přiblížení se ovládá dvěma prsty, posun jedním i při výchozím přiblížení. Kóty mohou zasahovat do volné plochy kolem snímku a při pan/zoom zůstávají ukotvené k fotografii. Dokončené změny syntetického dokumentu se průběžně ukládají a další otevření načte poslední ověřenou revizi.
 
+**Posouvání kót (27. 11. 2026)** — V nabídce nástrojů otevři **Posouvání kót**. Výchozí **Přímým tahem** zachovává dosavadní chování. V režimu **Až po označení** klepnutím vyber kótu a pak táhni její tělo, popisek nebo koncový bod. Tah přes neoznačenou kótu v běžném výběru posune fotografii. Režimy kreslení mají dosavadní přednost. Volba je společná pro fotografie a přetrvá restart. Výběr při překryvu, úhlové rozlišení tahu popisku, jeho zámek a historie používají dosavadní pravidla. Jednotkové testy a cílené nezávislé review PASS. Fyzická gesta, dialog a restart na telefonu NOT RUN.
+
 ## M1 – nezávislý audit implementace (26. 11. 2026)
 
 Auditovaná revize [`d3edc9350d99189f7727d6db1c62eb67a0a95ee3`](https://github.com/zaplikj30-ui/CraftPlan/tree/d3edc9350d99189f7727d6db1c62eb67a0a95ee3). Nezávislý ChatGPT: APPROVE DESIGN / CHANGES REQUIRED; inventura 43 produkčních Kotlin souborů a 22 souborů testů (210 anotací @Test), u rozsáhlých souborů a historických podkladů výběrová statická kontrola. Audit neprováděl kompilaci, testy, lint, měření ani Android runtime. Technologii neměnit, neprovádět plošný refaktoring. Následující pracovní triáž nenahrazuje GO k implementaci.

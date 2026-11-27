@@ -476,6 +476,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var fitRequest by mutableStateOf(0)
         private set
+    var dimensionsRequireSelection by mutableStateOf(false)
+        private set
     var labelsLocked by mutableStateOf(false)
         private set
     var statusBarSettings by mutableStateOf(EditorStatusBarSettings())
@@ -516,6 +518,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         }
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
+        dimensionsRequireSelection = source.getBoolean("dimensions_require_selection", false)
         labelsLocked = source.getBoolean("labels_locked", false)
         dimensionAppearance = DimensionAppearance(
             inline = source.getBoolean("dimension_label_inline", true),
@@ -529,6 +532,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
             landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,
         )
+    }
+
+    fun updateDimensionsRequireSelection(enabled: Boolean) {
+        dimensionsRequireSelection = enabled
+        preferences?.edit()?.putBoolean("dimensions_require_selection", enabled)?.apply()
     }
 
     fun updateDimensionAppearance(value: DimensionAppearance) {
@@ -828,6 +836,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 onGestureEditing = editorState::editGesture,
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
+                dimensionsRequireSelection = editorState.dimensionsRequireSelection,
                 appearance = editorState.dimensionAppearance,
                 testAppearances = editorState.dimensionTestAppearances,
                 automaticSizeFactor = automaticDimensionSizeFactor(configuration.smallestScreenWidthDp),
@@ -949,6 +958,7 @@ private fun SamplePhoto(
     onGestureEditing: (Boolean) -> Unit,
     showNotes: Boolean,
     labelsLocked: Boolean,
+    dimensionsRequireSelection: Boolean,
     appearance: DimensionAppearance,
     testAppearances: DimensionTestAppearances,
     automaticSizeFactor: Float,
@@ -994,6 +1004,7 @@ private fun SamplePhoto(
                 view.onDrawCounts = onDrawCounts
                 view.showNotes = showNotes
                 view.labelsLocked = labelsLocked
+                view.dimensionsRequireSelection = dimensionsRequireSelection
                 view.appearance = appearance
                 view.testAppearances = testAppearances
                 view.automaticSizeFactor = automaticSizeFactor

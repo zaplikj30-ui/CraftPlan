@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -27,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -371,6 +375,7 @@ private fun EditorToolbarSurface(
     onGripRegion: (ToolbarGripRegion) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var moveSettingsOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val sideGrip = !expanded && !verticalExpanded
@@ -381,6 +386,36 @@ private fun EditorToolbarSurface(
     val activeColors = MaterialTheme.colorScheme
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
+    if (moveSettingsOpen) {
+        AlertDialog(
+            onDismissRequest = { moveSettingsOpen = false },
+            title = { Text(stringResource(R.string.dimension_move_mode)) },
+            text = {
+                Column(Modifier.selectableGroup()) {
+                    for ((requireSelection, label) in listOf(
+                        false to R.string.dimension_move_direct,
+                        true to R.string.dimension_move_selected,
+                    )) {
+                        val selected = state.dimensionsRequireSelection == requireSelection
+                        Row(
+                            modifier = Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton,
+                                onClick = { state.updateDimensionsRequireSelection(requireSelection) }).padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            RadioButton(selected = selected, onClick = null)
+                            Text(stringResource(label))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { moveSettingsOpen = false }) {
+                    Text(stringResource(R.string.dimension_move_done))
+                }
+            },
+        )
+    }
     Box {
         Surface(
             modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
@@ -494,6 +529,10 @@ private fun EditorToolbarSurface(
                                         state.scene = state.scene.prepareSingle()
                                         menuOpen = false
                                     },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.dimension_move_mode)) },
+                                    onClick = { menuOpen = false; moveSettingsOpen = true },
                                 )
                             }
                         }
