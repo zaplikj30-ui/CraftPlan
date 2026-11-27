@@ -220,13 +220,55 @@ internal fun automaticDimensionSizeFactor(smallestWidthDp: Int): Float = when {
     else -> 1.3f
 }
 
-/** App-wide display preferences, not stored measurement data. */
+/** Opaque sRGB colors with a precomputed WCAG black/white contrast choice. */
+internal enum class DimensionColor(val argb: Int) {
+    YELLOW(0xFFF7DC27.toInt()), WHITE(0xFFFFFFFF.toInt()), BLACK(0xFF000000.toInt()),
+    RED(0xFFF44336.toInt()), BLUE(0xFF2196F3.toInt()), GREEN(0xFF4CAF50.toInt()),
+    ORANGE(0xFFFF9800.toInt()), PINK(0xFFE91E63.toInt());
+
+    val contrastArgb: Int = contrastForDimensionColor(argb)
+
+    companion object {
+        fun fromPreference(name: String?, fallback: DimensionColor): DimensionColor =
+            entries.firstOrNull { it.name == name } ?: fallback
+    }
+}
+
+internal fun contrastForDimensionColor(argb: Int): Int {
+    fun linear(shift: Int): Double {
+        val c = ((argb ushr shift) and 255) / 255.0
+        return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+    }
+    val luminance = 0.2126 * linear(16) + 0.7152 * linear(8) + 0.0722 * linear(0)
+    return if ((luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05))
+        0xFF000000.toInt() else 0xFFFFFFFF.toInt()
+}
+
+internal enum class DimensionLabelBackground {
+    TRANSPARENT, AUTO, BLACK, WHITE;
+
+    fun argb(label: DimensionColor): Int? = when (this) {
+        TRANSPARENT -> null
+        AUTO -> label.contrastArgb
+        BLACK -> 0xFF000000.toInt()
+        WHITE -> 0xFFFFFFFF.toInt()
+    }
+
+    companion object {
+        fun fromPreference(name: String?, legacyTransparent: Boolean): DimensionLabelBackground =
+            entries.firstOrNull { it.name == name } ?: if (legacyTransparent) TRANSPARENT else AUTO
+    }
+}
+
+/** App-wide or temporary per-dimension display preferences, not stored measurement data. */
 internal data class DimensionAppearance(
     val inline: Boolean = true,
-    val transparent: Boolean = true,
+    val background: DimensionLabelBackground = DimensionLabelBackground.TRANSPARENT,
     val geometryPercent: Int = 100,
     val labelPercent: Int = 100,
     val inlineDragToleranceDegrees: Int = DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES,
+    val geometryColor: DimensionColor = DimensionColor.YELLOW,
+    val labelColor: DimensionColor = DimensionColor.WHITE,
 ) {
     fun geometryFactor(automaticFactor: Float): Float =
         automaticFactor * (DIMENSION_GEOMETRY_BASE_PERCENT / 100f) * (dimensionSizePercent(geometryPercent) / 100f)

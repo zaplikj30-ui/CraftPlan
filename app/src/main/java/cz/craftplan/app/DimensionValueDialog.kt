@@ -1159,34 +1159,7 @@ internal fun DimensionValueDialog(
                         if (testAppearanceOnly) {
                             Text(stringResource(R.string.dimension_test_only_explanation))
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(if (activeAppearance.inline) R.string.dimension_label_inline
-                                else R.string.dimension_label_above), Modifier.weight(1f))
-                            Switch(checked = activeAppearance.inline,
-                                onCheckedChange = { applyAppearance(activeAppearance.copy(inline = it)) })
-                        }
-                        Text(stringResource(R.string.dimension_label_placement_explanation))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.dimension_label_transparent), Modifier.weight(1f))
-                            Switch(checked = activeAppearance.transparent,
-                                onCheckedChange = { applyAppearance(activeAppearance.copy(transparent = it)) })
-                        }
-                        val automaticPercent = kotlin.math.round(
-                            automaticDimensionSizeFactor(LocalConfiguration.current.smallestScreenWidthDp) * 100f
-                        ).toInt()
-                        Text(stringResource(R.string.dimension_automatic_size, automaticPercent))
-                        DimensionSizeSlider(R.string.dimension_geometry_size, activeAppearance.geometryPercent) {
-                            applyAppearance(activeAppearance.copy(geometryPercent = it))
-                        }
-                        DimensionSizeSlider(R.string.dimension_label_size, activeAppearance.labelPercent) {
-                            applyAppearance(activeAppearance.copy(labelPercent = it))
-                        }
-                        TextButton(onClick = { applyAppearance(activeAppearance.resetSizes()) }) {
-                            Text(stringResource(R.string.dimension_reset_sizes))
-                        }
-                        InlineDragToleranceSlider(activeAppearance.inlineDragToleranceDegrees) {
-                            applyAppearance(activeAppearance.copy(inlineDragToleranceDegrees = it))
-                        }
+                        DimensionAppearanceControls(activeAppearance, applyAppearance)
                     }
                 },
                 confirmButton = {
@@ -1495,54 +1468,3 @@ internal fun editDimensionInput(
 }
 
 /** Percentages are independent corrections of the automatic display size. */
-@Composable
-private fun DimensionSizeSlider(
-    labelRes: Int,
-    percent: Int,
-    onChange: (Int) -> Unit,
-) {
-    Text(stringResource(labelRes, percent))
-    Slider(
-        value = percent.toFloat(),
-        onValueChange = { onChange(dimensionSizePercent(kotlin.math.round(it).toInt())) },
-        valueRange = MIN_DIMENSION_SIZE_PERCENT.toFloat()..MAX_DIMENSION_SIZE_PERCENT.toFloat(),
-        steps = (MAX_DIMENSION_SIZE_PERCENT - MIN_DIMENSION_SIZE_PERCENT) / DIMENSION_SIZE_STEP_PERCENT - 1,
-    )
-}
-
-/** Test the angle independently of display sizes; changes apply to the next gesture. */
-@Composable
-private fun InlineDragToleranceSlider(
-    degrees: Int,
-    onChange: (Int) -> Unit,
-) {
-    Text(stringResource(R.string.dimension_drag_tolerance, degrees))
-    Text(stringResource(R.string.dimension_drag_tolerance_explanation))
-    val decrease = stringResource(R.string.dimension_drag_tolerance_decrease)
-    val increase = stringResource(R.string.dimension_drag_tolerance_increase)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(
-            onClick = { onChange(clampInlineDragTolerance(degrees - 1)) },
-            enabled = degrees > MIN_INLINE_DRAG_TOLERANCE_DEGREES,
-            modifier = Modifier.width(48.dp).semantics { contentDescription = decrease },
-            contentPadding = PaddingValues(0.dp),
-        ) { Text("−1°") }
-        Slider(
-            modifier = Modifier.weight(1f),
-            value = degrees.toFloat(),
-            onValueChange = { onChange(clampInlineDragTolerance(kotlin.math.round(it).toInt())) },
-            valueRange = MIN_INLINE_DRAG_TOLERANCE_DEGREES.toFloat()..
-                MAX_INLINE_DRAG_TOLERANCE_DEGREES.toFloat(),
-            steps = MAX_INLINE_DRAG_TOLERANCE_DEGREES - MIN_INLINE_DRAG_TOLERANCE_DEGREES - 1,
-        )
-        TextButton(
-            onClick = { onChange(clampInlineDragTolerance(degrees + 1)) },
-            enabled = degrees < MAX_INLINE_DRAG_TOLERANCE_DEGREES,
-            modifier = Modifier.width(48.dp).semantics { contentDescription = increase },
-            contentPadding = PaddingValues(0.dp),
-        ) { Text("+1°") }
-    }
-    TextButton(onClick = { onChange(DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES) }) {
-        Text(stringResource(R.string.dimension_reset_drag_tolerance, DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES))
-    }
-}

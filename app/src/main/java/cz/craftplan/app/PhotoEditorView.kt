@@ -399,7 +399,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             labelPadding, inMagnifier)
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         if (showStroke) drawScreenDimensionLine(canvas, x1, y1, length, angle, selected,
-            strokeDensity, placement.bodySpans)
+            strokeDensity, style.geometryColor, placement.bodySpans)
         if (showStart) drawAnchor(canvas, start, style)
         if (showEnd) drawAnchor(canvas, end, style)
         if (!showLabel) return true
@@ -420,8 +420,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.translate(geometry.rulerNeighborOffset(labelScale) / labelScale, 0f)
         val textBounds = geometry.text
         if (label != null && textBounds != null) {
-            if (!style.transparent) {
-                overlayPaint.color = WORKSPACE_COLOR
+            style.background.argb(style.labelColor)?.let { background ->
+                overlayPaint.color = background
                 canvas.drawRoundRect(textBounds.left, textBounds.top, textBounds.right, textBounds.bottom,
                     3f * density, 3f * density, overlayPaint)
             }
@@ -429,13 +429,13 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             canvas.save()
             canvas.translate(textBounds.centerX, baseline)
             // Use the same cached text metrics for both rendering passes.
-            labelPaint.color = Color.BLACK
+            labelPaint.color = style.labelColor.contrastArgb
             labelPaint.style = Paint.Style.STROKE
             labelPaint.strokeJoin = Paint.Join.ROUND
             labelPaint.strokeWidth = 2f * density
             canvas.drawText(label, 0f, 0f, labelPaint)
             labelPaint.style = Paint.Style.FILL
-            labelPaint.color = Color.WHITE
+            labelPaint.color = style.labelColor.argb
             canvas.drawText(label, 0f, 0f, labelPaint)
             canvas.restore()
         }
@@ -531,11 +531,13 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val dx = viewport.screenX(end) - x1
         val dy = viewport.screenY(end) - y1
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * dimensionStrokeScale(style))
+        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected,
+            density * dimensionStrokeScale(style), style.geometryColor)
     }
 
     private fun drawScreenDimensionLine(
         canvas: Canvas, x1: Float, y1: Float, length: Float, angle: Float, selected: Boolean, strokeDensity: Float,
+        color: DimensionColor,
         bodySpans: List<DimensionLineSpan>? = null,
     ) {
         canvas.save()
@@ -553,7 +555,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         }
         writeDimensionSegments(dimensionSegments, length, strokeDensity, viewport.dimensionTickScale)
         // Matching square caps keep a contrasting border on the ends without round bulges.
-        overlayPaint.color = Color.BLACK
+        overlayPaint.color = color.contrastArgb
         overlayPaint.strokeWidth = viewport.dimensionOutlineWidth * strokeDensity
         overlayPaint.strokeCap = Paint.Cap.SQUARE
         if (bodySpans == null) canvas.drawLines(dimensionSegments, overlayPaint)
@@ -561,7 +563,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             drawBody()
             canvas.drawLines(dimensionSegments, 4, 24, overlayPaint)
         }
-        overlayPaint.color = Color.rgb(247, 220, 39)
+        overlayPaint.color = color.argb
         overlayPaint.strokeWidth = viewport.dimensionFillWidth * strokeDensity
         if (bodySpans == null) canvas.drawLines(dimensionSegments, overlayPaint)
         else {

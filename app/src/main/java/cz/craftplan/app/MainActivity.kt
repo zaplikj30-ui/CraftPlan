@@ -526,18 +526,22 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         val tolerance = source.getInt("dimension_inline_drag_tolerance_degrees", DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES)
         dimensionAppearance = DimensionAppearance(
             inline = source.getBoolean("dimension_label_inline", true),
-            transparent = if (legacyAppearance) true else source.getBoolean("dimension_label_transparent", true),
+            background = if (legacyAppearance) DimensionLabelBackground.TRANSPARENT else
+                DimensionLabelBackground.fromPreference(source.getString("dimension_label_background", null),
+                    source.getBoolean("dimension_label_transparent", true)),
             geometryPercent = if (legacyAppearance) rebaseLegacyDimensionSize(geometryPercent, DIMENSION_GEOMETRY_BASE_PERCENT)
                 else dimensionSizePercent(geometryPercent),
             labelPercent = if (legacyAppearance) rebaseLegacyDimensionSize(labelPercent, DIMENSION_LABEL_BASE_PERCENT)
                 else dimensionSizePercent(labelPercent),
             inlineDragToleranceDegrees = if (legacyAppearance && tolerance == 20) DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES
                 else clampInlineDragTolerance(tolerance),
+            geometryColor = DimensionColor.fromPreference(source.getString("dimension_geometry_color", null), DimensionColor.YELLOW),
+            labelColor = DimensionColor.fromPreference(source.getString("dimension_label_color", null), DimensionColor.WHITE),
         )
         if (legacyAppearance) {
             // Old transparency was false by default and was written even when only a size changed.
             // Adopt the new reference default once; subsequent choices are retained unchanged.
-            source.edit().putBoolean("dimension_label_transparent", dimensionAppearance.transparent)
+            source.edit().putString("dimension_label_background", dimensionAppearance.background.name)
                 .putInt("dimension_geometry_size", dimensionAppearance.geometryPercent)
                 .putInt("dimension_label_size", dimensionAppearance.labelPercent)
                 .putInt("dimension_inline_drag_tolerance_degrees", dimensionAppearance.inlineDragToleranceDegrees)
@@ -559,7 +563,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         dimensionAppearance = value
         preferences?.edit()
             ?.putBoolean("dimension_label_inline", value.inline)
-            ?.putBoolean("dimension_label_transparent", value.transparent)
+            ?.putString("dimension_label_background", value.background.name)
+            ?.putString("dimension_geometry_color", value.geometryColor.name)
+            ?.putString("dimension_label_color", value.labelColor.name)
             ?.putInt("dimension_geometry_size", value.geometryPercent)
             ?.putInt("dimension_label_size", value.labelPercent)
             ?.putInt("dimension_inline_drag_tolerance_degrees", value.inlineDragToleranceDegrees)

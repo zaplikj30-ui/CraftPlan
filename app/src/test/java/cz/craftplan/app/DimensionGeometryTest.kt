@@ -36,7 +36,7 @@ class DimensionGeometryTest {
         assertEquals(changed, both.values[dimension.id])
         assertEquals(both, both.withoutOverride(foreign))
         val unchecked = both.withoutOverride(dimension)
-        val newGlobal = global.copy(transparent = !global.transparent)
+        val newGlobal = global.copy(background = DimensionLabelBackground.AUTO)
         assertEquals(null, unchecked.values[dimension.id])
         assertEquals(newGlobal, unchecked.effective(dimension, newGlobal))
         assertEquals(otherStyle, unchecked.effective(other, newGlobal))
@@ -50,8 +50,8 @@ class DimensionGeometryTest {
         // Even a matching dimension UUID must not leak a test style across photos.
         val anotherPhoto = dimension.copy(photoId = PhotoId(UUID.randomUUID().toString()))
         val global = DimensionAppearance()
-        val local = DimensionAppearance(false, true, 150, 200, 37)
-        val localOther = DimensionAppearance(true, false, 50, 250, 10)
+        val local = DimensionAppearance(false, DimensionLabelBackground.TRANSPARENT, 150, 200, 37)
+        val localOther = DimensionAppearance(true, DimensionLabelBackground.AUTO, 50, 250, 10)
         val comparisons = DimensionTestAppearances().withOverride(dimension, local)
             .withOverride(other, localOther)
         assertEquals(local, comparisons.effective(dimension, global))
@@ -65,6 +65,42 @@ class DimensionGeometryTest {
         assertEquals(newGlobal, switched.effective(dimension, newGlobal))
         assertEquals(localOther, switched.effective(anotherPhoto, newGlobal))
         assertEquals(local, comparisons.effective(dimension, global))
+    }
+
+    @Test
+    fun paletteContrastBackgroundAndIndividualOverridesAreIndependent() {
+        val global = DimensionAppearance()
+        assertEquals(0xFFF7DC27.toInt(), global.geometryColor.argb)
+        assertEquals(DimensionColor.WHITE, global.labelColor)
+        assertNull(global.background.argb(global.labelColor))
+        assertEquals(0xFFFFFFFF.toInt(), DimensionColor.BLACK.contrastArgb)
+        assertEquals(0xFF000000.toInt(), DimensionColor.WHITE.contrastArgb)
+        assertEquals(0xFFFFFFFF.toInt(), DimensionLabelBackground.AUTO.argb(DimensionColor.BLACK))
+        assertEquals(0xFF000000.toInt(), DimensionLabelBackground.AUTO.argb(DimensionColor.WHITE))
+        for (color in DimensionColor.entries) {
+            assertEquals(color, DimensionColor.fromPreference(color.name, DimensionColor.YELLOW))
+            assertEquals(color.contrastArgb, DimensionLabelBackground.AUTO.argb(color))
+            assertTrue(color.contrastArgb != color.argb)
+            assertEquals(0xFF000000.toInt(), DimensionLabelBackground.BLACK.argb(color))
+            assertEquals(0xFFFFFFFF.toInt(), DimensionLabelBackground.WHITE.argb(color))
+            assertNull(DimensionLabelBackground.TRANSPARENT.argb(color))
+        }
+        assertEquals(DimensionColor.WHITE, DimensionColor.fromPreference("invalid", DimensionColor.WHITE))
+        assertEquals(DimensionLabelBackground.AUTO, DimensionLabelBackground.fromPreference(null, false))
+        assertEquals(DimensionLabelBackground.TRANSPARENT, DimensionLabelBackground.fromPreference(null, true))
+        for (background in DimensionLabelBackground.entries) {
+            assertEquals(background, DimensionLabelBackground.fromPreference(background.name, false))
+        }
+        val other = dimension.copy(id = UUID.randomUUID())
+        val local = global.copy(geometryColor = DimensionColor.RED, labelColor = DimensionColor.BLACK,
+            background = DimensionLabelBackground.AUTO, geometryPercent = 150)
+        val overrides = DimensionTestAppearances().withOverride(dimension, local)
+        assertEquals(local, overrides.effective(dimension, global))
+        assertEquals(global, overrides.effective(other, global))
+        assertEquals(local.copy(geometryPercent = 100), local.resetSizes())
+        val newGlobal = global.copy(labelColor = DimensionColor.PINK)
+        assertEquals(local, overrides.effective(dimension, newGlobal))
+        assertEquals(newGlobal, overrides.withoutOverride(dimension).effective(dimension, newGlobal))
     }
 
     @Test
@@ -86,7 +122,7 @@ class DimensionGeometryTest {
     fun recalibratedReferenceAndLegacyPreferences() {
         val reference = DimensionAppearance()
         assertTrue(reference.inline)
-        assertTrue(reference.transparent)
+        assertEquals(DimensionLabelBackground.TRANSPARENT, reference.background)
         assertEquals(100, reference.geometryPercent)
         assertEquals(100, reference.labelPercent)
         assertEquals(22, reference.inlineDragToleranceDegrees)
@@ -120,10 +156,10 @@ class DimensionGeometryTest {
             assertEquals(automatic * 1.20f, defaults.labelFactor(automatic), 0.00001f)
             for (geometry in 50..250 step 5) {
                 for (label in 50..250 step 5) {
-                    val appearance = DimensionAppearance(false, true, geometry, label)
+                    val appearance = DimensionAppearance(false, DimensionLabelBackground.TRANSPARENT, geometry, label)
                     assertEquals(automatic * 1.10f * geometry / 100f, appearance.geometryFactor(automatic), 0.00001f)
                     assertEquals(automatic * 1.20f * label / 100f, appearance.labelFactor(automatic), 0.00001f)
-                    assertEquals(DimensionAppearance(false, true), appearance.resetSizes())
+                    assertEquals(DimensionAppearance(false, DimensionLabelBackground.TRANSPARENT), appearance.resetSizes())
                 }
             }
         }
@@ -274,8 +310,8 @@ class DimensionGeometryTest {
         assertEquals(10, clampInlineDragTolerance(Int.MIN_VALUE))
         assertEquals(40, clampInlineDragTolerance(Int.MAX_VALUE))
         assertEquals(22, DimensionAppearance().inlineDragToleranceDegrees)
-        val appearance = DimensionAppearance(false, true, 150, 200, 37)
-        assertEquals(DimensionAppearance(false, true, 100, 100, 37), appearance.resetSizes())
+        val appearance = DimensionAppearance(false, DimensionLabelBackground.TRANSPARENT, 150, 200, 37)
+        assertEquals(DimensionAppearance(false, DimensionLabelBackground.TRANSPARENT, 100, 100, 37), appearance.resetSizes())
         for (degrees in 10..40) {
             assertEquals(degrees, clampInlineDragTolerance(degrees))
             assertNull(resolveInlineLabelDrag(null, axis, EditorPoint(7f, 0f), 7f, false, degrees))
