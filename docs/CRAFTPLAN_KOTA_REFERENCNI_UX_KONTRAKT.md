@@ -77,6 +77,13 @@ Praktické ověření prstem, S Penem, při otáčení a po restartu: **NOT RUN*
 - Dotykové tolerance v jednotkách displeje, ne v pixelech fotografie; adaptace pro krátké, šikmé, svislé a dlouhé kóty, posunuté popisky, zoom a hustotu displeje. Rozlišit vstup prstem/S Penem a systémové zrušení včetně dlaně; citlivost pro pero a prst ověřit odděleně, konkrétní hodnoty ani nové nastavení zatím nejsou schváleny.
 - Zjištěné riziko k revizi `4447d8c`: aktuální `EditorHit.kt` má absolutní prioritu koncového kandidáta; `PhotoEditorView.kt` redukuje kandidáty každé kóty na jeden ještě před společným vyhodnocením. Prověřit obě úrovně, aby přímý zásah popisku nebo čáry nebyl ztracen kvůli rozšířené zóně. Existující společná logika je základ, nikoli ověřený finální algoritmus.
 
+**Posouvání kót (27. 11. 2026)**
+
+- Globální nastavení „Posouvání kót“ v nabídce nástrojů platí pro všechny fotografie a zachová se po restartu. Výchozí režim „Přímým tahem“ dovoluje tahem uchopit kótu ihned.
+- V režimu „Až po označení“ je v běžném režimu výběru potřeba kótu nejprve označit klepnutím. Další tah může uchopit tělo, popisek nebo koncový bod označené kóty. Tah zahájený na neoznačené kótě posouvá fotografii.
+- Nejprve se určí cíl podle stávajících priorit při překryvu, potom se rozhodne, zda ho lze tahem upravit. Pravidla pro směr tahu za popisek, jeho zámek a přednost aktivního kreslení zůstávají v platnosti. Posun fotografie ani změna režimu nejsou kroky Undo/Redo.
+- Implementace M1 prošla 252 jednotkovými testy a kontrolou lint. Fyzická ověření gest a restartu jsou NOT RUN. [Zdrojová revize](https://github.com/zaplikj30-ui/CraftPlan/commit/8aaac12aca12c9b1d91f7cd9a3eb54b6b99540fd)
+
 **Otevřené možnosti a návaznosti – nezrušit, ale nezavádět bez konkrétního GO**
 - Zcela překrytý objekt: samostatná explicitní akce/nástroj nabídne všechny relevantní kandidáty (např. typ a hodnotu, případně zvýraznění kandidáta v náhledu); bez opakovaného překlikávání a bez nuceného posouvání vrchní kóty. Přesná ikona, umístění, gesto a termín otevřené. Do té doby dokumentované omezení: dokonale shodné prvky nelze běžným klepáním rozlišit.
 - Společný základ rozšířit o body, hrany, křivky, obrysy a případně vnitřní plochy tvarů (obdélníky, kruhy/elipsy, šipky, úhly, řetězce, volná ruka, další schválené typy). Rozlišení zásahu obrysu od výplně podle UX konkrétního nástroje. Zachovat možnost dynamických vah podle nástroje, režimu, vstupu či typu objektu, nikoli zavádět neověřené váhy předem.
