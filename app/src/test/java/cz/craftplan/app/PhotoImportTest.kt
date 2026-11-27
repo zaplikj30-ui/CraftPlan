@@ -23,6 +23,43 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun retakeRecordsRejectionBeforeRemovingOnlyTheApprovedDraft(): Unit = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        var failBarrier = false
+        fun imports() = PhotoImports(dir, {}, staging(dir) {
+            if (failBarrier && dir.list().orEmpty().any { it.startsWith(".camera-rejected-") }) {
+                throw IOException("Injected rejection barrier failure")
+            }
+        }, db, catalog) { _, _ -> error("No revision expected") }
+        val id = imports().beginCapture()
+        val other = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val bytes = bundledSyntheticPhoto()
+        raw.writeBytes(bytes)
+        val candidate = imports().stageCapture(id)
+        raw.writeBytes(bytes + byteArrayOf(1))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports().rejectCaptureForRetake(candidate) } }
+        assertNull(staging(dir).rejectedCapture(id))
+        raw.writeBytes(bytes)
+        failBarrier = true
+        assertThrows(IOException::class.java) { runBlocking { imports().rejectCaptureForRetake(candidate) } }
+        assertArrayEquals(bytes, raw.readBytes())
+        assertArrayEquals(bytes, staging(dir).read(candidate))
+
+        failBarrier = false
+        imports().rejectCaptureForRetake(candidate)
+        assertFalse(raw.exists())
+        assertNull(staging(dir).rejectedCapture(id))
+        assertTrue(staging(dir).candidates().isEmpty())
+        assertEquals(listOf(other), imports().list().captures)
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { imports().confirm(candidate, testPhoto(candidate, bytes.size)) }
+        }
+    }
+
+    @Test
     fun conflictingSourcesAreIndependentlyVerifiedAndRetriedWithoutReplacingEither() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()

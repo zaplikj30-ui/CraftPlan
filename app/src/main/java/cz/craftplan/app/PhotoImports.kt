@@ -78,6 +78,7 @@ internal class PhotoImports(
     suspend fun stageCapture(id: PhotoId): ImportCandidate = captureLock.withLock {
         storagePhase(StoragePhase.CAMERA_CAPTURE) {
             transactions.read { check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId)) }
+            check(staging.rejectedCapture(id) == null)
             val existing = captureCandidate(id)
             if (existing != null) {
                 if (captures.hasOutput(id)) checkCaptureBytes(existing)
@@ -152,7 +153,34 @@ internal class PhotoImports(
         }
     }
 
+    suspend fun rejectCaptureForRetake(candidate: ImportCandidate) = captureLock.withLock {
+        finishCaptureRejection(candidate)
+    }
+
+    private suspend fun finishCaptureRejection(candidate: ImportCandidate) {
+        val id = candidate.photoId
+        transactions.write {
+            if (head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)) {
+                throw ImportValidationFailure(ImportRejection.CAMERA_SOURCE_PROTECTED)
+            }
+            val recorded = staging.rejectedCapture(id)
+            val current = captureCandidate(id)
+            check(if (recorded == null) current == candidate else recorded == candidate && (current == null || current == candidate))
+            if (current != null) staging.read(current)
+            if (captures.hasOutput(id)) checkCaptureBytes(candidate)
+
+            // Record the user's decision durably before removing either source. The writer
+            // also excludes a concurrent first publication until the decision is visible.
+            staging.recordCaptureRejection(candidate)
+            captures.removeApprovedOutput(id, candidate.digest)
+            staging.remove(candidate)
+            staging.clearCaptureRejection(id)
+        }
+    }
+
     suspend fun discardCapture(id: PhotoId) = captureLock.withLock {
+        val rejected = staging.rejectedCapture(id)
+        if (rejected != null) return@withLock finishCaptureRejection(rejected)
         val candidate = captureCandidate(id)
         if (candidate != null) discard(candidate)
         else transactions.read { check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId)) }
@@ -182,9 +210,12 @@ internal class PhotoImports(
         require(photo.id == candidate.photoId && photo.sha256 == candidate.digest)
         val metadata = SnapshotCodec.encode(DocumentSnapshot(emptyList(), true, photo))
         transactions.write {
+            check(staging.rejectedCapture(candidate.photoId) == null)
             val existing = catalog.find(candidate.photoId.name)
-            if (existing == null) catalog.insert(PhotoImportRow(candidate.photoId.name, metadata))
-            else check(existing.metadata.contentEquals(metadata))
+            if (existing == null) {
+                check(candidate in staging.candidates())
+                catalog.insert(PhotoImportRow(candidate.photoId.name, metadata))
+            } else check(existing.metadata.contentEquals(metadata))
         }
         val document = repository(photo) { staging.read(candidate) }
         val base = document.open().version

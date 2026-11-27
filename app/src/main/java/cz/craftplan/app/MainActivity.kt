@@ -293,10 +293,22 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     fun requestCapture(launch: (PhotoId) -> Unit) {
         if (captureInFlight != null) return
+        val previous = cameraPreviewId
+        val preview = importPreview
+        val ordinary = !recoveringConfirmedPhoto && selectedCaptureSource == null && captureSources.isEmpty()
         var id: PhotoId? = null
         runImport(StoragePhase.CAMERA_CAPTURE, after = { id?.let(launch) }) {
+            if (previous != null) {
+                if (!ordinary || preview?.candidate?.photoId != previous) {
+                    throw ImportValidationFailure(ImportRejection.CAMERA_SOURCE_PROTECTED)
+                }
+                withContext(Dispatchers.IO) {
+                    revokeCameraOutput(getApplication(), previous)
+                    storage.imports.rejectCaptureForRetake(preview.candidate)
+                }
+                clearImportPreview()
+            }
             id = withContext(Dispatchers.IO) { storage.imports.beginCapture() }
-            clearImportPreview()
         }
     }
 

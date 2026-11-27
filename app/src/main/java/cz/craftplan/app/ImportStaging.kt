@@ -59,6 +59,38 @@ internal class ImportStaging(
         }
     }
 
+    private fun rejectionFile(id: PhotoId) = File(directory, ".camera-rejected-${id.name}")
+
+    fun rejectedCapture(id: PhotoId): ImportCandidate? {
+        val path = rejectionFile(id).toPath()
+        if (Files.notExists(path, LinkOption.NOFOLLOW_LINKS)) return null
+        require(Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+        val digest = Files.newInputStream(path).use { it.readNBytes(65).toString(Charsets.US_ASCII) }
+        return ImportCandidate(id, digest)
+    }
+
+    fun recordCaptureRejection(candidate: ImportCandidate) {
+        val existing = rejectedCapture(candidate.photoId)
+        if (existing == null) {
+            val temp = Files.createTempFile(directory.toPath(), ".camera-reject-", ".tmp").toFile()
+            try {
+                FileOutputStream(temp).use {
+                    it.write(candidate.digest.toByteArray(Charsets.US_ASCII))
+                    it.fd.sync()
+                }
+                rename(temp, rejectionFile(candidate.photoId))
+            } finally {
+                temp.delete()
+            }
+        } else check(existing == candidate)
+        syncDirectory(directory)
+    }
+
+    fun clearCaptureRejection(id: PhotoId) {
+        Files.deleteIfExists(rejectionFile(id).toPath())
+        syncDirectory(directory)
+    }
+
     fun candidates(): List<ImportCandidate> =
         checkNotNull(directory.list()).mapNotNull(::parseCandidate).sortedBy { it.fileName }
 
