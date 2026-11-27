@@ -18,6 +18,8 @@ Offline Android aplikace pro zaměřování a dokumentaci zakázek. Vývojová v
 
 **Ověření výchozí revize `0b8724344f98be1957fc51d428f4d934dd52091c`.** Kontrola posledních čtyř diffů k nápovědám, posouvání a nastavení. Kompilace, 254 jednotkových testů a lint PASS. Po implementaci kompilace, 262 jednotkových testů (z toho 8 nových regresí), lint a cílené nezávislé review PASS. Fyzické ověření NOT RUN. Na zařízení ověřit přesuny uvnitř obou lišt a mezi nimi včetně ozubeného kolečka, vibraci, přerušení dotyku, krátké nápovědy, běžné rolování, obě madla, opakování, restart a obnovu výchozího rozložení. Pouze nahraditelná data.
 
+**GO – společné testovací APK (27. 11. 2026):** vlastník schválil sestavení revize `edc20cd910d7d8df8fcf28251092834f658b22c9` stávajícím podepsaným M1 workflow. Rozsah: přepínač posouvání, krátké nápovědy, nastavení, přizpůsobitelné lišty a reset rozložení. Publikační commit mění pouze README. Codex: 262 JVM testů, lint a review PASS; fyzické testy NOT RUN. Pouze nahraditelná data.
+
 ## M1 – nezávislý audit implementace (26. 11. 2026)
 
 Auditovaná revize [`d3edc9350d99189f7727d6db1c62eb67a0a95ee3`](https://github.com/zaplikj30-ui/CraftPlan/tree/d3edc9350d99189f7727d6db1c62eb67a0a95ee3). Nezávislý ChatGPT: APPROVE DESIGN / CHANGES REQUIRED; inventura 43 produkčních Kotlin souborů a 22 souborů testů (210 anotací @Test), u rozsáhlých souborů a historických podkladů výběrová statická kontrola. Audit neprováděl kompilaci, testy, lint, měření ani Android runtime. Technologii neměnit, neprovádět plošný refaktoring. Následující pracovní triáž nenahrazuje GO k implementaci.
