@@ -23,6 +23,48 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun rulerTouchGrowsThreeDpPerSideWithoutChangingVisibleGeometryOrOtherLabels() {
+        for (density in listOf(1f, 2f, 3.5f)) {
+            val original = dimensionLabelGeometry(density, null, 18f * density, false, true)
+            val note = dimensionLabelGeometry(density, 60f * density, 18f * density, true, false)
+            val measured = dimensionLabelGeometry(density, 60f * density, 18f * density, false, true)
+            assertEquals(LabelRect(-24f * density, -36f * density,
+                24f * density, -2f * density), original.rulerTouch.let {
+                LabelRect(it.left + 3f * density, it.top + 3f * density,
+                    it.right - 3f * density, it.bottom - 3f * density)
+            })
+            assertEquals(LabelRect(-14f * density, -17f * density,
+                14f * density, -7f * density), original.ruler)
+            assertEquals(LabelRect(15f * density, -36f * density,
+                91f * density, -2f * density), note.textTouch)
+            assertEquals(LabelRect(-38f * density, -36f * density,
+                38f * density, -2f * density), measured.textTouch)
+            assertEquals(LabelRect(16f * density, -32f * density,
+                47f * density, density), original.notebookTouch)
+            for (geometry in listOf(original, note, original.centeredOnLine(), note.centeredOnLine())) {
+                val ruler = requireNotNull(geometry.ruler)
+                for (scale in listOf(0.2f, 0.8f, 1f, 3.2f)) {
+                    val touch = geometry.rulerTouch
+                    val left = minOf(touch.left, ruler.left * scale - (ruler.left - touch.left))
+                    val right = maxOf(touch.right, ruler.right * scale + (touch.right - ruler.right))
+                    val y = ruler.centerY * scale
+                    assertTrue(requireNotNull(ruler.hit(left + density, y, scale, touch)).distance > 0f)
+                    assertTrue(requireNotNull(ruler.hit(right - density, y, scale, touch)).distance > 0f)
+                    assertNull(ruler.hit(left - density, y, scale, touch))
+                    assertNull(ruler.hit(right + density, y, scale, touch))
+                    val top = minOf(touch.top, ruler.top * scale - (ruler.top - touch.top))
+                    val bottom = maxOf(touch.bottom, ruler.bottom * scale + (touch.bottom - ruler.bottom))
+                    assertTrue(requireNotNull(ruler.hit(0f, top + density, scale, touch)).distance > 0f)
+                    assertTrue(requireNotNull(ruler.hit(0f, bottom - density, scale, touch)).distance > 0f)
+                    assertNull(ruler.hit(0f, top - density, scale, touch))
+                    assertNull(ruler.hit(0f, bottom + density, scale, touch))
+                    assertEquals(0f, requireNotNull(ruler.hit(0f, y, scale, touch)).distance, 0f)
+                }
+            }
+        }
+    }
+
+    @Test
     fun inlineDragUsesTwentyDegreesInBothDirectionsAndAtAnyOrientation() {
         for (orientation in listOf(0.0, 90.0, 42.0, -53.0, 180.0)) {
             fun vector(angle: Double, length: Float): EditorPoint {

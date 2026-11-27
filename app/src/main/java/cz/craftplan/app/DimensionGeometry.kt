@@ -273,7 +273,8 @@ internal fun dimensionLabelGeometry(
     } else null
     return DimensionLabelGeometry(
         ruler, text, notebookRect,
-        LabelRect(-24f * density, -height, 24f * density, -2f * density),
+        // Ruler only: add 3dp to each touch edge, never to the visible marker.
+        LabelRect(-27f * density, -height - 3f * density, 27f * density, density),
         text?.let { LabelRect(it.left - 3f * density, -height, it.right + 3f * density, -2f * density) },
         notebookRect?.let { LabelRect(it.left - 8f * density, -32f * density, it.right + 8f * density, density) },
     )
