@@ -299,6 +299,8 @@ internal class TestDocumentTransactions : DocumentTransactions, DocumentDao {
     override suspend fun revision(id: String): DocumentRevision? = revisions[id]
     override suspend fun operation(id: String): DocumentRevision? = revisions.values.singleOrNull { it.saveOperationId == id }
     override suspend fun hasRevisions(documentId: String): Boolean = revisions.values.any { it.documentId == documentId }
+    override suspend fun revisionCount(documentId: String): Long =
+        revisions.values.count { it.documentId == documentId }.toLong()
     override suspend fun insertHead(head: DocumentHead) {
         check(head.documentId !in heads)
         heads[head.documentId] = head

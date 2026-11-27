@@ -93,7 +93,10 @@ class PhotoImportTest {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()
         val catalog = TestCatalog(db)
-        fun imports() = PhotoImports(dir, {}, staging(dir), db, catalog) { photo, source ->
+        var failStageBarrier = false
+        fun imports() = PhotoImports(dir, {}, staging(dir) {
+            if (failStageBarrier) throw IOException("Injected source sync failure")
+        }, db, catalog) { photo, source ->
             DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
         }
         val bytes = bundledSyntheticPhoto()
@@ -131,6 +134,10 @@ class PhotoImportTest {
         assertEquals(head, db.heads[id.documentId])
         assertEquals(revisions, db.revisions)
 
+        failStageBarrier = true
+        val failed = assertThrows(IOException::class.java) { runBlocking { imports().recoverConfirmed(id) } }
+        assertEquals("Injected source sync failure", failed.message)
+        failStageBarrier = false
         stageFile.writeBytes(byteArrayOf(3))
         assertThrows(IOException::class.java) { runBlocking { imports().recoverConfirmed(id) } }
         raw.writeBytes(bytes)
@@ -142,6 +149,120 @@ class PhotoImportTest {
             db.revisions.getValue(checkNotNull(first.version.revisionId)).copy(storageGeneration = UUID.randomUUID().toString())
         assertThrows(IOException::class.java) { runBlocking { imports().recoverConfirmed(id) } }
         assertArrayEquals(bytes, raw.readBytes())
+    }
+
+    @Test
+    fun confirmedConflictsRemainVisibleAndOnlyTheApprovedUnreferencedSourceCanBeRemoved() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        var failUnlinkBarrier = false
+        fun imports() = PhotoImports(dir, { parent ->
+            if (failUnlinkBarrier && parent.name == CameraCaptureStore.DIRECTORY && parent.list().orEmpty().isEmpty()) {
+                throw IOException("Injected failure after unlink")
+            }
+        }, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val id = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val bytes = bundledSyntheticPhoto()
+        val other = bytes + byteArrayOf(1)
+        raw.writeBytes(bytes)
+        val candidate = imports().stageCapture(id)
+        val photo = testPhoto(candidate, bytes.size)
+        raw.writeBytes(other)
+        val confirmed = imports().confirm(candidate, photo)
+        assertEquals(listOf(id), imports().list().confirmedWithRecoverySources)
+        assertTrue(imports().list().captures.isEmpty())
+        val source = CaptureSource.Camera(id)
+        assertEquals(listOf(source), imports().captureSources(id))
+        val copy = imports().readCaptureCopy(source)
+        assertArrayEquals(other, copy.bytes)
+        assertNotEquals(id, copy.candidate.photoId)
+        val head = db.heads[id.documentId]
+        val revisions = db.revisions.toMap()
+
+        val final = File(dir, photo.mediaFileName())
+        final.writeBytes(byteArrayOf(1))
+        assertThrows(StorageFailure::class.java) {
+            runBlocking { imports().discardCaptureSource(source, copy.candidate.digest) }
+        }
+        assertTrue(raw.isFile)
+        final.writeBytes(bytes)
+
+        raw.writeBytes(bytes)
+        val protected = assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports().discardCaptureSource(source, sha256(bytes)) }
+        }
+        assertEquals(ImportRejection.CAMERA_SOURCE_PROTECTED, protected.reason)
+        assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports().discardCaptureSource(source, copy.candidate.digest) }
+        }
+        raw.writeBytes(other)
+
+        val unrelated = revisions.values.single().copy(
+            revisionId = UUID.randomUUID().toString(), saveOperationId = UUID.randomUUID().toString(),
+        )
+        db.revisions[unrelated.revisionId] = unrelated
+        assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports().discardCaptureSource(source, copy.candidate.digest) }
+        }
+        assertArrayEquals(other, raw.readBytes())
+        db.revisions.remove(unrelated.revisionId)
+
+        failUnlinkBarrier = true
+        assertThrows(IOException::class.java) {
+            runBlocking { imports().discardCaptureSource(source, copy.candidate.digest) }
+        }
+        failUnlinkBarrier = false
+        imports().discardCaptureSource(source, copy.candidate.digest)
+        assertTrue(imports().list().confirmedWithRecoverySources.isEmpty())
+        assertEquals(head, db.heads[id.documentId])
+        assertEquals(revisions, db.revisions)
+        assertEquals(confirmed.snapshot, imports().open(id).snapshot)
+        assertArrayEquals(bytes, final.readBytes())
+    }
+
+    @Test
+    fun deletingOnePendingConflictLeavesTheCompetingStageAndOtherAttempts() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val files = staging(dir)
+        val imports = PhotoImports(dir, {}, files, db, TestCatalog(db)) { _, _ -> error("No revision expected") }
+        val bytes = bundledSyntheticPhoto()
+        val id = imports.beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        raw.writeBytes(bytes)
+        val firstStage = imports.stageCapture(id)
+        val secondStage = files.receive((bytes + byteArrayOf(1)).inputStream(), id)
+        val other = imports.beginCapture()
+        imports.discardCaptureSource(CaptureSource.Camera(id), sha256(bytes))
+        assertEquals(setOf(id, other), imports.list().captures.toSet())
+        assertEquals(listOf(CaptureSource.Stage(firstStage), CaptureSource.Stage(secondStage)).toSet(),
+            imports.captureSources(id).toSet())
+        imports.discardCaptureSource(CaptureSource.Stage(secondStage), secondStage.digest)
+        assertArrayEquals(bytes, files.read(firstStage))
+        assertTrue(CameraCaptureStore.outputFile(dir, other).exists())
+    }
+
+    @Test
+    fun unreadablePendingPublicationBlocksSelectiveDiscard() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, staging(dir), db, catalog) { _, _ -> error("No revision expected") }
+        val id = imports.beginCapture()
+        val bytes = bundledSyntheticPhoto()
+        val output = CameraCaptureStore.outputFile(dir, id)
+        output.writeBytes(bytes)
+        catalog.rows[id.name] = PhotoImportRow(id.name, ByteArray(4097))
+        assertNull(catalog.find(id.name))
+        val protected = assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports.discardCaptureSource(CaptureSource.Camera(id), sha256(bytes)) }
+        }
+        assertEquals(ImportRejection.CAMERA_SOURCE_PROTECTED, protected.reason)
+        assertArrayEquals(bytes, output.readBytes())
     }
 
     @Test
@@ -579,7 +700,8 @@ class PhotoImportTest {
 private class TestCatalog(private val db: TestDocumentTransactions) : PhotoImportDao {
     val rows = linkedMapOf<String, PhotoImportRow>()
 
-    override suspend fun find(id: String): PhotoImportRow? = rows[id]
+    override suspend fun find(id: String): PhotoImportRow? = rows[id]?.takeIf { it.metadata.size <= 4096 }
+    override suspend fun exists(id: String): Boolean = id in rows
     override suspend fun insert(row: PhotoImportRow) {
         check(row.photoId !in rows)
         rows[row.photoId] = row

@@ -55,26 +55,41 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             Text(stringResource(R.string.import_open_confirmed, index + 1))
         }
     }
-    state.failedPhotoRecovery?.let { id ->
+    val recoveryIds = (listOfNotNull(state.failedPhotoRecovery) + state.importedPhotos.confirmedWithRecoverySources).distinct()
+    for (id in recoveryIds) {
+        val index = state.importedPhotos.confirmed.indexOf(id)
         TextButton(onClick = { state.showConfirmedRecovery(id) }, enabled = enabled && id != state.captureInFlight) {
-            Text(stringResource(R.string.camera_recovery_open_sources))
+            val label = if (index < 0) stringResource(R.string.camera_recovery_open_sources)
+                else stringResource(R.string.camera_recovery_open_indexed, index + 1)
+            Text(label)
         }
     }
     if (state.importBusy) Text(stringResource(R.string.import_working))
     val capture = state.cameraPreviewId
     val pendingId = capture ?: state.importCandidate?.photoId
     pendingId?.let { id ->
-        val discardLabel = if (capture == null) R.string.import_discard else R.string.camera_discard
-        var confirmDiscard by remember(id) { mutableStateOf(false) }
+        val discardSource = state.selectedCaptureDigest != null
+        val discardLabel = when {
+            discardSource -> R.string.camera_discard_selected
+            capture == null -> R.string.import_discard
+            else -> R.string.camera_discard
+        }
+        var confirmDiscard by remember(id, state.selectedCaptureSource) { mutableStateOf(false) }
         if (confirmDiscard) {
             AlertDialog(
                 onDismissRequest = { confirmDiscard = false },
                 title = { Text(stringResource(discardLabel)) },
-                text = { Text(stringResource(if (capture == null) R.string.import_discard_warning else R.string.camera_discard_warning)) },
+                text = {
+                    Text(stringResource(when {
+                        discardSource -> R.string.camera_discard_selected_warning
+                        capture == null -> R.string.import_discard_warning
+                        else -> R.string.camera_discard_warning
+                    }))
+                },
                 confirmButton = {
                     TextButton(onClick = {
                         confirmDiscard = false
-                        state.discardImport()
+                        if (discardSource) state.discardSelectedCaptureSource() else state.discardImport()
                     }, enabled = enabled) { Text(stringResource(discardLabel)) }
                 },
                 dismissButton = {
@@ -126,7 +141,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 Text(stringResource(R.string.camera_retake))
                             }
                         }
-                        if (!state.recoveringConfirmedPhoto && state.captureSources.size < 2) {
+                        if (discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)) {
                             TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
                                 Text(stringResource(discardLabel))
                             }

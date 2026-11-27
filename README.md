@@ -258,13 +258,19 @@ Auditovaná revize [c5f25208784d71750c0018b1f3d4dc39d7334eac](https://github.com
 
 | ID / priorita | Nález a další postup | Stav |
 |---|---|---|
-| CAM-01 / P2 | PhotoImports.stageCapture: odlišný výstup a staging nebo poškozený staging blokují uživatelskou obnovu dostupných bajtů. Umožnit samostatné ověření, náhled a vědomé zachránění platných verzí bez přepisu druhého zdroje. | OPEN |
-| CAM-02 / P1 | PhotoImports.list/open: publikovaný ukazatel skrývá záchranné zdroje i při selhání ověření potvrzené revize/média. Při obnově validovat revizi, identitu, metadata a očekávaný SHA-256; nabídnout nedestruktivní obnovu, nikdy nepotvrdit jiný obsah nebo přepsat revizi. | OPEN |
-| CAM-03 / P2 | PhotoImports.list/removeRedundantCapture: odlišný výstup po potvrzení stagingu zůstává skrytý. Zpřístupnit jako konflikt, bezpečná volba záchrany či výslovného odstranění pouze příslušného souboru. | OPEN |
+| CAM-01 / P2 | PhotoImports.stageCapture: odlišný výstup a staging nebo poškozený staging blokují uživatelskou obnovu dostupných bajtů. Umožnit samostatné ověření, náhled a vědomé zachránění platných verzí bez přepisu druhého zdroje. | Opraveno ve zdroji, fyzický retest NOT RUN |
+| CAM-02 / P1 | PhotoImports.list/open: publikovaný ukazatel skrývá záchranné zdroje i při selhání ověření potvrzené revize/média. Při obnově validovat revizi, identitu, metadata a očekávaný SHA-256; nabídnout nedestruktivní obnovu, nikdy nepotvrdit jiný obsah nebo přepsat revizi. | Opraveno ve zdroji, fyzický retest NOT RUN |
+| CAM-03 / P2 | PhotoImports.list/removeRedundantCapture: odlišný výstup po potvrzení stagingu zůstává skrytý. Zpřístupnit jako konflikt, bezpečná volba záchrany či výslovného odstranění pouze příslušného souboru. | Opraveno ve zdroji, fyzický retest NOT RUN |
 | CAM-04 / P2 | ImportStaging/PrivatePhotoStore: po pádu mohou zůstat .import-*.part a .photo-staged-*.jpg. Samostatný krok pro bezpečnou evidenci/úklid pouze prokazatelně nepotřebných souborů bez aktivních či záchranných vazeb. Žádné plošné mazání. | OPEN |
 | CAM-05 / P3 | SystemPhotoCamera/ActivityResultRegistry: ověřit obnovu aktivity, otočení, ukončení procesu, ukončení čekání a opožděné výsledky bez záměny identit. Nejde o prokázanou chybu. | NOT RUN |
 
-Pracovní doporučení: společná cílená oprava CAM-01–03 před sériovým focením, následně cílený nezávislý retest nálezů; CAM-04 odděleně, CAM-05 fyzicky. Doplnit regresní scénáře poškozeného finálního média s platným stagingem, konfliktu obou verzí, poškozeného stagingu s platným výstupem, ztraceného ACK, restartu a ochrany potvrzených dat před stornem. Fyzicky ověřit také skutečný nedostatek místa, oprávnění a Galerii na Samsungu a dalším zařízení. Sériový režim viz PR #4 `fcea06c86c6a7d9a92d517ce2fc28f182e98cb06`, test série 20 snímků při jeho implementaci. Pouze nahraditelná data. Evidence auditu a návrh pořadí, nikoliv GO k implementaci, sestavení nebo Actions.
+**Oprava CAM-01 až CAM-03 (27. 11. 2026).**
+
+- Při konfliktu lze samostatně vybrat výstup fotoaparátu a každou pracovní kopii. Výběr ověřuje stabilitu výstupu nebo SHA-256 stagingu a používá standardní náhled. Odlišný snímek lze výslovně potvrdit jako novou fotografii bez přenosu kotev či měření původní revize. Identita kopie je stálá pro dvojici původní identity a potvrzeného SHA-256. Po přerušeném zápisu se nejdřív ověří již vytvořená kopie.
+- Záchranné zdroje jsou dosažitelné z přehledu i při neúspěšném otevření. Otevření ověřené revize ze zdroje je pouze ke čtení. Ověří se identita, generace, vazba na revizi, metadata, velikost a očekávaný SHA-256. Potvrzený dokument, jeho měření i finální soubor zůstávají beze změny.
+- Výslovné odstranění se týká pouze vybraného ověřeného souboru. Pod zámkem a ve zapisovací transakci se chrání probíhající potvrzení, ověří se úplnost řetězce revizí a jejich původní média. Odstranění je blokováno při shodě s očekávanými bajty či neúplném důkazu, včetně nedostupného potvrzeného média. Zdroj mimo bezpečné limity, který nelze ověřit, zůstává zachován.
+- **Lokální ověření PASS:** 274 jednotkových testů včetně šesti nových regresí, lint, kontrola diffu a nezávislé bezpečnostní review.
+- CAM-04 zůstává otevřený, CAM-05 čeká na fyzický test. Sériové focení má samostatný rozsah. Na telefonu zbývá ověřit volbu obou konfliktních zdrojů, potvrzení kopie a odstranění, návrat po restartu, skutečný nedostatek místa a výpadek napájení. Pouze nahraditelná data.
 
 ## M1 – uložení a opětovné otevření syntetické fotografie
 

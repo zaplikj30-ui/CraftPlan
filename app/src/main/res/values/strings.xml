@@ -28,6 +28,9 @@
     <string name="camera_discard">Storno</string>
     <string name="camera_discard_warning">Zahodit tento nepotvrzený snímek?</string>
     <string name="camera_recovery_open_sources">Záchranné zdroje uložené fotografie</string>
+    <string name="camera_recovery_open_indexed">Záchranné zdroje uložené fotografie %1$d</string>
+    <string name="camera_discard_selected">Odstranit vybraný zdroj</string>
+    <string name="camera_discard_selected_warning">Odstranit pouze vybraný zdroj? Zdroj potřebný pro ověřenou revizi zůstane chráněný.</string>
     <string name="camera_recovery_open_original">Otevřít ověřenou revizi jen pro čtení</string>
     <string name="camera_recovery_sources">Ověřit jednotlivé zdroje snímku</string>
     <string name="camera_recovery_output">Náhled výstupu fotoaparátu</string>

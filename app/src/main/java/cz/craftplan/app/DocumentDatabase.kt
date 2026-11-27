@@ -57,6 +57,9 @@ internal interface DocumentDao {
     @Query("SELECT EXISTS(SELECT 1 FROM document_revision WHERE documentId = :documentId)")
     suspend fun hasRevisions(documentId: String): Boolean
 
+    @Query("SELECT COUNT(*) FROM document_revision WHERE documentId = :documentId")
+    suspend fun revisionCount(documentId: String): Long
+
     @Insert
     suspend fun insertHead(head: DocumentHead)
 
@@ -81,6 +84,9 @@ internal data class PhotoImportRow(
 internal interface PhotoImportDao {
     @Query("SELECT * FROM photo_import WHERE photoId = :id AND length(metadata) <= 4096")
     suspend fun find(id: String): PhotoImportRow?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM photo_import WHERE photoId = :id)")
+    suspend fun exists(id: String): Boolean
 
     @Insert
     suspend fun insert(row: PhotoImportRow)

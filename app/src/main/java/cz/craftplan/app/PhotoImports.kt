@@ -2,8 +2,10 @@ package cz.craftplan.app
 
 import android.graphics.Bitmap
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.InputStream
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +16,7 @@ internal data class ImportPreview(
 )
 internal data class PhotoList(
     val confirmed: List<PhotoId>, val pending: List<ImportCandidate>, val captures: List<PhotoId> = emptyList(),
+    val confirmedWithRecoverySources: List<PhotoId> = emptyList(),
 )
 
 internal sealed interface CaptureSource {
@@ -48,10 +51,14 @@ internal class PhotoImports(
             }
         }
         val cameraAttempts = captures.attempts()
-        val represented = (confirmed + cameraAttempts).toHashSet()
         val committed = confirmed.toHashSet()
-        return PhotoList(confirmed, staging.candidates().filterNot { it.photoId in represented },
-            cameraAttempts.filterNot { it in committed })
+        val staged = staging.candidates()
+        val conflictingStages = staged.groupBy { it.photoId }.filterValues { it.size > 1 }.keys
+        val pendingCaptures = (cameraAttempts + conflictingStages).distinct().filterNot { it in committed }
+        val represented = (confirmed + pendingCaptures).toHashSet()
+        val recoveryIds = (cameraAttempts + staged.map { it.photoId }).toHashSet()
+        return PhotoList(confirmed, staged.filterNot { it.photoId in represented },
+            pendingCaptures, confirmed.filter { it in recoveryIds })
     }
 
     fun receive(input: InputStream): ImportCandidate = storagePhase(StoragePhase.IMPORT_STAGE) {
@@ -94,8 +101,7 @@ internal class PhotoImports(
         CaptureCopy(copyCandidate(source.photoId, sha256(bytes)), bytes)
     }
 
-    suspend fun previewCaptureCopy(source: CaptureSource): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
-        val copy = readCaptureCopy(source)
+    suspend fun previewCaptureCopy(copy: CaptureCopy): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         previewJpeg(copy.candidate, copy.bytes, transactions.read { catalogPhoto(copy.candidate.photoId) })
     }
 
@@ -121,10 +127,28 @@ internal class PhotoImports(
         is CaptureSource.Stage -> staging.read(source.candidate)
         is CaptureSource.Camera -> {
             val bytes = captures.readOutput(source.photoId) { it.readNBytes(MAX_PHOTO_BYTES + 1) }
-            if (bytes.isEmpty()) throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_EMPTY)
             if (bytes.size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
             checkCaptureBytes(ImportCandidate(source.photoId, sha256(bytes)))
             bytes
+        }
+    }
+
+    suspend fun discardCaptureSource(source: CaptureSource, digest: String) = captureLock.withLock {
+        val id = source.photoId
+        val candidate = ImportCandidate(id, digest)
+        transactions.write {
+            val hasPendingPublication = head(id.documentId)?.revisionId == null && catalog.exists(id.name)
+            if (hasPendingPublication || isProtectedRecoveryMedia(id, digest) { existingRepository(it).verifyPublishedMedia() }) {
+                throw ImportValidationFailure(ImportRejection.CAMERA_SOURCE_PROTECTED)
+            }
+            when (source) {
+                is CaptureSource.Camera -> captures.removeApprovedOutput(id, digest)
+                is CaptureSource.Stage -> {
+                    require(candidate == source.candidate)
+                    if (candidate in staging.candidates()) staging.read(candidate)
+                    staging.remove(candidate)
+                }
+            }
         }
     }
 
@@ -189,6 +213,7 @@ internal class PhotoImports(
         val expected = ImportCandidate(photo.id, photo.sha256)
         val sources = listOf(CaptureSource.Stage(expected), CaptureSource.Camera(photo.id))
         var failure: Exception = MissingConfirmedPhoto()
+        var hardFailure: Exception? = null
         for (source in sources) {
             try {
                 val bytes = readCaptureSource(source)
@@ -197,9 +222,13 @@ internal class PhotoImports(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                failure = error
+                when (error) {
+                    is FileNotFoundException, is NoSuchFileException, is IllegalArgumentException -> failure = error
+                    else -> if (hardFailure == null) hardFailure = error
+                }
             }
         }
+        hardFailure?.let { throw it }
         // This revision cannot be shown with these bytes. Let the normal validator try its predecessor.
         throw StorageFailure(StoragePhase.PHOTO_VERIFY, MissingConfirmedPhoto().apply { initCause(failure) })
     }

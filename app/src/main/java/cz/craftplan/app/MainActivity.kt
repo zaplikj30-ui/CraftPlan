@@ -169,6 +169,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var selectedCaptureSource by mutableStateOf<CaptureSource?>(null)
         private set
+    var selectedCaptureDigest by mutableStateOf<String?>(null)
+        private set
     var failedPhotoRecovery by mutableStateOf<PhotoId?>(null)
         private set
     var recoveringConfirmedPhoto by mutableStateOf(false)
@@ -375,11 +377,34 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         if (source.photoId != cameraPreviewId || source.photoId == captureInFlight || source !in captureSources) return
         runImport(StoragePhase.IMPORT_PREVIEW) {
             selectedCaptureSource = source
+            selectedCaptureDigest = null
             importPreview = null
             importCandidate = null
-            importPreview = withContext(Dispatchers.IO) {
+            val copy = withContext(Dispatchers.IO) {
                 if (source is CaptureSource.Camera) revokeCameraOutput(getApplication(), source.photoId)
-                storage.imports.previewCaptureCopy(source)
+                storage.imports.readCaptureCopy(source)
+            }
+            selectedCaptureDigest = copy.candidate.digest
+            importPreview = withContext(Dispatchers.IO) { storage.imports.previewCaptureCopy(copy) }
+        }
+    }
+
+    fun discardSelectedCaptureSource() {
+        val source = selectedCaptureSource ?: return
+        val digest = selectedCaptureDigest ?: return
+        if (source.photoId == captureInFlight) return
+        runImport(StoragePhase.CAMERA_CAPTURE) {
+            captureSources = withContext(Dispatchers.IO) {
+                if (source is CaptureSource.Camera) revokeCameraOutput(getApplication(), source.photoId)
+                storage.imports.discardCaptureSource(source, digest)
+                storage.imports.captureSources(source.photoId)
+            }
+            selectedCaptureSource = null
+            selectedCaptureDigest = null
+            importPreview = null
+            if (captureSources.isEmpty()) {
+                failedPhotoRecovery = null
+                clearImportPreview()
             }
         }
     }
@@ -406,6 +431,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         cameraPreviewId = null
         captureSources = emptyList()
         selectedCaptureSource = null
+        selectedCaptureDigest = null
         recoveringConfirmedPhoto = false
     }
 

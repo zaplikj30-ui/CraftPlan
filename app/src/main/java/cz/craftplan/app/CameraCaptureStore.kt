@@ -85,6 +85,15 @@ internal class CameraCaptureStore(
         if (hasOutput(id) && matches(id, digest)) remove(id)
     }
 
+    fun removeApprovedOutput(id: PhotoId, digest: String) {
+        if (hasOutput(id)) {
+            if (!matches(id, digest)) throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_CHANGED)
+            Files.deleteIfExists(file(id).toPath())
+        }
+        // Retry after a lost unlink acknowledgement even when the name is already absent.
+        syncDirectory(directory)
+    }
+
     fun remove(id: PhotoId) {
         if (Files.deleteIfExists(file(id).toPath())) syncDirectory(directory)
     }

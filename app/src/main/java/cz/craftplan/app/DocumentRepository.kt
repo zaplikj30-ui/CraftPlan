@@ -43,6 +43,8 @@ internal class DocumentRepository(
     private val photo = photos.photo
     private val documentId = photo.id.documentId
 
+    fun verifyPublishedMedia() { photos.readAndSync() }
+
     suspend fun open(): OpenDocument {
         val exists = transactions.read { checkedHead(documentId, allowRecovery = true) != null }
         if (!exists) transactions.write {
@@ -215,6 +217,28 @@ private suspend fun DocumentDao.openConfirmedRevision(
         candidate = older.previousRevisionId
     }
     throw (mediaFailure ?: IOException("No valid confirmed revision can be opened"))
+}
+
+/** Called under the writer transaction. Incomplete revision evidence always protects the source. */
+internal suspend fun DocumentDao.isProtectedRecoveryMedia(
+    id: PhotoId, digest: String, verifyMedia: (StoredPhoto) -> Unit,
+): Boolean {
+    val head = checkedHead(id.documentId) ?: return false
+    val total = revisionCount(id.documentId)
+    var revisionId = head.revisionId
+    var visited = 0L
+    val verified = mutableSetOf<StoredPhoto>()
+    while (revisionId != null) {
+        if (visited >= total) return true
+        val row = revision(revisionId) ?: return true
+        val snapshot = validatedSnapshot(row, head, revisionId, id, expectedPhoto = null) ?: return true
+        if (visited == 0L && row.previousRevisionId != head.previousRevisionId) return true
+        if (snapshot.photo.sha256 == digest) return true
+        if (verified.add(snapshot.photo)) verifyMedia(snapshot.photo)
+        visited++
+        revisionId = row.previousRevisionId
+    }
+    return visited != total
 }
 
 private suspend fun DocumentDao.checkedHead(documentId: String, allowRecovery: Boolean = false): DocumentHead? {
