@@ -502,6 +502,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         dimensionAppearance = DimensionAppearance(
             inline = source.getBoolean("dimension_label_inline", true),
             transparent = source.getBoolean("dimension_label_transparent", false),
+            geometryPercent = dimensionSizePercent(source.getInt("dimension_geometry_size", 100)),
+            labelPercent = dimensionSizePercent(source.getInt("dimension_label_size", 100)),
         )
         statusBarSettings = EditorStatusBarSettings(
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
@@ -515,6 +517,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         preferences?.edit()
             ?.putBoolean("dimension_label_inline", value.inline)
             ?.putBoolean("dimension_label_transparent", value.transparent)
+            ?.putInt("dimension_geometry_size", value.geometryPercent)
+            ?.putInt("dimension_label_size", value.labelPercent)
             ?.apply()
     }
 
@@ -804,6 +808,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 appearance = editorState.dimensionAppearance,
+                automaticSizeFactor = automaticDimensionSizeFactor(configuration.smallestScreenWidthDp),
                 fitRequest = editorState.fitRequest,
                 diagnostics = editorState.diagnostics.takeIf {
                     BuildConfig.ENABLE_STRESS_TOOLS && editorState.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH
@@ -920,6 +925,7 @@ private fun SamplePhoto(
     showNotes: Boolean,
     labelsLocked: Boolean,
     appearance: DimensionAppearance,
+    automaticSizeFactor: Float,
     fitRequest: Int,
     diagnostics: EditorDiagnostics?,
     onDrawCounts: (Int, Int) -> Unit,
@@ -963,6 +969,7 @@ private fun SamplePhoto(
                 view.showNotes = showNotes
                 view.labelsLocked = labelsLocked
                 view.appearance = appearance
+                view.automaticSizeFactor = automaticSizeFactor
                 view.scene = scene
                 view.fitRequest = fitRequest
             },

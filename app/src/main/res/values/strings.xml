@@ -155,6 +155,10 @@
     <string name="dimension_label_above">Popisek nad čárou</string>
     <string name="dimension_label_placement_explanation">V čáře: pokud se popisek nevejde mezi šipky, zobrazí se vedle kóty. Nad čárou: původní umístění i u krátkých kót.</string>
     <string name="dimension_label_transparent">Průhledné pozadí popisku</string>
+    <string name="dimension_automatic_size">Automatická velikost displeje: %1$d %%. Ruční nastavení upravuje tuto základní velikost.</string>
+    <string name="dimension_geometry_size">Velikost geometrie: %1$d %%</string>
+    <string name="dimension_label_size">Velikost popisku: %1$d %%</string>
+    <string name="dimension_reset_sizes">Obnovit automatické velikosti</string>
     <string name="editor_status_bar_settings">Horní systémová lišta</string>
     <string name="editor_status_bar_explanation">Vypnuto: průhledná a viditelná. Zapnuto: automaticky skrývaná, dočasně ji vysune tah od horního okraje. Volba platí i při zadávání kóty.</string>
     <string name="editor_status_bar_portrait">Na výšku – skrývat</string>

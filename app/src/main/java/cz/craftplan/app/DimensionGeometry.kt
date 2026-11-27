@@ -74,12 +74,16 @@ internal fun dimensionStrokeTargets(
     val result = mutableListOf<DimensionStrokeTarget>()
     fun endpoint(hit: DimensionHit, center: EditorPoint, direction: Float) {
         val centerDistance = point.distanceTo(center)
-        if (centerDistance >= 31f * density) return
+        // Large display sizes can draw a tick beyond the existing expanded zone.
+        // Allow direct hits there, without enlarging the ordinary touch tolerance.
+        if (centerDistance >= 31f * density &&
+            centerDistance > maxOf(tick, hypot(arrow, arrow / 2f)) + strokeRadius) return
         val distance = minOf(
             distanceToDimensionLine(point, from(center, 0f, -tick), from(center, 0f, tick)),
             distanceToDimensionLine(point, center, from(center, direction * arrow, arrow / 2f)),
             distanceToDimensionLine(point, center, from(center, direction * arrow, -arrow / 2f)),
         )
+        if (centerDistance >= 31f * density && distance > strokeRadius) return
         // Keep the visible handle center separate from the broader touch tolerance.
         result += DimensionStrokeTarget(
             hit, distance, centerDistance, distance <= strokeRadius, gripCore = centerDistance <= 4f * density,
@@ -178,11 +182,39 @@ internal data class DimensionLabelGeometry(
     }
 }
 
+internal const val MIN_DIMENSION_SIZE_PERCENT = 50
+internal const val MAX_DIMENSION_SIZE_PERCENT = 250
+internal const val DIMENSION_SIZE_STEP_PERCENT = 5
+
+internal fun dimensionSizePercent(value: Int): Int =
+    ((value.coerceIn(MIN_DIMENSION_SIZE_PERCENT, MAX_DIMENSION_SIZE_PERCENT) +
+        DIMENSION_SIZE_STEP_PERCENT / 2) / DIMENSION_SIZE_STEP_PERCENT) * DIMENSION_SIZE_STEP_PERCENT
+
+/** Trial calibration in orientation-independent dp, not bitmap pixels.
+ *  Normal phones stay at 100%; interpolate to 115% at 600dp and 130% at 840dp.
+ */
+internal fun automaticDimensionSizeFactor(smallestWidthDp: Int): Float = when {
+    smallestWidthDp <= 480 -> 1f
+    smallestWidthDp <= 600 -> 1f + 0.15f * (smallestWidthDp - 480) / 120f
+    smallestWidthDp < 840 -> 1.15f + 0.15f * (smallestWidthDp - 600) / 240f
+    else -> 1.3f
+}
+
 /** App-wide display preferences, not stored measurement data. */
 internal data class DimensionAppearance(
     val inline: Boolean = true,
     val transparent: Boolean = false,
-)
+    val geometryPercent: Int = 100,
+    val labelPercent: Int = 100,
+) {
+    fun geometryFactor(automaticFactor: Float): Float =
+        automaticFactor * (dimensionSizePercent(geometryPercent) / 100f)
+
+    fun labelFactor(automaticFactor: Float): Float =
+        automaticFactor * (dimensionSizePercent(labelPercent) / 100f)
+
+    fun resetSizes(): DimensionAppearance = copy(geometryPercent = 100, labelPercent = 100)
+}
 
 internal data class DimensionLineSpan(val start: Float, val end: Float)
 internal data class DimensionLabelPlacement(

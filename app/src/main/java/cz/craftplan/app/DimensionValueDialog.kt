@@ -1154,6 +1154,19 @@ internal fun DimensionValueDialog(
                             Switch(checked = appearance.transparent,
                                 onCheckedChange = { onAppearanceChange(appearance.copy(transparent = it)) })
                         }
+                        val automaticPercent = kotlin.math.round(
+                            automaticDimensionSizeFactor(LocalConfiguration.current.smallestScreenWidthDp) * 100f
+                        ).toInt()
+                        Text(stringResource(R.string.dimension_automatic_size, automaticPercent))
+                        DimensionSizeSlider(R.string.dimension_geometry_size, appearance.geometryPercent) {
+                            onAppearanceChange(appearance.copy(geometryPercent = it))
+                        }
+                        DimensionSizeSlider(R.string.dimension_label_size, appearance.labelPercent) {
+                            onAppearanceChange(appearance.copy(labelPercent = it))
+                        }
+                        TextButton(onClick = { onAppearanceChange(appearance.resetSizes()) }) {
+                            Text(stringResource(R.string.dimension_reset_sizes))
+                        }
                     }
                 },
                 confirmButton = {
@@ -1459,4 +1472,20 @@ internal fun editDimensionInput(
     val text = field.text.replaceRange(start, end, replacement)
     if (text.length > limit && text.length >= field.text.length) return field
     return TextFieldValue(text, TextRange(start + replacement.length))
+}
+
+/** Percentages are independent corrections of the automatic display size. */
+@Composable
+private fun DimensionSizeSlider(
+    labelRes: Int,
+    percent: Int,
+    onChange: (Int) -> Unit,
+) {
+    Text(stringResource(labelRes, percent))
+    Slider(
+        value = percent.toFloat(),
+        onValueChange = { onChange(dimensionSizePercent(kotlin.math.round(it).toInt())) },
+        valueRange = MIN_DIMENSION_SIZE_PERCENT.toFloat()..MAX_DIMENSION_SIZE_PERCENT.toFloat(),
+        steps = (MAX_DIMENSION_SIZE_PERCENT - MIN_DIMENSION_SIZE_PERCENT) / DIMENSION_SIZE_STEP_PERCENT - 1,
+    )
 }

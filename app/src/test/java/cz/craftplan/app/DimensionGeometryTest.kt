@@ -23,6 +23,77 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun automaticAppearanceSizeInterpolatesInDpAndClampsAtTrialLimits() {
+        for (width in listOf(0, 320, 360, 411, 480)) {
+            assertEquals(1f, automaticDimensionSizeFactor(width), 0f)
+        }
+        assertEquals(1.075f, automaticDimensionSizeFactor(540), 0.00001f)
+        assertEquals(1.15f, automaticDimensionSizeFactor(600), 0.00001f)
+        assertEquals(1.225f, automaticDimensionSizeFactor(720), 0.00001f)
+        assertEquals(1.3f, automaticDimensionSizeFactor(840), 0.00001f)
+        assertEquals(1.3f, automaticDimensionSizeFactor(1200), 0.00001f)
+        assertTrue((320..1200).zipWithNext().all { (a, b) ->
+            automaticDimensionSizeFactor(a) <= automaticDimensionSizeFactor(b)
+        })
+    }
+
+    @Test
+    fun manualAppearanceSizesAreIndependentBoundedAndResetOnlySizes() {
+        for (size in 50..250 step 5) assertEquals(size, dimensionSizePercent(size))
+        assertEquals(50, dimensionSizePercent(Int.MIN_VALUE))
+        assertEquals(250, dimensionSizePercent(Int.MAX_VALUE))
+        assertEquals(115, dimensionSizePercent(113))
+        assertEquals(110, dimensionSizePercent(112))
+        for (automatic in listOf(1f, 1.15f, 1.3f)) {
+            val defaults = DimensionAppearance()
+            assertEquals(automatic, defaults.geometryFactor(automatic), 0f)
+            assertEquals(automatic, defaults.labelFactor(automatic), 0f)
+            for (geometry in 50..250 step 5) {
+                for (label in 50..250 step 5) {
+                    val appearance = DimensionAppearance(false, true, geometry, label)
+                    assertEquals(automatic * geometry / 100f, appearance.geometryFactor(automatic), 0.00001f)
+                    assertEquals(automatic * label / 100f, appearance.labelFactor(automatic), 0.00001f)
+                    assertEquals(DimensionAppearance(false, true), appearance.resetSizes())
+                }
+            }
+        }
+    }
+
+    @Test
+    fun largeVisibleTicksRemainDirectlyHittableWithoutExpandingIndirectTolerance() {
+        val start = EditorPoint(0f, 0f)
+        val end = EditorPoint(500f, 0f)
+        val scale = 2f * DimensionAppearance(geometryPercent = 250).geometryFactor(1.3f)
+        val visible = EditorPoint(0f, 50f)
+        assertTrue(dimensionStrokeTargets(visible, start, end, 1f, 2f, 1f)
+            .none { it.hit == DimensionHit.START })
+        val target = dimensionStrokeTargets(visible, start, end, 1f, scale, 1f)
+            .first { it.hit == DimensionHit.START }
+        assertTrue(target.direct)
+        assertFalse(target.gripCore)
+        assertTrue(dimensionStrokeTargets(EditorPoint(10f, 50f), start, end, 1f, scale, 1f)
+            .none { it.hit == DimensionHit.START })
+        val ordinary = dimensionStrokeTargets(EditorPoint(0f, 30f), start, end, 1f, 0.8f, 1f)
+            .first { it.hit == DimensionHit.START }
+        assertFalse(ordinary.direct)
+        assertTrue(dimensionStrokeTargets(EditorPoint(0f, 31f), start, end, 1f, 0.8f, 1f)
+            .none { it.hit == DimensionHit.START })
+    }
+
+    @Test
+    fun largestAppearanceLabelStillClearsShortDimensionEndpoints() {
+        val appearance = DimensionAppearance(geometryPercent = 250, labelPercent = 250)
+        val factor = appearance.geometryFactor(1.3f)
+        val geometry = dimensionLabelGeometry(1f, 60f, 18f, false, false).centeredOnLine()
+        val scale = 0.6f * appearance.labelFactor(1.3f)
+        val clearance = dimensionHandleRadius(factor, 0.8f, 0.8f, 2.95f)
+        val placement = placeDimensionLabel(geometry, 20f, 0f, scale, false, true, clearance, 2f)
+        val (left, _) = geometry.horizontalBounds(scale)
+        assertTrue(placement.distance + left >= 20f + clearance)
+        assertTrue(placement.bodySpans!!.all { it.start.isFinite() && it.end.isFinite() })
+    }
+
+    @Test
     fun rulerTouchGrowsThreeDpPerSideWithoutChangingVisibleGeometryOrOtherLabels() {
         for (density in listOf(1f, 2f, 3.5f)) {
             val original = dimensionLabelGeometry(density, null, 18f * density, false, true)

@@ -109,17 +109,29 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         set(value) {
             if (field == value) return
             val layoutChanged = field.inline != value.inline
+            val sizeChanged = field.geometryPercent != value.geometryPercent ||
+                field.labelPercent != value.labelPercent
             field = value
-            if (layoutChanged) {
-                clearDimensionGesture()
-                updateDimensionLabels()
-            }
+            if (layoutChanged || sizeChanged) clearDimensionGesture()
+            if (layoutChanged) updateDimensionLabels()
             invalidate()
         }
+    var automaticSizeFactor = 1f
+        set(value) {
+            if (field == value) return
+            field = value
+            clearDimensionGesture()
+            invalidate()
+        }
+    private val geometrySizeFactor: Float
+        get() = appearance.geometryFactor(automaticSizeFactor)
+    private val dimensionStrokeScale: Float
+        get() = viewport.dimensionStrokeScale * geometrySizeFactor
+
     // Keep the 15sp layout cached. Scale the entire decoration (including icons,
     // background and spacing) together without rebuilding labels on each pinch frame.
     private val dimensionLabelScale: Float
-        get() = viewport.dimensionLabelScale
+        get() = viewport.dimensionLabelScale * appearance.labelFactor(automaticSizeFactor)
     private val noteWhitespace = Regex("\\s+")
     private var labels = emptyMap<UUID, DimensionLabel>()
     var labelsLocked = false
@@ -346,8 +358,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val labelScale = dimensionLabelScale
         val labelPadding = maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
             decoration.geometry.cullingScale(labelScale)
-        val strokeDensity = density * viewport.dimensionStrokeScale
-        val handlePadding = anchorRadius + 0.7f * density
+        val strokeDensity = density * dimensionStrokeScale
+        val handlePadding = anchorRadius + 0.7f * density * geometrySizeFactor
         // Reject distant objects before constructing inline spans; the outside
         // label can extend by at most half the line plus its full group width.
         val broadPadding = if (appearance.inline)
@@ -431,7 +443,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun labelPlacement(
         geometry: DimensionLabelGeometry, length: Float, angle: Float, labelT: Float,
     ): DimensionLabelPlacement {
-        val strokeDensity = density * viewport.dimensionStrokeScale
+        val strokeDensity = density * dimensionStrokeScale
         // Protect the full existing selected handle and the inward arrowheads,
         // accounting for square caps and the selected-body highlight as well.
         val halfStroke = maxOf(viewport.dimensionOutlineWidth, 5f) * strokeDensity / 2f
@@ -497,7 +509,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val dx = viewport.screenX(end) - x1
         val dy = viewport.screenY(end) - y1
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * viewport.dimensionStrokeScale)
+        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * dimensionStrokeScale)
     }
 
     private fun drawScreenDimensionLine(
@@ -539,7 +551,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     }
 
     private val anchorRadius: Float
-        get() = dimensionHandleRadius(density, viewport.dimensionStrokeScale,
+        get() = dimensionHandleRadius(density * geometrySizeFactor, viewport.dimensionStrokeScale,
             viewport.dimensionTickScale, viewport.dimensionOutlineWidth)
 
     private fun drawAnchor(canvas: Canvas, anchor: PhotoAnchor) {
@@ -550,7 +562,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.color = 0xBAFFFFFF.toInt()
         overlayPaint.style = Paint.Style.STROKE
-        overlayPaint.strokeWidth = 1.4f * density
+        overlayPaint.strokeWidth = 1.4f * density * geometrySizeFactor
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.style = Paint.Style.FILL
     }
@@ -839,7 +851,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             scene.find(scene.selectedId)?.let { add(it) }
             addAll(scene.dimensions.asReversed().filterNot { it.id == scene.selectedId })
         }
-        val strokeScale = viewport.dimensionStrokeScale
+        val strokeScale = dimensionStrokeScale
         val tickScale = viewport.dimensionTickScale
         val targets = frontToBack.flatMap { dimension ->
             val start = viewport.screenPoint(dimension.start)
