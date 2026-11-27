@@ -19,10 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -30,7 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -375,47 +371,17 @@ private fun EditorToolbarSurface(
     onGripRegion: (ToolbarGripRegion) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    var moveSettingsOpen by remember { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val sideGrip = !expanded && !verticalExpanded
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
+    val extraScrollState = rememberScrollState()
     val tool = state.scene.tool
     val repeat = tool == DimensionTool.REPEAT
     val activeColors = MaterialTheme.colorScheme
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
-    if (moveSettingsOpen) {
-        AlertDialog(
-            onDismissRequest = { moveSettingsOpen = false },
-            title = { Text(stringResource(R.string.dimension_move_mode)) },
-            text = {
-                Column(Modifier.selectableGroup()) {
-                    for ((requireSelection, label) in listOf(
-                        false to R.string.dimension_move_direct,
-                        true to R.string.dimension_move_selected,
-                    )) {
-                        val selected = state.dimensionsRequireSelection == requireSelection
-                        Row(
-                            modifier = Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton,
-                                onClick = { state.updateDimensionsRequireSelection(requireSelection) }).padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            RadioButton(selected = selected, onClick = null)
-                            Text(stringResource(label))
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { moveSettingsOpen = false }) {
-                    Text(stringResource(R.string.dimension_move_done))
-                }
-            },
-        )
-    }
     Box {
         Surface(
             modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
@@ -440,7 +406,7 @@ private fun EditorToolbarSurface(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (verticalExpanded) {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 3.dp), horizontalArrangement = Arrangement.Center,
+                    Row(Modifier.fillMaxWidth().padding(bottom = 3.dp).horizontalScroll(extraScrollState), horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
                             Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
@@ -464,6 +430,7 @@ private fun EditorToolbarSurface(
                         ) {
                             Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
                         }
+                        DimensionMoveAction(state)
                         if (BuildConfig.ENABLE_STRESS_TOOLS && state.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) StressToolbarMenu(state)
                     }
                     if (state.dimensionTestAppearances.values.isNotEmpty()) {
@@ -529,10 +496,6 @@ private fun EditorToolbarSurface(
                                         state.scene = state.scene.prepareSingle()
                                         menuOpen = false
                                     },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.dimension_move_mode)) },
-                                    onClick = { menuOpen = false; moveSettingsOpen = true },
                                 )
                             }
                         }
@@ -615,6 +578,32 @@ private fun EditorToolbarSurface(
             Modifier.align(if (sideGrip) Alignment.CenterEnd else Alignment.TopCenter),
             side = sideGrip,
             onGripRegion = onGripRegion,
+        )
+    }
+}
+
+@Composable
+private fun DimensionMoveAction(state: PhotoEditorState) {
+    val selected = state.dimensionsRequireSelection
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(if (selected) R.string.dimension_move_selected else R.string.dimension_move_direct)
+    val description = stringResource(R.string.dimension_move_description, label)
+    IconToggleButton(
+        checked = selected,
+        onCheckedChange = state::updateDimensionsRequireSelection,
+        colors = IconButtonDefaults.iconToggleButtonColors(
+            containerColor = Color.Transparent,
+            contentColor = colors.onSurface,
+            checkedContainerColor = Color.Transparent,
+            checkedContentColor = colors.onPrimaryContainer,
+        ),
+        modifier = toolbarButtonSize
+            .background(if (selected) colors.primaryContainer else Color.Transparent, toolbarShape)
+            .semantics { contentDescription = description },
+    ) {
+        Icon(
+            painterResource(if (selected) R.drawable.ic_toolbar_move_selected else R.drawable.ic_toolbar_move_direct),
+            null, Modifier.size(toolbarIconSize),
         )
     }
 }
