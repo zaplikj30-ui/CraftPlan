@@ -17,6 +17,14 @@ Tento `AGENTS.md` je **jediné aktuální pracovní pravidlo pro implementaci na
 5. Před předáním kontroluj celý **relevantní rozdíl**, běžné i chybové cesty; provedené testy musí být skutečné. Rizikové změny dej k cílenému nezávislému review, ne opakovaným auditům celého projektu. Opravy oprav a ověř, neobcházej kontrolu.
 6. **Výstup krátce česky:** skutečné commit SHA a ověřený vzdálený HEAD/odkaz (nebo `LOCAL ONLY`), změněné soubory, co a proč, testy `PASS/FAIL`, `NOT RUN` a rizika. `PASS` kompilace není důkaz spuštění na telefonu, fyzických gest, trvalého uložení ani obnovy.
 
+## Aktivní řízení vývoje a kvality (27. 11. 2026)
+
+- **Koordinátor ChatGPT odpovídá za aktivní vedení technického vývoje, nikoli pouze za plnění jednotlivých pokynů.** Vlastník určuje pracovní potřeby, produktové preference a schvaluje zásadní rozhodnutí a rozsah GO. Nemusí sám připomínat testy, diagnostiku, bezpečnost, výkon, závislosti ani dříve evidované nedostatky.
+- Při každém pokračování ověř vzdálený HEAD, aktuální README a relevantní závazné PR. Samostatně vyhodnoť rozpracované kroky, otevřené nálezy, odložené požadavky a neprovedené testy; navrhni nejvhodnější další bezpečný krok a jeho ověření. Aktivně upozorni na rizika a jednodušší spolehlivá řešení, ale neměň schválené chování ani rozsah GO bez vlastníka.
+- Před zahájením změny navrhni přiměřený plán ověření, při dokončení zkontroluj skutečné důkazy a návaznosti. Závěrečné brány etap hlídej z vlastní iniciativy; zejména [závěrečnou ověřovací bránu M1 v PR #2](https://github.com/zaplikj30-ui/CraftPlan/pull/2): celková regrese funkcí, fyzické scénáře, diagnostika a zátěž, bezpečnost a nezávislý audit. Nečekej, až si je vlastník vyžádá. Neopakuj bez důvodu již provedené testy a audity.
+- Důležitá rozhodnutí, nově zjištěná rizika, výsledky a odložené úkoly zapisuj průběžně do existujícího tematického PR nebo README, ověř zápis na GitHubu a uveď odkaz. Samotný příslib v chatu není evidence. Před přechodem do jiného chatu musí být stav práce a další krok dohledatelné z repozitáře; staré chaty nejsou jediným zdrojem pravdy.
+- Tato odpovědnost platí i v dalších etapách a chatech. Nezakládá souhlas k programování, testům, buildům, Actions, placeným službám ani merge mimo schválený rozsah. Šetři čas a AI limity, nikoli na úkor ochrany práce uživatele.
+
 ## Neporušitelné zásady ochrany práce
 
 - Přesné naměřené délky nikdy neodvozuj z pixelů ani neukládej jako `Float/Double`. `0 mm` je platná hodnota a **není** `NEZMĚŘENO`. Zachovej původní text, jednotku, přesný decimal/rational a jejich validaci dle PR #3.
