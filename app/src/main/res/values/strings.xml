@@ -45,8 +45,9 @@
     <string name="camera_quality_full">Plná kvalita</string>
     <string name="camera_retake">Vyfotit znovu</string>
     <string name="camera_confirm">Použít fotografii</string>
-    <string name="camera_discard">Storno</string>
-    <string name="camera_discard_warning">Zahodit tento nepotvrzený snímek?</string>
+    <string name="camera_discard">Zahodit</string>
+    <string name="camera_discard_title">Zahodit snímek?</string>
+    <string name="camera_discard_warning">Opravdu chcete zahodit tento nepotvrzený snímek?</string>
     <string name="camera_recovery_open_sources">Záchranné zdroje uložené fotografie</string>
     <string name="camera_recovery_open_indexed">Záchranné zdroje uložené fotografie %1$d</string>
     <string name="camera_discard_selected">Odstranit vybraný zdroj</string>

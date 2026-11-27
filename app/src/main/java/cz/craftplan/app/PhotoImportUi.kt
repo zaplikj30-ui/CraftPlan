@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -202,9 +203,10 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         }
         var confirmDiscard by remember(id, state.selectedCaptureSource) { mutableStateOf(false) }
         if (confirmDiscard) {
+            val ordinaryDiscard = capture != null && !discardSource
             AlertDialog(
                 onDismissRequest = { confirmDiscard = false },
-                title = { Text(stringResource(discardLabel)) },
+                title = { Text(stringResource(if (ordinaryDiscard) R.string.camera_discard_title else discardLabel)) },
                 text = {
                     Text(stringResource(when {
                         discardSource -> R.string.camera_discard_selected_warning
@@ -213,13 +215,16 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     }))
                 },
                 confirmButton = {
-                    TextButton(onClick = {
+                    val action = ReviewAction(discardLabel, enabled) {
                         confirmDiscard = false
                         if (discardSource) state.discardSelectedCaptureSource() else state.discardImport()
-                    }, enabled = enabled) { Text(stringResource(discardLabel)) }
+                    }
+                    if (ordinaryDiscard) ReviewPill(action, Modifier, destructive = true)
+                    else ReviewTextAction(action)
                 },
                 dismissButton = {
-                    TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.cancel_value)) }
+                    val action = ReviewAction(R.string.cancel_value, true) { confirmDiscard = false }
+                    if (ordinaryDiscard) ReviewPill(action, Modifier) else ReviewTextAction(action)
                 },
             )
         } else {
@@ -332,24 +337,20 @@ private fun PhotoRecoveryDialog(
         val selected = candidate?.takeIf { it == approvedDiscard }
         AlertDialog(
             onDismissRequest = { if (enabled) approvedDiscard = null },
-            title = { Text(stringResource(R.string.camera_discard_interrupted)) },
+            title = { Text(stringResource(R.string.camera_discard_title)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(stringResource(R.string.camera_discard_warning))
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                ReviewPill(ReviewAction(R.string.camera_discard_interrupted, enabled && selected != null) {
                     approvedDiscard = null
                     if (selected != null && case is PhotoRecoveryCase.Camera) state.discardInterruptedCapture(case, selected)
-                }, enabled = enabled && selected != null) {
-                    Text(stringResource(R.string.camera_discard_interrupted))
-                }
+                }, Modifier, destructive = true)
             },
             dismissButton = {
-                TextButton(onClick = { approvedDiscard = null }, enabled = enabled) {
-                    Text(stringResource(R.string.cancel_value))
-                }
+                ReviewPill(ReviewAction(R.string.cancel_value, enabled) { approvedDiscard = null }, Modifier)
             },
         )
         return
@@ -611,13 +612,22 @@ private fun ReviewTextAction(action: ReviewAction) {
 }
 
 @Composable
-private fun ReviewPill(action: ReviewAction, modifier: Modifier, primary: Boolean = false) {
+private fun ReviewPill(
+    action: ReviewAction, modifier: Modifier, primary: Boolean = false, destructive: Boolean = false,
+) {
     val shape = RoundedCornerShape(20.dp)
     val padding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
     val label: @Composable () -> Unit = {
         Text(stringResource(action.label), textAlign = TextAlign.Center)
     }
-    if (primary) {
+    if (destructive) {
+        Button(onClick = action.onClick, modifier = modifier, enabled = action.enabled,
+            shape = shape, contentPadding = padding,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            )) { label() }
+    } else if (primary) {
         Button(onClick = action.onClick, modifier = modifier, enabled = action.enabled,
             shape = shape, contentPadding = padding) { label() }
     } else {
