@@ -75,10 +75,6 @@ internal fun EditorSettingsDialog(state: PhotoEditorState, onDismiss: () -> Unit
                         }
                     }
                 }
-                if (state.toolbarHintsEnabled && state.toolbarHint == R.string.editor_settings) {
-                    ToolbarHintSurface(R.string.editor_settings,
-                        Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
-                }
             }
         }
     }

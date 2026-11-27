@@ -662,7 +662,10 @@ private fun ToolbarIconRow(
 private fun MovableToolbarAction(icon: ToolbarIcon, state: PhotoEditorState, onSettings: () -> Unit) {
     when (icon) {
         ToolbarIcon.SETTINGS -> IconButton(
-            onClick = { state.showToolbarHint(R.string.editor_settings); onSettings() },
+            onClick = {
+                state.clearToolbarHint()
+                onSettings()
+            },
             modifier = toolbarButtonSize,
         ) {
             Icon(painterResource(R.drawable.ic_toolbar_settings), stringResource(R.string.editor_settings), Modifier.size(toolbarIconSize))
