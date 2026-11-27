@@ -58,6 +58,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val movesLabel: Boolean = false,
         val inlineDragMode: InlineLabelDragMode? = null,
         val dragThreshold: Float,
+        val inlineDragToleranceDegrees: Int,
         val preview: PhotoDimension? = null,
     )
 
@@ -810,7 +811,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
                 span, profile.hitDensity, profile.editDragThreshold,
             )
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
-                movesLabel = target.label && !target.notebook, dragThreshold = threshold).also {
+                movesLabel = target.label && !target.notebook, dragThreshold = threshold,
+                inlineDragToleranceDegrees = appearance.inlineDragToleranceDegrees).also {
                 activeDiagnostics?.let { recorder ->
                     recorder.action(it.diagnosticAction(), DiagnosticResult.START, dimension.id, threshold)
                     recorder.action(DiagnosticAction.EDIT_SPAN, DiagnosticResult.START, dimension.id, span)
@@ -978,8 +980,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun resolveEditDrag(draft: DimensionEdit, contact: EditorPoint): DimensionEdit {
         if (!appearance.inline || !draft.movesLabel || draft.inlineDragMode != null) return draft
         val axis = viewport.screenPoint(draft.original.end) - viewport.screenPoint(draft.original.start)
-        val mode = resolveInlineLabelDrag(null, axis, contact - draft.down, draft.dragThreshold, labelsLocked)
-            ?: return draft
+        val mode = resolveInlineLabelDrag(null, axis, contact - draft.down, draft.dragThreshold,
+            labelsLocked, draft.inlineDragToleranceDegrees) ?: return draft
         return draft.copy(inlineDragMode = mode)
     }
 

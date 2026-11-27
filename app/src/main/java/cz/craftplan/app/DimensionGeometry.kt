@@ -14,12 +14,20 @@ internal enum class DimensionHit {
 
 internal enum class InlineLabelDragMode { LABEL, BODY }
 
+internal const val MIN_INLINE_DRAG_TOLERANCE_DEGREES = 10
+internal const val MAX_INLINE_DRAG_TOLERANCE_DEGREES = 40
+internal const val DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES = 20
+
+internal fun clampInlineDragTolerance(degrees: Int): Int =
+    degrees.coerceIn(MIN_INLINE_DRAG_TOLERANCE_DEGREES, MAX_INLINE_DRAG_TOLERANCE_DEGREES)
+
 /** Resolve only the first meaningful motion, relative to the undirected line axis.
  * Keep the chosen mode for the entire contact; the caller discards it on UP/CANCEL/pinch.
  */
 internal fun resolveInlineLabelDrag(
     previous: InlineLabelDragMode?, axis: EditorPoint, delta: EditorPoint,
     threshold: Float, labelsLocked: Boolean,
+    toleranceDegrees: Int = DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES,
 ): InlineLabelDragMode? {
     if (previous != null) return previous
     val motion = hypot(delta.x, delta.y)
@@ -28,8 +36,9 @@ internal fun resolveInlineLabelDrag(
     if (labelsLocked) return InlineLabelDragMode.BODY
     val along = kotlin.math.abs(axis.x.toDouble() * delta.x + axis.y.toDouble() * delta.y)
     val across = kotlin.math.abs(axis.x.toDouble() * delta.y - axis.y.toDouble() * delta.x)
-    // tan(20 degrees); dot/cross avoid normalizing or converting angles on every gesture.
-    return if (across <= along * 0.36397023426620234) InlineLabelDragMode.LABEL
+    // Resolve only once per contact; dot/cross avoid normalizing the axis.
+    val tolerance = Math.tan(Math.toRadians(clampInlineDragTolerance(toleranceDegrees).toDouble()))
+    return if (across <= along * tolerance) InlineLabelDragMode.LABEL
         else InlineLabelDragMode.BODY
 }
 
@@ -206,6 +215,7 @@ internal data class DimensionAppearance(
     val transparent: Boolean = false,
     val geometryPercent: Int = 100,
     val labelPercent: Int = 100,
+    val inlineDragToleranceDegrees: Int = DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES,
 ) {
     fun geometryFactor(automaticFactor: Float): Float =
         automaticFactor * (dimensionSizePercent(geometryPercent) / 100f)

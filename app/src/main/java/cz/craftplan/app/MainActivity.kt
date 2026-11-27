@@ -504,6 +504,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             transparent = source.getBoolean("dimension_label_transparent", false),
             geometryPercent = dimensionSizePercent(source.getInt("dimension_geometry_size", 100)),
             labelPercent = dimensionSizePercent(source.getInt("dimension_label_size", 100)),
+            inlineDragToleranceDegrees = clampInlineDragTolerance(source.getInt(
+                "dimension_inline_drag_tolerance_degrees", DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES)),
         )
         statusBarSettings = EditorStatusBarSettings(
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
@@ -519,6 +521,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             ?.putBoolean("dimension_label_transparent", value.transparent)
             ?.putInt("dimension_geometry_size", value.geometryPercent)
             ?.putInt("dimension_label_size", value.labelPercent)
+            ?.putInt("dimension_inline_drag_tolerance_degrees", value.inlineDragToleranceDegrees)
             ?.apply()
     }
 

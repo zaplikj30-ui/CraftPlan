@@ -159,6 +159,11 @@
     <string name="dimension_geometry_size">Velikost geometrie: %1$d %%</string>
     <string name="dimension_label_size">Velikost popisku: %1$d %%</string>
     <string name="dimension_reset_sizes">Obnovit automatické velikosti</string>
+    <string name="dimension_drag_tolerance">Tolerance posunu popisku: %1$d°</string>
+    <string name="dimension_drag_tolerance_explanation">Platí pro popisek v čáře. Tah ve směru kóty v této úhlové toleranci posouvá popisek, mimo ni celou kótu.</string>
+    <string name="dimension_drag_tolerance_decrease">Zmenšit toleranci o jeden stupeň</string>
+    <string name="dimension_drag_tolerance_increase">Zvětšit toleranci o jeden stupeň</string>
+    <string name="dimension_reset_drag_tolerance">Obnovit %1$d°</string>
     <string name="editor_status_bar_settings">Horní systémová lišta</string>
     <string name="editor_status_bar_explanation">Vypnuto: průhledná a viditelná. Zapnuto: automaticky skrývaná, dočasně ji vysune tah od horního okraje. Volba platí i při zadávání kóty.</string>
     <string name="editor_status_bar_portrait">Na výšku – skrývat</string>

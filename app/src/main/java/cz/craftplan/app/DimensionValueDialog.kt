@@ -1167,6 +1167,9 @@ internal fun DimensionValueDialog(
                         TextButton(onClick = { onAppearanceChange(appearance.resetSizes()) }) {
                             Text(stringResource(R.string.dimension_reset_sizes))
                         }
+                        InlineDragToleranceSlider(appearance.inlineDragToleranceDegrees) {
+                            onAppearanceChange(appearance.copy(inlineDragToleranceDegrees = it))
+                        }
                     }
                 },
                 confirmButton = {
@@ -1488,4 +1491,41 @@ private fun DimensionSizeSlider(
         valueRange = MIN_DIMENSION_SIZE_PERCENT.toFloat()..MAX_DIMENSION_SIZE_PERCENT.toFloat(),
         steps = (MAX_DIMENSION_SIZE_PERCENT - MIN_DIMENSION_SIZE_PERCENT) / DIMENSION_SIZE_STEP_PERCENT - 1,
     )
+}
+
+/** Test the angle independently of display sizes; changes apply to the next gesture. */
+@Composable
+private fun InlineDragToleranceSlider(
+    degrees: Int,
+    onChange: (Int) -> Unit,
+) {
+    Text(stringResource(R.string.dimension_drag_tolerance, degrees))
+    Text(stringResource(R.string.dimension_drag_tolerance_explanation))
+    val decrease = stringResource(R.string.dimension_drag_tolerance_decrease)
+    val increase = stringResource(R.string.dimension_drag_tolerance_increase)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+            onClick = { onChange(clampInlineDragTolerance(degrees - 1)) },
+            enabled = degrees > MIN_INLINE_DRAG_TOLERANCE_DEGREES,
+            modifier = Modifier.width(48.dp).semantics { contentDescription = decrease },
+            contentPadding = PaddingValues(0.dp),
+        ) { Text("−1°") }
+        Slider(
+            modifier = Modifier.weight(1f),
+            value = degrees.toFloat(),
+            onValueChange = { onChange(clampInlineDragTolerance(kotlin.math.round(it).toInt())) },
+            valueRange = MIN_INLINE_DRAG_TOLERANCE_DEGREES.toFloat()..
+                MAX_INLINE_DRAG_TOLERANCE_DEGREES.toFloat(),
+            steps = MAX_INLINE_DRAG_TOLERANCE_DEGREES - MIN_INLINE_DRAG_TOLERANCE_DEGREES - 1,
+        )
+        TextButton(
+            onClick = { onChange(clampInlineDragTolerance(degrees + 1)) },
+            enabled = degrees < MAX_INLINE_DRAG_TOLERANCE_DEGREES,
+            modifier = Modifier.width(48.dp).semantics { contentDescription = increase },
+            contentPadding = PaddingValues(0.dp),
+        ) { Text("+1°") }
+    }
+    TextButton(onClick = { onChange(DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES) }) {
+        Text(stringResource(R.string.dimension_reset_drag_tolerance, DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES))
+    }
 }
