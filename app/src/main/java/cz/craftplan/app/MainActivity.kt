@@ -187,6 +187,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private val storage get() = AppDocumentStorage.get(getApplication())
     private var importRefresh: Job? = null
     private var cameraRecoveryScanned = false
+    var cameraReviewHidden by mutableStateOf(false)
+        private set
     var interruptedCaptures by mutableStateOf<List<InterruptedCapture>>(emptyList())
         private set
 
@@ -376,23 +378,30 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun loadCameraResult(id: PhotoId, mode: CameraResultMode) {
         if (captureInFlight == id) return
         runImport(StoragePhase.CAMERA_CAPTURE) {
-            clearImportPreview()
-            cameraPreviewId = id
+            cameraReviewHidden = mode == CameraResultMode.DIRECT_AFTER_SUCCESS
             try {
-                val candidate = withContext(Dispatchers.IO) {
-                    revokeCameraOutput(getApplication(), id)
-                    storage.imports.stageCapture(id)
+                clearImportPreview()
+                cameraPreviewId = id
+                try {
+                    val candidate = withContext(Dispatchers.IO) {
+                        revokeCameraOutput(getApplication(), id)
+                        storage.imports.stageCapture(id)
+                    }
+                    loadPreview(candidate)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
+                    throw error
                 }
-                loadPreview(candidate)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
-                throw error
-            }
-            val preview = checkNotNull(importPreview)
-            if (mode.confirmsAutomatically(resultSucceeded = true, sourceDamaged = preview.sourceDamaged)) {
-                saveConfirmedPreview(preview, PhotoConfirmation.AUTOMATIC, source = null)
+                val preview = checkNotNull(importPreview)
+                if (mode.confirmsAutomatically(resultSucceeded = true, sourceDamaged = preview.sourceDamaged)) {
+                    saveConfirmedPreview(preview, PhotoConfirmation.AUTOMATIC, source = null)
+                }
+            } finally {
+                // In direct mode never flash a second photo preview while saving.
+                // A failed or damaged result retains the normal explicit review.
+                cameraReviewHidden = false
             }
         }
     }

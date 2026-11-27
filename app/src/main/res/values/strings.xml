@@ -21,7 +21,7 @@
     <string name="document_leave">Odejít</string>
     <string name="camera_take_picture">Vyfotit fotografii</string>
     <string name="camera_settings_section">Fotografování</string>
-    <string name="camera_preview_setting">Náhled po systémovém fotografování</string>
+    <string name="camera_preview_setting">Druhý náhled v CraftPlanu</string>
     <string name="camera_preview_both">Systémový fotoaparát + náhled CraftPlanu</string>
     <string name="camera_preview_system_only">Pouze systémový fotoaparát; po úspěšném snímku přímo do editoru</string>
     <string name="camera_stop_waiting">Ukončit čekání na fotoaparát</string>

@@ -130,6 +130,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         }
     }
     if (state.importBusy) Text(stringResource(R.string.import_working))
+    if (state.cameraReviewHidden) return
     val capture = state.cameraPreviewId
     val pendingId = capture ?: state.importCandidate?.photoId
     pendingId?.let { id ->
@@ -203,7 +204,10 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            if (capture != null && !state.recoveringConfirmedPhoto) {
+                            if (capture != null && !state.recoveringConfirmedPhoto &&
+                                state.captureSources.isEmpty() && state.selectedCaptureSource == null &&
+                                state.importPreview?.candidate?.photoId == capture
+                            ) {
                                 TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
                                     Text(stringResource(R.string.camera_retake))
                                 }
