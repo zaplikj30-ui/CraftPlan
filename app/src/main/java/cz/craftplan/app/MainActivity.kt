@@ -270,7 +270,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun refreshImports() {
-        if (photo != null || importBusy || openingPhoto) return
+        if (photo != null || importBusy) return
         importRefresh?.cancel()
         photoListStatus = PhotoListStatus.LOADING
         importRefresh = viewModelScope.launch {

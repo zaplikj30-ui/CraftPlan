@@ -35,6 +35,7 @@
     <string name="photo_list_retry">Přehled se nepodařilo načíst. Zkusit znovu</string>
     <string name="photo_list_close">Zavřít</string>
     <string name="photo_list_pending_info">Tyto snímky dosud nejsou potvrzené. Zkontrolujte je před použitím.</string>
+    <string name="photo_list_pending_review">Snímky ke kontrole (%1$d)</string>
     <string name="photo_list_recovery_available">Zobrazit záchranné zdroje uložených fotografií</string>
     <string name="camera_interrupted">Nedokončené fotografování</string>
     <string name="camera_show_interrupted">Zobrazit snímek</string>

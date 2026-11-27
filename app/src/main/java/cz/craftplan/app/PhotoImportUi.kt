@@ -131,8 +131,14 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         }
         PhotoListStatus.READY -> Unit
     }
+    if (recovery.isNotEmpty()) {
+        TextButton(onClick = { listPage = "pending" }, enabled = listEnabled) {
+            Text(stringResource(R.string.photo_list_pending_review, recovery.size),
+                color = MaterialTheme.colorScheme.primary)
+        }
+    }
     if (recoveryIds.isNotEmpty()) {
-        TextButton(onClick = { listPage = "saved" }, enabled = enabled) {
+        TextButton(onClick = { listPage = "saved" }, enabled = listEnabled) {
             Text(stringResource(R.string.photo_list_recovery_available))
         }
     }
