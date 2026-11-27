@@ -191,13 +191,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private val storage get() = AppDocumentStorage.get(getApplication())
     private var importRefresh: Job? = null
     private var cameraRecoveryScanned = false
-    private var confirmationStartedFor by mutableStateOf<ImportCandidate?>(null)
-    val retryingPhotoConfirmation get() = confirmationStartedFor == importPreview?.candidate && confirmationStartedFor != null
+    private var confirmationAttempts by mutableStateOf(emptySet<ImportCandidate>())
+    val retryingPhotoConfirmation get() = importPreview?.candidate?.let { it in confirmationAttempts } == true
     val ordinaryCameraReview get() = cameraPreviewId != null && cameraPreviewId == importPreview?.candidate?.photoId &&
         !recoveringConfirmedPhoto && selectedCaptureSource == null && captureSources.isEmpty()
     var cameraReviewHidden by mutableStateOf(false)
-        private set
-    var interruptedCaptures by mutableStateOf<List<InterruptedCapture>>(emptyList())
         private set
 
     var photo by mutableStateOf<Bitmap?>(null)
@@ -284,14 +282,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                     val active = captureInFlight
                     val start = System.nanoTime()
                     diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_START)
-                    interruptedCaptures = withContext(Dispatchers.IO) {
-                        storage.imports.interruptedCaptures(active, releaseOutput = {
-                            revokeCameraOutput(getApplication(), it)
-                        })
+                    withContext(Dispatchers.IO) {
+                        storage.imports.resumeCaptureRejections(active) { revokeCameraOutput(getApplication(), it) }
                     }
                     cameraRecoveryScanned = true
-                    diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_END,
-                        elapsedNs = System.nanoTime() - start, count = interruptedCaptures.size)
+                    diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_END, elapsedNs = System.nanoTime() - start)
                 }
                 readPhotoList()
             } catch (error: CancellationException) {
@@ -316,19 +311,33 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             pending = listed.pending.size + listed.captures.size)
     }
 
-    fun deferInterruptedCapture(id: PhotoId) {
-        interruptedCaptures = interruptedCaptures.filterNot { it.id == id }
+    suspend fun recoveryPreview(case: PhotoRecoveryCase): PhotoRecoveryPreview<Bitmap>? {
+        if (case.id == captureInFlight) return null
+        val start = System.nanoTime()
+        diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_PREVIEW_START)
+        try {
+            val result = withContext(Dispatchers.IO) {
+                storage.imports.inspectRecovery(case, { revokeCameraOutput(getApplication(), it) }, ::decodeRecoveryPreview)
+            }
+            return if (confirmationAttempts.any { it.photoId == case.id }) result?.copy(discardCandidate = null) else result
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            return null
+        } finally {
+            diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_PREVIEW_END, elapsedNs = System.nanoTime() - start)
+        }
     }
 
-    fun discardInterruptedCapture(offer: InterruptedCapture) {
-        val candidate = offer.discardCandidate ?: return
-        if (offer !in interruptedCaptures || candidate.photoId == captureInFlight) return
+    fun discardInterruptedCapture(case: PhotoRecoveryCase.Camera, candidate: ImportCandidate) {
+        if (candidate.photoId != case.id || case.id == captureInFlight ||
+            confirmationAttempts.any { it.photoId == case.id }
+        ) return
         runImport(StoragePhase.CAMERA_CAPTURE) {
             withContext(Dispatchers.IO) {
                 revokeCameraOutput(getApplication(), candidate.photoId)
                 storage.imports.discardInterruptedCapture(candidate)
             }
-            deferInterruptedCapture(offer.id)
         }
     }
 
@@ -503,7 +512,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private suspend fun loadPreview(candidate: ImportCandidate) {
         importCandidate = candidate
         importPreview = null
-        importPreview = withContext(Dispatchers.IO) { storage.imports.preview(candidate) }
+        val (preview, confirmationExists) = withContext(Dispatchers.IO) {
+            storage.imports.preview(candidate) to storage.imports.hasConfirmationEvidence(candidate.photoId)
+        }
+        if (confirmationExists) confirmationAttempts = confirmationAttempts + candidate
+        importPreview = preview
     }
 
     fun deferImport() {
@@ -515,7 +528,6 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun clearImportPreview() {
         importPreview = null
         importCandidate = null
-        confirmationStartedFor = null
         cameraPreviewId = null
         captureSources = emptyList()
         selectedCaptureSource = null
@@ -533,9 +545,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private suspend fun saveConfirmedPreview(
         preview: ImportPreview, confirmation: PhotoConfirmation, source: CaptureSource?,
     ) {
-        confirmationStartedFor = preview.candidate
+        confirmationAttempts = confirmationAttempts + preview.candidate
         val document = withContext(Dispatchers.IO) { storage.imports.confirmPreview(preview, confirmation, source) }
         check(document.snapshot.photo == preview.photo)
+        confirmationAttempts = confirmationAttempts - preview.candidate
         clearImportPreview()
         enterEditor(document, preview.bitmap)
     }

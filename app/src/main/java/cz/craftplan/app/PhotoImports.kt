@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.InputStream
-import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -45,7 +44,23 @@ internal sealed interface CaptureSource {
 
 internal data class CaptureCopy(val candidate: ImportCandidate, val bytes: ByteArray)
 
-internal data class InterruptedCapture(val id: PhotoId, val discardCandidate: ImportCandidate?)
+internal sealed interface PhotoRecoveryCase {
+    val id: PhotoId
+    data class Camera(override val id: PhotoId) : PhotoRecoveryCase
+    data class Import(val candidate: ImportCandidate) : PhotoRecoveryCase {
+        override val id get() = candidate.photoId
+    }
+    data class Saved(override val id: PhotoId) : PhotoRecoveryCase
+}
+
+internal fun PhotoList.recoveryCases(active: PhotoId?, failed: PhotoId?): List<PhotoRecoveryCase> = buildList {
+    captures.filterNot { it == active }.forEach { add(PhotoRecoveryCase.Camera(it)) }
+    pending.forEach { add(PhotoRecoveryCase.Import(it)) }
+    (listOfNotNull(failed) + confirmedWithRecoverySources).distinct().filterNot { it == active }
+        .forEach { add(PhotoRecoveryCase.Saved(it)) }
+}
+
+internal data class PhotoRecoveryPreview<T>(val image: T, val discardCandidate: ImportCandidate?)
 
 internal class PhotoImports(
     private val directory: File,
@@ -56,6 +71,7 @@ internal class PhotoImports(
     private val repository: (StoredPhoto, () -> ByteArray) -> DocumentRepository,
 ) {
     private val captureLock = Mutex()
+    private val recoveryPreviewLock = Mutex()
     private val captures = CameraCaptureStore(File(directory, CameraCaptureStore.DIRECTORY), syncDirectory)
 
     suspend fun list(): PhotoList {
@@ -118,14 +134,7 @@ internal class PhotoImports(
         }
     }
 
-    /** Startup offers are read-only until the user acts. A previous explicit rejection may finish. */
-    suspend fun interruptedCaptures(
-        active: PhotoId?,
-        releaseOutput: (PhotoId) -> Unit,
-        verifyImage: (CaptureCopy) -> Unit = { copy ->
-            previewJpeg(copy.candidate, copy.bytes, null).bitmap.recycle()
-        },
-    ): List<InterruptedCapture> {
+    suspend fun resumeCaptureRejections(active: PhotoId?, releaseOutput: (PhotoId) -> Unit) {
         for (id in staging.rejectedCaptureIds()) {
             if (id == active) continue
             inspectCameraRecovery {
@@ -136,29 +145,46 @@ internal class PhotoImports(
                 }
             }
         }
-        val offers = mutableListOf<InterruptedCapture>()
-        for (id in list().captures) {
-            if (id == active) continue
-            val offer = inspectCameraRecovery {
+    }
+
+    /** No bitmap or source bytes are prepared until a single case is selected. */
+    suspend fun <T : Any> inspectRecovery(
+        case: PhotoRecoveryCase, releaseOutput: (PhotoId) -> Unit, decode: (CaptureCopy) -> T,
+    ): PhotoRecoveryPreview<T>? = recoveryPreviewLock.withLock {
+        val sources = when (case) {
+            is PhotoRecoveryCase.Import -> listOf(CaptureSource.Stage(case.candidate))
+            else -> {
                 currentCoroutineContext().ensureActive()
-                releaseOutput(id)
-                val sources = captureSources(id)
-                val digests = sources.map { source ->
-                    inspectCameraRecovery {
-                        val copy = readCaptureCopy(source)
-                        verifyImage(copy)
-                        copy.candidate.digest
-                    }
-                }
-                if (digests.none { it != null }) return@inspectCameraRecovery null
-                val sameDigest = digests.first()?.takeIf { digest -> digests.all { it == digest } }
-                val canReject = sameDigest != null && staging.rejectedCapture(id) == null &&
-                    transactions.read { head(id.documentId) == null && !hasRevisions(id.documentId) && !catalog.exists(id.name) }
-                InterruptedCapture(id, sameDigest?.takeIf { canReject }?.let { ImportCandidate(id, it) })
+                releaseOutput(case.id)
+                captureSources(case.id)
             }
-            if (offer != null) offers.add(offer)
         }
-        return offers
+        for (source in sources) {
+            val result = inspectCameraRecovery {
+                val copy = readCaptureCopy(source)
+                val candidate = ImportCandidate(case.id, copy.candidate.digest)
+                val canDiscard = case is PhotoRecoveryCase.Camera && inspectCameraRecovery {
+                    canRejectRecoveryCapture(candidate)
+                } == true
+                currentCoroutineContext().ensureActive()
+                PhotoRecoveryPreview(decode(copy), candidate.takeIf { canDiscard })
+            }
+            if (result != null) return@withLock result
+        }
+        null
+    }
+
+    private suspend fun canRejectRecoveryCapture(candidate: ImportCandidate): Boolean = captureLock.withLock {
+        val id = candidate.photoId
+        if (staging.rejectedCapture(id) != null ||
+            transactions.read { head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name) }
+        ) return@withLock false
+        val staged = captureCandidate(id)
+        // A raw-only attempt may still have an external writer. Open and stage it before offering discard.
+        if (staged != candidate) return@withLock false
+        staging.read(staged)
+        if (captures.hasOutput(id)) checkCaptureBytes(candidate)
+        true
     }
 
     private suspend fun <T> inspectCameraRecovery(action: suspend () -> T): T? = try {
@@ -267,6 +293,10 @@ internal class PhotoImports(
         val candidates = staging.candidates().filter { it.photoId == id }
         check(candidates.size <= 1)
         return candidates.firstOrNull()
+    }
+
+    suspend fun hasConfirmationEvidence(id: PhotoId): Boolean = transactions.read {
+        head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)
     }
 
     suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {

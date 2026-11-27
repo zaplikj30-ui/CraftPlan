@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.view.ViewTreeObserver
 import android.view.WindowInsets as AndroidWindowInsets
 import android.view.WindowInsetsController
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +93,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         if (uri != null) state.receivePhoto(uri)
     }
     val enabled = !state.importBusy && !state.openingPhoto
+    BackHandler(enabled = state.cameraReviewHidden && !enabled) { }
     Button(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
         Text(stringResource(R.string.camera_take_picture))
     }
@@ -103,10 +106,10 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     Button(onClick = { picker.launch(arrayOf("image/jpeg")) }, enabled = enabled) {
         Text(stringResource(R.string.import_photo))
     }
-    val captures = state.importedPhotos.captures.filterNot { it == state.captureInFlight }
-    val recovery = state.interruptedCaptures.filter { it.id in captures }.associateBy { it.id }
-    val recoveryIds = (listOfNotNull(state.failedPhotoRecovery) + state.importedPhotos.confirmedWithRecoverySources).distinct()
-    val pendingCount = captures.size + state.importedPhotos.pending.size
+    val cases = state.importedPhotos.recoveryCases(state.captureInFlight, state.failedPhotoRecovery)
+    var recoveryOpen by rememberSaveable { mutableStateOf(false) }
+    var recoveryOffered by rememberSaveable { mutableStateOf(false) }
+    var recoveryIndex by rememberSaveable { mutableStateOf(0) }
     var listPage by rememberSaveable { mutableStateOf<String?>(null) }
     val listStatus = state.photoListStatus
     var listLayoutRecorded by remember(listStatus, state.diagnosticsRecording) { mutableStateOf(false) }
@@ -126,13 +129,10 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             stringResource(R.string.photo_list_saved, state.importedPhotos.confirmed.size)
             else stringResource(R.string.photo_list_saved_title))
     }
-    Button(
-        onClick = { listPage = "pending" },
-        enabled = listEnabled,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(if (listStatus == PhotoListStatus.READY) stringResource(R.string.photo_list_pending, pendingCount)
-            else stringResource(R.string.photo_list_pending_title))
+    if (cases.isNotEmpty() && listStatus == PhotoListStatus.READY) {
+        TextButton(onClick = { recoveryOffered = true; recoveryOpen = true }, enabled = listEnabled) {
+            Text(stringResource(R.string.photo_recovery_continue, cases.size))
+        }
     }
     when (listStatus) {
         PhotoListStatus.LOADING -> Text(stringResource(R.string.photo_list_loading))
@@ -141,20 +141,38 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         }
         PhotoListStatus.READY -> Unit
     }
-    if (recoveryIds.isNotEmpty()) {
-        TextButton(onClick = { listPage = "saved" }, enabled = listEnabled) {
-            Text(stringResource(R.string.photo_list_recovery_available))
+    val noReview = state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden
+    val canOffer = noReview && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
+    LaunchedEffect(canOffer, cases.isNotEmpty()) {
+        if (canOffer && cases.isNotEmpty() && !recoveryOffered) {
+            recoveryOffered = true
+            recoveryOpen = true
         }
     }
+    if (recoveryOpen && cases.isNotEmpty() && noReview && listPage == null) {
+        val index = recoveryIndex.coerceIn(cases.indices)
+        PhotoRecoveryDialog(
+            state, cases[index], index, cases.size,
+            onStep = { recoveryIndex = index + it },
+            onDismiss = { recoveryOpen = false },
+            onOpen = { case ->
+                recoveryOpen = false
+                when (case) {
+                    is PhotoRecoveryCase.Camera -> state.previewCapture(case.id)
+                    is PhotoRecoveryCase.Import -> state.previewImport(case.candidate)
+                    is PhotoRecoveryCase.Saved -> state.showConfirmedRecovery(case.id)
+                }
+            },
+        )
+    }
 
-    // Only one dialog at a time; opening an item closes its list, not its stored data.
-    if (state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden) {
+    if (noReview && (!recoveryOpen || cases.isEmpty())) {
         when (listPage) {
             "saved" -> PhotoListDialog(R.string.photo_list_saved_title, { listPage = null }) {
                 if (listStatus != PhotoListStatus.READY) {
                     item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
                         R.string.photo_list_loading else R.string.photo_list_retry)) }
-                } else if (state.importedPhotos.confirmed.isEmpty() && recoveryIds.isEmpty()) {
+                } else if (state.importedPhotos.confirmed.isEmpty()) {
                     item { Text(stringResource(R.string.photo_list_empty)) }
                 }
                 itemsIndexed(state.importedPhotos.confirmed, key = { _, id -> "saved-${id.name}" }) { index, photo ->
@@ -163,85 +181,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         state.openPhoto(photo)
                     }, enabled = listEnabled, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.import_open_confirmed, index + 1))
-                    }
-                }
-                itemsIndexed(recoveryIds, key = { _, id -> "recovery-${id.name}" }) { _, id ->
-                    val index = state.importedPhotos.confirmed.indexOf(id)
-                    TextButton(onClick = {
-                        listPage = null
-                        state.showConfirmedRecovery(id)
-                    }, enabled = listEnabled && id != state.captureInFlight, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (index < 0) stringResource(R.string.camera_recovery_open_sources)
-                            else stringResource(R.string.camera_recovery_open_indexed, index + 1))
-                    }
-                }
-            }
-            "pending" -> PhotoListDialog(R.string.photo_list_pending_title, { listPage = null }) {
-                if (listStatus != PhotoListStatus.READY) {
-                    item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
-                        R.string.photo_list_loading else R.string.photo_list_retry)) }
-                } else if (pendingCount == 0) item { Text(stringResource(R.string.photo_list_empty)) }
-                state.importDiagnostic?.let { code ->
-                    item { Text(stringResource(R.string.document_storage_diagnostic, code),
-                        color = MaterialTheme.colorScheme.error) }
-                }
-                if (state.importBusy) item { Text(stringResource(R.string.import_working)) }
-                if (captures.isNotEmpty()) item {
-                    Text(stringResource(R.string.photo_list_pending_info),
-                        style = MaterialTheme.typography.bodyMedium)
-                }
-                itemsIndexed(captures, key = { _, id -> "capture-${id.name}" }) { index, id ->
-                    val offer = recovery[id]
-                    var confirmDiscard by remember(id, offer) { mutableStateOf(false) }
-                    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Column(Modifier.fillMaxWidth().padding(8.dp)) {
-                            Text(stringResource(R.string.camera_resume, index + 1))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                TextButton(onClick = {
-                                    listPage = null
-                                    state.previewCapture(id)
-                                }, enabled = listEnabled) {
-                                    Text(stringResource(R.string.camera_show_interrupted))
-                                }
-                                if (offer?.discardCandidate != null) {
-                                    TextButton(onClick = { confirmDiscard = true }, enabled = listEnabled) {
-                                        Text(stringResource(R.string.camera_discard_interrupted))
-                                    }
-                                }
-                            }
-                            if (offer != null) {
-                                TextButton(onClick = {
-                                    state.deferInterruptedCapture(offer.id)
-                                    listPage = null
-                                }, enabled = listEnabled) { Text(stringResource(R.string.import_later)) }
-                            }
-                        }
-                    }
-                    if (confirmDiscard && offer?.discardCandidate != null) {
-                        AlertDialog(
-                            onDismissRequest = { confirmDiscard = false },
-                            title = { Text(stringResource(R.string.camera_discard_interrupted)) },
-                            text = { Text(stringResource(R.string.camera_discard_warning)) },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    confirmDiscard = false
-                                    state.discardInterruptedCapture(checkNotNull(offer))
-                                }, enabled = listEnabled) { Text(stringResource(R.string.camera_discard_interrupted)) }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { confirmDiscard = false }) {
-                                    Text(stringResource(R.string.cancel_value))
-                                }
-                            },
-                        )
-                    }
-                }
-                itemsIndexed(state.importedPhotos.pending, key = { _, candidate -> "import-${candidate.photoId.name}-${candidate.digest}" }) { index, candidate ->
-                    TextButton(onClick = {
-                        listPage = null
-                        state.previewImport(candidate)
-                    }, enabled = listEnabled, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.import_resume, captures.size + index + 1))
                     }
                 }
             }
@@ -259,7 +198,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             capture == null -> R.string.import_discard
             else -> R.string.camera_discard
         }
-        var confirmDiscard by rememberSaveable(id.name, state.selectedCaptureSource) { mutableStateOf(false) }
+        var confirmDiscard by remember(id, state.selectedCaptureSource) { mutableStateOf(false) }
         if (confirmDiscard) {
             AlertDialog(
                 onDismissRequest = { confirmDiscard = false },
@@ -361,6 +300,101 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     }
 }
 
+
+@Composable
+private fun PhotoRecoveryDialog(
+    state: PhotoEditorState,
+    case: PhotoRecoveryCase,
+    index: Int,
+    count: Int,
+    onStep: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onOpen: (PhotoRecoveryCase) -> Unit,
+) {
+    var preview by remember(case) { mutableStateOf<PhotoRecoveryPreview<Bitmap>?>(null) }
+    var loading by remember(case) { mutableStateOf(true) }
+    var approvedDiscard by remember(case) { mutableStateOf<ImportCandidate?>(null) }
+    val confirmingDiscard = approvedDiscard != null
+    val enabled = !state.importBusy && !state.openingPhoto
+    LaunchedEffect(case) {
+        preview = state.recoveryPreview(case)
+        loading = false
+    }
+    val title = when (case) {
+        is PhotoRecoveryCase.Camera -> R.string.camera_interrupted
+        is PhotoRecoveryCase.Import -> R.string.import_preview
+        is PhotoRecoveryCase.Saved -> R.string.camera_recovery_open_sources
+    }
+    val candidate = preview?.discardCandidate
+    AlertDialog(
+        onDismissRequest = {
+            if (enabled) {
+                if (confirmingDiscard) approvedDiscard = null else onDismiss()
+            }
+        },
+        title = { Text(stringResource(if (confirmingDiscard) R.string.camera_discard_interrupted else title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (confirmingDiscard) {
+                    Text(stringResource(R.string.camera_discard_warning))
+                } else {
+                    if (count > 1) {
+                        Text(stringResource(R.string.photo_recovery_position, index + 1, count))
+                    }
+                    val image = preview?.image
+                    when {
+                        image != null -> Image(image.asImageBitmap(), stringResource(title),
+                            Modifier.fillMaxWidth().heightIn(max = 144.dp), contentScale = ContentScale.Fit)
+                        loading -> Text(stringResource(R.string.import_working))
+                        else -> Text(stringResource(R.string.photo_recovery_preview_unavailable))
+                    }
+                    state.importDiagnostic?.let {
+                        Text(stringResource(R.string.document_storage_diagnostic, it),
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                    if (count > 1) {
+                        Row {
+                            TextButton(onClick = { onStep(-1) }, enabled = enabled && index > 0) {
+                                Text(stringResource(R.string.photo_recovery_previous))
+                            }
+                            TextButton(onClick = { onStep(1) }, enabled = enabled && index + 1 < count) {
+                                Text(stringResource(R.string.photo_recovery_next))
+                            }
+                        }
+                    }
+                    if (candidate != null && case is PhotoRecoveryCase.Camera) {
+                        TextButton(onClick = { approvedDiscard = candidate }, enabled = enabled) {
+                            Text(stringResource(R.string.camera_discard_interrupted))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (confirmingDiscard) {
+                val selected = candidate?.takeIf { it == approvedDiscard }
+                TextButton(onClick = {
+                    approvedDiscard = null
+                    if (selected != null && case is PhotoRecoveryCase.Camera) state.discardInterruptedCapture(case, selected)
+                }, enabled = enabled && selected != null) {
+                    Text(stringResource(R.string.camera_discard_interrupted))
+                }
+            } else {
+                TextButton(onClick = { onOpen(case) }, enabled = enabled) {
+                    Text(stringResource(if (case is PhotoRecoveryCase.Saved || (!loading && preview == null))
+                        R.string.photo_recovery_inspect else R.string.camera_show_interrupted))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                if (confirmingDiscard) approvedDiscard = null else onDismiss()
+            }, enabled = enabled) {
+                Text(stringResource(if (confirmingDiscard) R.string.cancel_value else R.string.photo_list_close))
+            }
+        },
+    )
+}
 
 @Composable
 private fun PhotoListDialog(title: Int, onDismiss: () -> Unit, content: LazyListScope.() -> Unit) {

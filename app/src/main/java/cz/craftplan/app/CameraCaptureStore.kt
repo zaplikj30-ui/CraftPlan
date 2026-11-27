@@ -37,7 +37,8 @@ internal class CameraCaptureStore(
             } catch (_: IllegalArgumentException) {
                 return@mapNotNull null
             }
-            id.takeIf { Files.isRegularFile(file(id).toPath(), NOFOLLOW_LINKS) }
+            // Keep malformed known outputs discoverable. Byte access still requires a regular file.
+            id.takeUnless { it == PhotoId.SYNTHETIC_WORKBENCH }
         }.sortedBy(PhotoId::name)
     }
 

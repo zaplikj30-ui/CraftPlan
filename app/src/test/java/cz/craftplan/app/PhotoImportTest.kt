@@ -23,6 +23,21 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun legacyImportWithUncertainPublicationCannotBeDiscarded() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val files = staging(dir)
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, files, db, catalog) { _, _ -> error("No publication expected") }
+        val bytes = bundledSyntheticPhoto()
+        val candidate = imports.receive(bytes.inputStream())
+        catalog.rows[candidate.photoId.name] = PhotoImportRow(candidate.photoId.name, ByteArray(4097))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.discard(candidate) } }
+        assertArrayEquals(bytes, files.read(candidate))
+        assertEquals(listOf(PhotoRecoveryCase.Import(candidate)), imports.list().recoveryCases(null, null))
+    }
+
+    @Test
     fun directCameraConfirmationRequiresSuccessAndAnUndamagedImage() {
         assertTrue(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(true, false))
         assertFalse(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(false, false))
@@ -35,7 +50,7 @@ class PhotoImportTest {
     }
 
     @Test
-    fun startupOffersOnlyVerifiedImagesAndFinishesPriorDurableRejection() = runBlocking {
+    fun recoveryIndexKeepsAllSourcesAndDecodesOnlyTheSelectedCase() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()
         val catalog = TestCatalog(db)
@@ -48,28 +63,51 @@ class PhotoImportTest {
         val active = attempt(bytes)
         val empty = attempt(byteArrayOf())
         val invalid = attempt(byteArrayOf(1))
-        val conflicted = attempt(bytes)
-        imports().stageCapture(conflicted)
-        CameraCaptureStore.outputFile(dir, conflicted).writeBytes(bytes + byteArrayOf(1))
+        val malformed = attempt(byteArrayOf())
+        val malformedOutput = CameraCaptureStore.outputFile(dir, malformed)
+        assertTrue(malformedOutput.delete() && malformedOutput.mkdir())
+        val conflict = attempt(bytes)
+        imports().stageCapture(conflict)
+        CameraCaptureStore.outputFile(dir, conflict).writeBytes(bytes + byteArrayOf(1))
         val rejected = attempt(bytes)
         staging(dir).recordCaptureRejection(imports().stageCapture(rejected))
-        val pending = attempt(bytes)
-        catalog.rows[pending.name] = PhotoImportRow(pending.name, ByteArray(4097))
-        val released = mutableSetOf<PhotoId>()
-
-        val offers = imports().interruptedCaptures(active, releaseOutput = { released += it }) {
-            check(it.bytes.size >= bytes.size)
-        }.associateBy { it.id }
-        assertEquals(setOf(ready, conflicted, pending), offers.keys)
-        assertFalse(active in released)
-        assertNull(offers.getValue(conflicted).discardCandidate)
-        assertNull(offers.getValue(pending).discardCandidate)
+        val uncertain = attempt(bytes)
+        imports().stageCapture(uncertain)
+        assertFalse(imports().hasConfirmationEvidence(uncertain))
+        catalog.rows[uncertain.name] = PhotoImportRow(uncertain.name, ByteArray(4097))
+        assertTrue(imports().hasConfirmationEvidence(uncertain))
+        val oldImport = imports().receive(bytes.inputStream())
+        val releases = mutableListOf<PhotoId>()
+        imports().resumeCaptureRejections(active) { releases += it }
+        assertEquals(listOf(rejected), releases)
         assertFalse(CameraCaptureStore.outputFile(dir, rejected).exists())
         assertNull(staging(dir).rejectedCapture(rejected))
-        assertTrue(CameraCaptureStore.outputFile(dir, empty).exists())
+        val saved = PhotoId(UUID.randomUUID().toString())
+        val cases = imports().list().copy(confirmedWithRecoverySources = listOf(saved)).recoveryCases(active, saved)
+        assertEquals(setOf(ready, empty, invalid, malformed, conflict, uncertain, oldImport.photoId, saved), cases.map { it.id }.toSet())
+        assertEquals(1, cases.count { it is PhotoRecoveryCase.Saved })
+        val decoded = mutableListOf<Int>()
+        suspend fun inspect(id: PhotoId) =
+            imports().inspectRecovery(cases.single { it.id == id }, { releases += it }) {
+                decoded += it.bytes.size
+                check(it.bytes.size >= bytes.size)
+                it.bytes.size
+            }
+        assertTrue(decoded.isEmpty())
+        assertNull(inspect(ready)?.discardCandidate) // Raw-only attempt is offered without destructive action.
+        assertEquals(listOf(bytes.size), decoded)
+        assertNull(inspect(conflict)?.discardCandidate)
+        assertNull(inspect(uncertain)?.discardCandidate)
+        assertNull(inspect(invalid))
+        assertNull(inspect(empty))
+        assertNull(inspect(malformed))
+        assertTrue(malformedOutput.isDirectory)
+        assertFalse(active in releases)
         assertTrue(CameraCaptureStore.outputFile(dir, invalid).exists())
-        val token = checkNotNull(offers.getValue(ready).discardCandidate)
-        assertTrue(staging(dir).candidates().none { it.photoId == ready })
+        assertTrue(CameraCaptureStore.outputFile(dir, empty).exists())
+        val expected = imports().stageCapture(ready)
+        val token = checkNotNull(inspect(ready)?.discardCandidate)
+        assertEquals(expected, token)
         imports().discardInterruptedCapture(token)
         assertFalse(CameraCaptureStore.outputFile(dir, ready).exists())
         assertTrue(CameraCaptureStore.outputFile(dir, active).exists())

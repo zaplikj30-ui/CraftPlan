@@ -55,6 +55,9 @@ internal fun previewJpeg(candidate: ImportCandidate, bytes: ByteArray, existing:
     return ImportPreview(candidate, photo, decoded.bitmap, decoded.partial)
 }
 
+internal fun decodeRecoveryPreview(copy: CaptureCopy): Bitmap =
+    decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 256).bitmap
+
 private fun inspectJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPhoto {
     // Header-only probe supplies raw dimensions. ImageDecoder returns oriented dimensions.
     val bounds = jpegBounds(bytes)
@@ -85,7 +88,9 @@ internal fun canShowPartialJpeg(error: Int): Boolean =
     error == ImageDecoder.DecodeException.SOURCE_INCOMPLETE ||
         error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA
 
-private fun decodeJpeg(bytes: ByteArray, photo: StoredPhoto, minimumSample: Int = 1): DecodedJpeg {
+private fun decodeJpeg(
+    bytes: ByteArray, photo: StoredPhoto, minimumSample: Int = 1, maximumEdge: Int? = null,
+): DecodedJpeg {
     val expectedSize = photoDimensions(photo.width, photo.height, photo.storedOrientation)
     var partial = false
     val bitmap = try {
@@ -101,7 +106,13 @@ private fun decodeJpeg(bytes: ByteArray, photo: StoredPhoto, minimumSample: Int 
             }
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             decoder.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
-            decoder.setTargetSampleSize(maxOf(minimumSample, jpegSampleSize(width, height)))
+            val edge = maxOf(width, height)
+            if (maximumEdge != null && edge > maximumEdge) {
+                fun scaled(size: Int) = (size.toLong() * maximumEdge / edge).toInt().coerceAtLeast(1)
+                decoder.setTargetSize(scaled(width), scaled(height))
+            } else {
+                decoder.setTargetSampleSize(maxOf(minimumSample, jpegSampleSize(width, height)))
+            }
             decoder.setOnPartialImageListener { error ->
                 canShowPartialJpeg(error.error).also { partial = it }
             }
