@@ -169,6 +169,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var selectedCaptureSource by mutableStateOf<CaptureSource?>(null)
         private set
+    var failedPhotoRecovery by mutableStateOf<PhotoId?>(null)
+        private set
+    var recoveringConfirmedPhoto by mutableStateOf(false)
+        private set
     var importBusy by mutableStateOf(false)
         private set
     var importDiagnostic by mutableStateOf<String?>(null)
@@ -184,6 +188,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     var storageDiagnostic by mutableStateOf<String?>(null)
         private set
     private var storageStatus by mutableStateOf(DocumentSaveStatus.SAVING)
+    var recoveredFromMedia by mutableStateOf(false)
+        private set
     private var gestureEditing by mutableStateOf(false)
     val saveStatus: DocumentSaveStatus
         get() = if (storageStatus == DocumentSaveStatus.SAVED && (gestureEditing || valueDraft != null)) {
@@ -198,6 +204,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         if (photo != null || openingPhoto || importBusy) return
         openingPhoto = true
         storageDiagnostic = null
+        failedPhotoRecovery = null
         viewModelScope.launch {
             try {
                 val (document, bitmap) = withContext(Dispatchers.IO) {
@@ -210,6 +217,17 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 throw error
             } catch (error: Exception) {
                 storageDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
+                if (id != PhotoId.SYNTHETIC_WORKBENCH) {
+                    try {
+                        if (withContext(Dispatchers.IO) { storage.imports.captureSources(id).isNotEmpty() }) {
+                            failedPhotoRecovery = id
+                        }
+                    } catch (inspection: CancellationException) {
+                        throw inspection
+                    } catch (_: Exception) {
+                        // Keep the original opening diagnostic if the sources cannot be listed.
+                    }
+                }
             } finally {
                 openingPhoto = false
             }
@@ -225,6 +243,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         if (document.recovered || retainedHistoryVersion != document.version) history = DimensionHistory()
         retainedHistoryVersion = null
         showNotes = snapshot.showNotes
+        recoveredFromMedia = document.recoveredFromMedia
         if (document.recovered) {
             storageStatus = DocumentSaveStatus.RECOVERED
         } else {
@@ -326,6 +345,32 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         }
     }
 
+    fun showConfirmedRecovery(id: PhotoId) {
+        if (id == captureInFlight) return
+        runImport(StoragePhase.OPEN) {
+            clearImportPreview()
+            cameraPreviewId = id
+            recoveringConfirmedPhoto = true
+            captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
+        }
+    }
+
+    fun openConfirmedRecovery() {
+        val id = cameraPreviewId ?: return
+        if (!recoveringConfirmedPhoto || id == captureInFlight) return
+        runImport(StoragePhase.OPEN) {
+            val (document, bitmap) = withContext(Dispatchers.IO) {
+                revokeCameraOutput(getApplication(), id)
+                val verified = storage.imports.recoverConfirmed(id)
+                verified to decodePhoto(verified.photoBytes, verified.snapshot.photo)
+            }
+            clearImportPreview()
+            failedPhotoRecovery = null
+            storageDiagnostic = null
+            enterEditor(document, bitmap)
+        }
+    }
+
     fun previewCaptureSource(source: CaptureSource) {
         if (source.photoId != cameraPreviewId || source.photoId == captureInFlight || source !in captureSources) return
         runImport(StoragePhase.IMPORT_PREVIEW) {
@@ -361,6 +406,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         cameraPreviewId = null
         captureSources = emptyList()
         selectedCaptureSource = null
+        recoveringConfirmedPhoto = false
     }
 
     fun confirmImport() {
@@ -378,6 +424,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun discardImport() {
+        if (recoveringConfirmedPhoto) return
         val capture = cameraPreviewId
         val candidate = importCandidate
         if (capture == null && candidate == null) return
@@ -1042,7 +1089,8 @@ private fun CraftPlan(
                     }
                 },
                 storageStatus = {
-                    DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave)
+                    DocumentStatus(editorState.saveStatus, editorState.storageDiagnostic, editorState::retrySave,
+                        recoveredFromMedia = editorState.recoveredFromMedia)
                 },
                 toolbarState = editorState,
                 toolbar = { modifier, onFixedToolbarTop, onGripRegion ->
@@ -1105,7 +1153,9 @@ private fun CraftPlan(
 }
 
 @Composable
-private fun DocumentStatus(status: DocumentSaveStatus, diagnostic: String?, retry: () -> Unit) {
+private fun DocumentStatus(
+    status: DocumentSaveStatus, diagnostic: String?, retry: () -> Unit, recoveredFromMedia: Boolean,
+) {
     val label = when (status) {
         DocumentSaveStatus.SAVING -> R.string.document_saving
         DocumentSaveStatus.SAVED -> R.string.document_saved
@@ -1113,7 +1163,9 @@ private fun DocumentStatus(status: DocumentSaveStatus, diagnostic: String?, retr
         DocumentSaveStatus.FAILED -> R.string.document_save_failed
         DocumentSaveStatus.UNCERTAIN -> R.string.document_save_uncertain
         DocumentSaveStatus.CONFLICT -> R.string.document_save_conflict
-        DocumentSaveStatus.RECOVERED -> R.string.document_recovered
+        DocumentSaveStatus.RECOVERED -> if (recoveredFromMedia) {
+            R.string.document_recovered_media
+        } else R.string.document_recovered
     }
     Column(Modifier.background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)) {
         Text(stringResource(label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

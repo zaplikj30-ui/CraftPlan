@@ -11,6 +11,7 @@
     <string name="document_save_uncertain">NEPOTVRZENO</string>
     <string name="document_save_conflict">NEULOŽENO – uložená revize se změnila.</string>
     <string name="document_recovered">Novější revizi nelze otevřít. Zobrazena starší ověřená revize, pouze ke čtení.</string>
+    <string name="document_recovered_media">Ověřená revize ze záchranného zdroje. Původní uložení není dostupné, pouze ke čtení.</string>
     <string name="document_storage_diagnostic">Diagnostika úložiště: %1$s</string>
     <string name="document_retry">Zkusit znovu</string>
     <string name="document_leave_title">Práce zatím není potvrzená</string>
@@ -26,6 +27,8 @@
     <string name="camera_confirm">Použít fotografii</string>
     <string name="camera_discard">Storno</string>
     <string name="camera_discard_warning">Zahodit tento nepotvrzený snímek?</string>
+    <string name="camera_recovery_open_sources">Záchranné zdroje uložené fotografie</string>
+    <string name="camera_recovery_open_original">Otevřít ověřenou revizi jen pro čtení</string>
     <string name="camera_recovery_sources">Ověřit jednotlivé zdroje snímku</string>
     <string name="camera_recovery_output">Náhled výstupu fotoaparátu</string>
     <string name="camera_recovery_stage">Náhled pracovní kopie %1$d</string>

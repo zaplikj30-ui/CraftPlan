@@ -55,6 +55,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             Text(stringResource(R.string.import_open_confirmed, index + 1))
         }
     }
+    state.failedPhotoRecovery?.let { id ->
+        TextButton(onClick = { state.showConfirmedRecovery(id) }, enabled = enabled && id != state.captureInFlight) {
+            Text(stringResource(R.string.camera_recovery_open_sources))
+        }
+    }
     if (state.importBusy) Text(stringResource(R.string.import_working))
     val capture = state.cameraPreviewId
     val pendingId = capture ?: state.importCandidate?.photoId
@@ -79,7 +84,13 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         } else {
             AlertDialog(
                 onDismissRequest = state::deferImport,
-                title = { Text(stringResource(if (capture == null) R.string.import_preview else R.string.camera_preview)) },
+                title = {
+                    Text(stringResource(when {
+                        state.recoveringConfirmedPhoto -> R.string.camera_recovery_open_sources
+                        capture != null -> R.string.camera_preview
+                        else -> R.string.import_preview
+                    }))
+                },
                 text = {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
                         state.importPreview?.let {
@@ -105,12 +116,17 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 TextButton(onClick = { state.previewCaptureSource(source) }, enabled = enabled) { Text(label) }
                             }
                         }
-                        if (capture != null) {
+                        if (state.recoveringConfirmedPhoto && state.captureSources.isNotEmpty()) {
+                            TextButton(onClick = state::openConfirmedRecovery, enabled = enabled) {
+                                Text(stringResource(R.string.camera_recovery_open_original))
+                            }
+                        }
+                        if (capture != null && !state.recoveringConfirmedPhoto) {
                             TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
                                 Text(stringResource(R.string.camera_retake))
                             }
                         }
-                        if (state.captureSources.size < 2) {
+                        if (!state.recoveringConfirmedPhoto && state.captureSources.size < 2) {
                             TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
                                 Text(stringResource(discardLabel))
                             }

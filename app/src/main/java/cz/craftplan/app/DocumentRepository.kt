@@ -15,6 +15,7 @@ internal data class OpenDocument(
     val snapshot: DocumentSnapshot,
     val photoBytes: ByteArray,
     val recovered: Boolean = false,
+    val recoveredFromMedia: Boolean = false,
 )
 
 internal data class DocumentSave(
@@ -152,13 +153,17 @@ internal class DocumentRepository(
             transactions: DocumentTransactions,
             photoId: PhotoId,
             repository: (StoredPhoto) -> DocumentRepository,
+        ): OpenDocument = openConfirmedMedia(transactions, photoId) { repository(it).photos.readAndSync() }
+
+        suspend fun openConfirmedMedia(
+            transactions: DocumentTransactions,
+            photoId: PhotoId,
+            readMedia: (StoredPhoto) -> ByteArray,
         ): OpenDocument = transactions.read {
             val head = checkedHead(photoId.documentId, allowRecovery = true)
                 ?: throw IOException("Missing document head")
             val latest = head.revisionId ?: throw IOException("Document has no confirmed revision")
-            openConfirmedRevision(head, latest, photoId) { media ->
-                repository(media).photos.readAndSync()
-            }
+            openConfirmedRevision(head, latest, photoId, readMedia = readMedia)
         }
     }
 }

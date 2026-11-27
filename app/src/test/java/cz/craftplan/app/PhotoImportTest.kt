@@ -89,6 +89,62 @@ class PhotoImportTest {
     }
 
     @Test
+    fun confirmedRecoveryUsesExactRevisionAndMediaWithoutChangingEitherAfterRestart() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        fun imports() = PhotoImports(dir, {}, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val bytes = bundledSyntheticPhoto()
+        val id = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        raw.writeBytes(bytes)
+        val candidate = imports().stageCapture(id)
+        val photo = testPhoto(candidate, bytes.size)
+        val first = imports().confirm(candidate, photo)
+        val measure = PhotoDimension(UUID.randomUUID(), id, PhotoAnchor(-0.2f, 0.3f), PhotoAnchor(0.8f, 1f),
+            measurement = ManualLengthMeasurement.parse("1/3 in"), note = "synthetic")
+        val snapshot = first.snapshot.copy(dimensions = listOf(measure))
+        val latest = imports().save(DocumentSave(first.version, 2, snapshot))
+        val stageFile = File(dir, candidate.fileName)
+        stageFile.writeBytes(bytes)
+        raw.writeBytes(bytes + byteArrayOf(1))
+        val final = File(dir, photo.mediaFileName())
+        final.writeBytes(byteArrayOf(5))
+        catalog.rows[id.name] = PhotoImportRow(id.name, byteArrayOf(8))
+        val head = db.heads[id.documentId]
+        val revisions = db.revisions.toMap()
+        db.beforeWrite = { error("Recovery must not write revisions") }
+
+        assertThrows(IOException::class.java) { runBlocking { imports().open(id) } }
+        repeat(2) {
+            val recovered = imports().recoverConfirmed(id)
+            assertTrue(recovered.recovered && recovered.recoveredFromMedia)
+            assertEquals(latest.version, recovered.version)
+            assertEquals(snapshot, recovered.snapshot)
+            assertArrayEquals(bytes, recovered.photoBytes)
+        }
+        assertArrayEquals(byteArrayOf(5), final.readBytes())
+        assertArrayEquals(bytes, stageFile.readBytes())
+        assertArrayEquals(bytes + byteArrayOf(1), raw.readBytes())
+        assertEquals(head, db.heads[id.documentId])
+        assertEquals(revisions, db.revisions)
+
+        stageFile.writeBytes(byteArrayOf(3))
+        assertThrows(IOException::class.java) { runBlocking { imports().recoverConfirmed(id) } }
+        raw.writeBytes(bytes)
+        assertArrayEquals(bytes, imports().recoverConfirmed(id).photoBytes)
+        val revisionId = checkNotNull(latest.version.revisionId)
+        db.revisions[revisionId] = db.revisions.getValue(revisionId).copy(snapshotDigest = "bad")
+        assertEquals(first.version, imports().recoverConfirmed(id).version)
+        db.revisions[checkNotNull(first.version.revisionId)] =
+            db.revisions.getValue(checkNotNull(first.version.revisionId)).copy(storageGeneration = UUID.randomUUID().toString())
+        assertThrows(IOException::class.java) { runBlocking { imports().recoverConfirmed(id) } }
+        assertArrayEquals(bytes, raw.readBytes())
+    }
+
+    @Test
     fun cameraAttemptSurvivesRestartAndFailedConfirmationWithOriginalBytes() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()

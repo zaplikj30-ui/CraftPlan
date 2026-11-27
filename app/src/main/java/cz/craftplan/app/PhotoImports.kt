@@ -178,6 +178,32 @@ internal class PhotoImports(
     suspend fun open(id: PhotoId): OpenDocument =
         DocumentRepository.openConfirmed(transactions, id, ::existingRepository).also { finishVerifiedImport(it) }
 
+    suspend fun recoverConfirmed(id: PhotoId): OpenDocument = captureLock.withLock {
+        val recovered = DocumentRepository.openConfirmedMedia(transactions, id, ::readMatchingRecoveryMedia)
+        // Match the snapshot and media to the authoritative revision, but keep this session read-only.
+        storagePhase(StoragePhase.DB_DIRECTORY_SYNC) { syncDirectory(directory) }
+        recovered.copy(recovered = true, recoveredFromMedia = true)
+    }
+
+    private fun readMatchingRecoveryMedia(photo: StoredPhoto): ByteArray {
+        val expected = ImportCandidate(photo.id, photo.sha256)
+        val sources = listOf(CaptureSource.Stage(expected), CaptureSource.Camera(photo.id))
+        var failure: Exception = MissingConfirmedPhoto()
+        for (source in sources) {
+            try {
+                val bytes = readCaptureSource(source)
+                if (bytes.size == photo.size && sha256(bytes) == photo.sha256) return bytes
+                failure = ImportValidationFailure(ImportRejection.STAGED_INTEGRITY)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                failure = error
+            }
+        }
+        // This revision cannot be shown with these bytes. Let the normal validator try its predecessor.
+        throw StorageFailure(StoragePhase.PHOTO_VERIFY, MissingConfirmedPhoto().apply { initCause(failure) })
+    }
+
     private suspend fun finishVerifiedImport(verified: OpenDocument) {
         if (verified.recovered) return
         // A visible head can be the result of an earlier save with a lost directory ACK.
