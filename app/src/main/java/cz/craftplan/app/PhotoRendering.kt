@@ -38,7 +38,10 @@ internal enum class ImportRejection {
     JPEG_DECODE_MALFORMED, JPEG_DECODE_FAILED, JPEG_METADATA_INVALID,
 }
 
-internal class ImportValidationFailure(val reason: ImportRejection) : IllegalArgumentException()
+internal class ImportValidationFailure(
+    val reason: ImportRejection,
+    val decoderConfirmedMalformed: Boolean = false,
+) : IllegalArgumentException()
 
 private data class DecodedJpeg(val bitmap: Bitmap, val partial: Boolean)
 
@@ -125,7 +128,8 @@ private fun decodeJpeg(
             ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA -> ImportRejection.JPEG_DECODE_MALFORMED
             else -> ImportRejection.JPEG_DECODE_FAILED
         }
-        throw ImportValidationFailure(reason)
+        throw ImportValidationFailure(reason,
+            decoderConfirmedMalformed = error.error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA)
     }
     return DecodedJpeg(bitmap, partial)
 }

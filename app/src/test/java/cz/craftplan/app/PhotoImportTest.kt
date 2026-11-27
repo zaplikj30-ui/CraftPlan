@@ -38,6 +38,33 @@ class PhotoImportTest {
     }
 
     @Test
+    fun onlyNativeMalformedNewExternalCopyCanBeAutomaticallyDiscarded() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val files = staging(dir)
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, files, db, catalog) { _, _ -> error("No publication expected") }
+        val payload = byteArrayOf(1, 2, 3)
+        val candidate = imports.receive(payload.inputStream())
+        fun failure(reason: ImportRejection, proven: Boolean = false) =
+            StorageFailure(StoragePhase.IMPORT_PREVIEW, ImportValidationFailure(reason, proven))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_DECODE_MALFORMED))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.PHOTO_PIXEL_LIMIT))
+        imports.rejectMalformedNewImport(candidate, failure(ImportRejection.JPEG_TRUNCATED))
+        assertArrayEquals(payload, files.read(candidate))
+        val protected = imports.receive(payload.inputStream())
+        catalog.rows[protected.photoId.name] = PhotoImportRow(protected.photoId.name, ByteArray(4097))
+        val malformed = failure(ImportRejection.JPEG_DECODE_MALFORMED, true)
+        assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports.rejectMalformedNewImport(protected, malformed) }
+        }
+        assertArrayEquals(payload, files.read(protected))
+        imports.rejectMalformedNewImport(candidate, malformed)
+        assertEquals(listOf(protected), files.candidates())
+        assertEquals("IMPORT_STAGE / NO_SPACE", storageFailureCode(PhotoSpaceUnavailable(), StoragePhase.IMPORT_STAGE))
+    }
+
+    @Test
     fun directCameraConfirmationRequiresSuccessAndAnUndamagedImage() {
         assertTrue(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(true, false))
         assertFalse(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(false, false))

@@ -361,7 +361,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                     val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
                     input.use { storage.imports.receive(it) }
                 }
-                loadPreview(candidate)
+                loadPreview(candidate, newExternalImport = true)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -560,11 +560,20 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         runImport(StoragePhase.IMPORT_PREVIEW) { loadPreview(candidate) }
     }
 
-    private suspend fun loadPreview(candidate: ImportCandidate) {
+    private suspend fun loadPreview(candidate: ImportCandidate, newExternalImport: Boolean = false) {
         importCandidate = candidate
         importPreview = null
         val (preview, confirmationExists) = withContext(Dispatchers.IO) {
-            storage.imports.preview(candidate) to storage.imports.hasConfirmationEvidence(candidate.photoId)
+            val imports = storage.imports
+            val preview = try {
+                imports.preview(candidate)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (newExternalImport) imports.rejectMalformedNewImport(candidate, error)
+                throw error
+            }
+            preview to imports.hasConfirmationEvidence(candidate.photoId)
         }
         if (confirmationExists) confirmationAttempts = confirmationAttempts + candidate
         importPreview = preview

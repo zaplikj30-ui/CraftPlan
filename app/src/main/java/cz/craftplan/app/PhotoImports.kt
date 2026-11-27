@@ -103,8 +103,11 @@ internal class PhotoImports(
         val represented = (confirmed + pendingCaptures).toHashSet()
         val recoveryIds = (cameraAttempts + staged.map { it.photoId }).toHashSet()
         val stagedIds = staged.mapTo(hashSetOf()) { it.photoId }
-        val emptyCaptureOnly = pendingCaptures.filterTo(hashSetOf()) {
-            it !in stagedIds && captures.isEmptyOutput(it)
+        val emptyCandidates = pendingCaptures.filter { it !in stagedIds && captures.isEmptyOutput(it) }
+        val emptyCaptureOnly = if (emptyCandidates.isEmpty()) emptySet() else transactions.read {
+            emptyCandidates.filterTo(hashSetOf()) {
+                head(it.documentId) == null && !hasRevisions(it.documentId) && !catalog.exists(it.name)
+            }
         }
         return PhotoList(confirmed, staged.filterNot { it.photoId in represented },
             pendingCaptures, confirmed.filter { it in recoveryIds }, emptyCaptureOnly)
@@ -404,6 +407,16 @@ internal class PhotoImports(
 
     suspend fun save(request: DocumentSave): DocumentAck =
         existingRepository(request.snapshot.photo).save(request)
+
+    /** Only for a fresh external import whose native decoder could not produce an image.
+     * Never use for camera bytes, an uncertain save, a limit or a failed header probe. */
+    suspend fun rejectMalformedNewImport(candidate: ImportCandidate, error: Exception) {
+        val phase = error as? StorageFailure ?: return
+        val failure = phase.cause as? ImportValidationFailure ?: return
+        if (phase.phase == StoragePhase.IMPORT_PREVIEW &&
+            failure.reason == ImportRejection.JPEG_DECODE_MALFORMED && failure.decoderConfirmedMalformed
+        ) discard(candidate)
+    }
 
     suspend fun discard(candidate: ImportCandidate) {
         val id = candidate.photoId
