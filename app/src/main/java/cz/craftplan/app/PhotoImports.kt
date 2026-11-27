@@ -173,7 +173,7 @@ internal class PhotoImports(
     suspend fun discardInterruptedCapture(candidate: ImportCandidate) {
         val actual = stageCapture(candidate.photoId)
         check(actual == candidate)
-        rejectCaptureForRetake(actual)
+        rejectCapture(actual)
     }
 
     suspend fun readCaptureCopy(source: CaptureSource): CaptureCopy = captureLock.withLock {
@@ -232,7 +232,7 @@ internal class PhotoImports(
         }
     }
 
-    suspend fun rejectCaptureForRetake(candidate: ImportCandidate) = captureLock.withLock {
+    suspend fun rejectCapture(candidate: ImportCandidate) = captureLock.withLock {
         finishCaptureRejection(candidate)
     }
 
@@ -255,15 +255,6 @@ internal class PhotoImports(
             staging.remove(candidate)
             staging.clearCaptureRejection(id)
         }
-    }
-
-    suspend fun discardCapture(id: PhotoId) = captureLock.withLock {
-        val rejected = staging.rejectedCapture(id)
-        if (rejected != null) return@withLock finishCaptureRejection(rejected)
-        val candidate = captureCandidate(id)
-        if (candidate != null) discard(candidate)
-        else transactions.read { check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId)) }
-        captures.remove(id)
     }
 
     private fun checkCaptureBytes(candidate: ImportCandidate) {
@@ -370,16 +361,14 @@ internal class PhotoImports(
     suspend fun discard(candidate: ImportCandidate) {
         val id = candidate.photoId
         transactions.write {
-            check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId))
-            val photo = catalogPhoto(id)
-            if (photo != null) {
-                check(photo.sha256 == candidate.digest)
-                Files.deleteIfExists(File(directory, photo.mediaFileName()).toPath())
+            if (head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)) {
+                throw ImportValidationFailure(ImportRejection.CAMERA_SOURCE_PROTECTED)
             }
+            check(!captures.hasOutput(id))
+            val current = captureCandidate(id)
+            check(current == null || current == candidate)
+            if (current != null) staging.read(current)
             staging.remove(candidate)
-            syncDirectory(directory)
-            catalog.delete(id.name)
-            catalog.deleteEmptyHead(id.documentId)
         }
     }
 

@@ -93,16 +93,16 @@ class PhotoImportTest {
         raw.writeBytes(bytes)
         val candidate = imports().stageCapture(id)
         raw.writeBytes(bytes + byteArrayOf(1))
-        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports().rejectCaptureForRetake(candidate) } }
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports().rejectCapture(candidate) } }
         assertNull(staging(dir).rejectedCapture(id))
         raw.writeBytes(bytes)
         failBarrier = true
-        assertThrows(IOException::class.java) { runBlocking { imports().rejectCaptureForRetake(candidate) } }
+        assertThrows(IOException::class.java) { runBlocking { imports().rejectCapture(candidate) } }
         assertArrayEquals(bytes, raw.readBytes())
         assertArrayEquals(bytes, staging(dir).read(candidate))
 
         failBarrier = false
-        imports().rejectCaptureForRetake(candidate)
+        imports().rejectCapture(candidate)
         assertFalse(raw.exists())
         assertNull(staging(dir).rejectedCapture(id))
         assertTrue(staging(dir).candidates().isEmpty())
@@ -396,7 +396,7 @@ class PhotoImportTest {
         assertFalse(raw.exists())
         assertTrue(staging(dir).candidates().isEmpty())
         assertEquals(listOf(retake), restarted.list().captures)
-        assertThrows(IllegalStateException::class.java) { runBlocking { restarted.discardCapture(first) } }
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { restarted.rejectCapture(candidate) } }
         assertArrayEquals(bytes, restarted.open(first).photoBytes)
     }
 
@@ -426,9 +426,9 @@ class PhotoImportTest {
             assertEquals("IMPORT_PREVIEW / STAGED_INTEGRITY", storageFailureCode(it, StoragePhase.OPEN))
         }
         assertArrayEquals(byteArrayOf(1, 2, 3), output.readBytes())
-        imports.discardCapture(written)
-        assertFalse(output.exists())
-        assertTrue(staging(dir).candidates().isEmpty())
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.rejectCapture(candidate) } }
+        assertTrue(output.exists())
+        assertEquals(listOf(candidate), staging(dir).candidates())
         assertTrue(imports.list().confirmed.isEmpty())
     }
 
@@ -616,7 +616,7 @@ class PhotoImportTest {
         try {
             imports.discard(first)
             throw AssertionError("Discard accepted a committed photo")
-        } catch (_: IllegalStateException) {
+        } catch (_: ImportValidationFailure) {
             assertArrayEquals(bytes, imports.open(first.photoId).photoBytes)
         }
 

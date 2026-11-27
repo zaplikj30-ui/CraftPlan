@@ -191,6 +191,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private val storage get() = AppDocumentStorage.get(getApplication())
     private var importRefresh: Job? = null
     private var cameraRecoveryScanned = false
+    private var confirmationStartedFor by mutableStateOf<ImportCandidate?>(null)
+    val retryingPhotoConfirmation get() = confirmationStartedFor == importPreview?.candidate && confirmationStartedFor != null
+    val ordinaryCameraReview get() = cameraPreviewId != null && cameraPreviewId == importPreview?.candidate?.photoId &&
+        !recoveringConfirmedPhoto && selectedCaptureSource == null && captureSources.isEmpty()
     var cameraReviewHidden by mutableStateOf(false)
         private set
     var interruptedCaptures by mutableStateOf<List<InterruptedCapture>>(emptyList())
@@ -353,7 +357,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         if (captureInFlight != null) return
         val previous = cameraPreviewId
         val preview = importPreview
-        val ordinary = !recoveringConfirmedPhoto && selectedCaptureSource == null && captureSources.isEmpty()
+        val ordinary = ordinaryCameraReview && !retryingPhotoConfirmation
         var id: PhotoId? = null
         runImport(StoragePhase.CAMERA_CAPTURE, after = { id?.let(launch) }) {
             if (previous != null) {
@@ -362,7 +366,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 }
                 withContext(Dispatchers.IO) {
                     revokeCameraOutput(getApplication(), previous)
-                    storage.imports.rejectCaptureForRetake(preview.candidate)
+                    storage.imports.rejectCapture(preview.candidate)
                 }
                 clearImportPreview()
             }
@@ -511,6 +515,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun clearImportPreview() {
         importPreview = null
         importCandidate = null
+        confirmationStartedFor = null
         cameraPreviewId = null
         captureSources = emptyList()
         selectedCaptureSource = null
@@ -528,6 +533,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private suspend fun saveConfirmedPreview(
         preview: ImportPreview, confirmation: PhotoConfirmation, source: CaptureSource?,
     ) {
+        confirmationStartedFor = preview.candidate
         val document = withContext(Dispatchers.IO) { storage.imports.confirmPreview(preview, confirmation, source) }
         check(document.snapshot.photo == preview.photo)
         clearImportPreview()
@@ -535,16 +541,16 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun discardImport() {
-        if (recoveringConfirmedPhoto) return
+        if (recoveringConfirmedPhoto || retryingPhotoConfirmation) return
         val capture = cameraPreviewId
-        val candidate = importCandidate
-        if (capture == null && candidate == null) return
+        val candidate = importCandidate ?: return
+        if (capture != null && !ordinaryCameraReview) return
         runImport(if (capture == null) StoragePhase.IMPORT_STAGE else StoragePhase.CAMERA_CAPTURE) {
             withContext(Dispatchers.IO) {
                 if (capture != null) {
                     revokeCameraOutput(getApplication(), capture)
-                    storage.imports.discardCapture(capture)
-                } else storage.imports.discard(checkNotNull(candidate))
+                    storage.imports.rejectCapture(candidate)
+                } else storage.imports.discard(candidate)
             }
             clearImportPreview()
         }

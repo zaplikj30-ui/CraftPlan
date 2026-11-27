@@ -259,7 +259,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             capture == null -> R.string.import_discard
             else -> R.string.camera_discard
         }
-        var confirmDiscard by remember(id, state.selectedCaptureSource) { mutableStateOf(false) }
+        var confirmDiscard by rememberSaveable(id.name, state.selectedCaptureSource) { mutableStateOf(false) }
         if (confirmDiscard) {
             AlertDialog(
                 onDismissRequest = { confirmDiscard = false },
@@ -283,23 +283,27 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             )
         } else {
             val shown = state.importPreview
-            val canRetake = capture != null && !state.recoveringConfirmedPhoto &&
-                state.captureSources.isEmpty() && state.selectedCaptureSource == null &&
-                shown?.candidate?.photoId == capture
-            val canDiscard = discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)
+            val ordinary = state.ordinaryCameraReview && !state.retryingPhotoConfirmation
+            val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinary ||
+                (capture == null && !state.recoveringConfirmedPhoto && shown != null))
             val confirmLabel = if (state.selectedCaptureSource != null) {
                 if (shown?.sourceDamaged == true) R.string.camera_recovery_save_damaged
                 else R.string.camera_recovery_save
             } else if (shown?.sourceDamaged == true) {
                 R.string.import_confirm_damaged
-            } else if (capture != null) R.string.camera_confirm else R.string.import_confirm
+            } else if (state.retryingPhotoConfirmation) R.string.document_retry
+            else if (capture != null) R.string.camera_confirm else R.string.import_confirm
             PhotoReviewDialog(
                 fullScreen = capture != null,
                 bitmap = shown?.bitmap,
                 showQuality = capture != null && shown != null && !shown.sourceDamaged &&
                     !state.recoveringConfirmedPhoto && state.captureSources.isEmpty() &&
                     state.selectedCaptureSource == null,
-                onDismissRequest = state::deferImport,
+                onDismissRequest = {
+                    if (enabled) {
+                        if (ordinary) confirmDiscard = true else state.deferImport()
+                    }
+                },
                 title = {
                     Text(stringResource(when {
                         state.recoveringConfirmedPhoto -> R.string.camera_recovery_open_sources
@@ -338,7 +342,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         }
                     }
                 },
-                retake = if (canRetake) ReviewAction(R.string.camera_retake,
+                retake = if (ordinary) ReviewAction(R.string.camera_retake,
                     enabled && state.captureInFlight == null, onCapture) else null,
                 discard = if (canDiscard) ReviewAction(discardLabel, enabled) { confirmDiscard = true } else null,
                 confirm = ReviewAction(confirmLabel, enabled && shown != null) {
@@ -348,7 +352,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         state.confirmImport(shown.candidate, consent)
                     }
                 },
-                later = ReviewAction(R.string.import_later, enabled, state::deferImport),
+                later = if (ordinary) null else ReviewAction(R.string.photo_list_close, enabled, state::deferImport),
             )
         }
     } ?: state.importDiagnostic?.let {
@@ -421,7 +425,7 @@ private fun PhotoReviewDialog(
     retake: ReviewAction?,
     discard: ReviewAction?,
     confirm: ReviewAction,
-    later: ReviewAction,
+    later: ReviewAction?,
 ) {
     if (!fullScreen) {
         AlertDialog(
@@ -441,7 +445,7 @@ private fun PhotoReviewDialog(
                 }
             },
             confirmButton = { ReviewTextAction(confirm) },
-            dismissButton = { ReviewTextAction(later) },
+            dismissButton = { later?.let { ReviewTextAction(it) } },
         )
         return
     }
@@ -472,7 +476,7 @@ private fun PhotoReviewDialog(
                             details()
                             ReviewPill(confirm, Modifier.fillMaxWidth(), primary = true)
                             retake?.let { ReviewPill(it, Modifier.fillMaxWidth()) }
-                            ReviewPill(later, Modifier.fillMaxWidth())
+                            later?.let { ReviewPill(it, Modifier.fillMaxWidth()) }
                             discard?.let { ReviewPill(it, Modifier.fillMaxWidth()) }
                         }
                     }
@@ -497,7 +501,7 @@ private fun PhotoReviewDialog(
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 discard?.let { ReviewPill(it, Modifier.weight(1f)) }
-                                ReviewPill(later, Modifier.weight(1f))
+                                later?.let { ReviewPill(it, Modifier.weight(1f)) }
                             }
                         }
                     }
