@@ -1,8 +1,15 @@
 package cz.craftplan.app
 
+import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +33,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -148,7 +162,9 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 },
             )
         } else {
-            AlertDialog(
+            PhotoReviewDialog(
+                fullScreen = capture != null,
+                bitmap = state.importPreview?.bitmap,
                 onDismissRequest = state::deferImport,
                 title = {
                     Text(stringResource(when {
@@ -158,11 +174,10 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     }))
                 },
                 text = {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
-                        state.importPreview?.let {
-                            if (it.sourceDamaged) Text(stringResource(R.string.import_damage_warning))
-                            Image(it.bitmap.asImageBitmap(), stringResource(R.string.import_preview),
-                                Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
+                    Column {
+                        if (state.importPreview?.sourceDamaged == true) {
+                            Text(stringResource(R.string.import_damage_warning),
+                                color = MaterialTheme.colorScheme.error)
                         }
                         if (state.importBusy) Text(stringResource(R.string.import_working))
                         state.importDiagnostic?.let {
@@ -187,14 +202,16 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 Text(stringResource(R.string.camera_recovery_open_original))
                             }
                         }
-                        if (capture != null && !state.recoveringConfirmedPhoto) {
-                            TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
-                                Text(stringResource(R.string.camera_retake))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            if (capture != null && !state.recoveringConfirmedPhoto) {
+                                TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
+                                    Text(stringResource(R.string.camera_retake))
+                                }
                             }
-                        }
-                        if (discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)) {
-                            TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
-                                Text(stringResource(discardLabel))
+                            if (discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)) {
+                                TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
+                                    Text(stringResource(discardLabel))
+                                }
                             }
                         }
                     }
@@ -227,5 +244,113 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     } ?: state.importDiagnostic?.let {
         Text(stringResource(if (it.startsWith("CAMERA_CAPTURE /")) R.string.camera_failed else R.string.import_failed))
         Text(stringResource(R.string.document_storage_diagnostic, it))
+    }
+}
+
+
+/** Keep the camera review separate from validation and durable confirmation. */
+@Composable
+private fun PhotoReviewDialog(
+    fullScreen: Boolean,
+    bitmap: Bitmap?,
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+) {
+    if (!fullScreen) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = title,
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    bitmap?.let {
+                        Image(it.asImageBitmap(), stringResource(R.string.import_preview),
+                            Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
+                    }
+                    text()
+                }
+            },
+            confirmButton = confirmButton,
+            dismissButton = dismissButton,
+        )
+        return
+    }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
+    ) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
+                if (maxWidth > maxHeight && bitmap != null) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxHeight())
+                        Column(Modifier.weight(0.7f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                            title()
+                            text()
+                            ReviewActions(dismissButton, confirmButton)
+                        }
+                    }
+                } else {
+                    val detailsLimit = maxHeight * 0.4f
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        title()
+                        if (bitmap != null) {
+                            ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxWidth())
+                        }
+                        Column(
+                            if (bitmap != null) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
+                                .verticalScroll(rememberScrollState())
+                            else Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                        ) { text() }
+                        ReviewActions(dismissButton, confirmButton)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewActions(dismissButton: @Composable () -> Unit, confirmButton: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { dismissButton() }
+        Box(Modifier.weight(1.5f), contentAlignment = Alignment.CenterEnd) { confirmButton() }
+    }
+}
+
+@Composable
+private fun ZoomableReviewImage(bitmap: Bitmap, modifier: Modifier) {
+    BoxWithConstraints(modifier.clipToBounds(), contentAlignment = Alignment.Center) {
+        val width = constraints.maxWidth.toFloat()
+        val height = constraints.maxHeight.toFloat()
+        val fit = minOf(width / bitmap.width, height / bitmap.height)
+        var scale by remember(bitmap, width, height) { mutableStateOf(1f) }
+        var offset by remember(bitmap, width, height) { mutableStateOf(Offset.Zero) }
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = stringResource(R.string.camera_preview),
+            modifier = Modifier.fillMaxSize()
+                .pointerInput(bitmap, width, height) {
+                    detectTransformGestures { centroid, pan, zoom, _ ->
+                        val next = (scale * zoom).coerceIn(1f, 5f)
+                        val center = Offset(width / 2f, height / 2f)
+                        val moved = (offset + center - centroid) * (next / scale) + centroid - center + pan
+                        val maxX = ((bitmap.width * fit * next - width) / 2f).coerceAtLeast(0f)
+                        val maxY = ((bitmap.height * fit * next - height) / 2f).coerceAtLeast(0f)
+                        offset = Offset(moved.x.coerceIn(-maxX, maxX), moved.y.coerceIn(-maxY, maxY))
+                        scale = next
+                    }
+                }
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+            contentScale = ContentScale.Fit,
+        )
     }
 }
