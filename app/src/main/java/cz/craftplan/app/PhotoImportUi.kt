@@ -430,10 +430,11 @@ private fun PhotoReviewDialog(
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
                 if (maxWidth > maxHeight && bitmap != null) {
+                    val controlsWidth = minOf(180.dp, maxWidth * 0.30f)
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxHeight())
                         Column(
-                            Modifier.width(minOf(180.dp, maxWidth * 0.30f)).fillMaxHeight()
+                            Modifier.width(controlsWidth).fillMaxHeight()
                                 .verticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.Start,
                         ) {
