@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -326,74 +328,119 @@ private fun PhotoRecoveryDialog(
         is PhotoRecoveryCase.Saved -> R.string.camera_recovery_open_sources
     }
     val candidate = preview?.discardCandidate
-    AlertDialog(
-        onDismissRequest = {
-            if (enabled) {
-                if (confirmingDiscard) approvedDiscard = null else onDismiss()
-            }
-        },
-        title = { Text(stringResource(if (confirmingDiscard) R.string.camera_discard_interrupted else title)) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (confirmingDiscard) {
+    if (confirmingDiscard) {
+        val selected = candidate?.takeIf { it == approvedDiscard }
+        AlertDialog(
+            onDismissRequest = { if (enabled) approvedDiscard = null },
+            title = { Text(stringResource(R.string.camera_discard_interrupted)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(stringResource(R.string.camera_discard_warning))
-                } else {
-                    if (count > 1) {
-                        Text(stringResource(R.string.photo_recovery_position, index + 1, count))
-                    }
-                    val image = preview?.image
-                    when {
-                        image != null -> Image(image.asImageBitmap(), stringResource(title),
-                            Modifier.fillMaxWidth().heightIn(max = 144.dp), contentScale = ContentScale.Fit)
-                        loading -> Text(stringResource(R.string.import_working))
-                        else -> Text(stringResource(R.string.photo_recovery_preview_unavailable))
-                    }
-                    state.importDiagnostic?.let {
-                        Text(stringResource(R.string.document_storage_diagnostic, it),
-                            color = MaterialTheme.colorScheme.error)
-                    }
-                    if (count > 1) {
-                        Row {
-                            TextButton(onClick = { onStep(-1) }, enabled = enabled && index > 0) {
-                                Text(stringResource(R.string.photo_recovery_previous))
-                            }
-                            TextButton(onClick = { onStep(1) }, enabled = enabled && index + 1 < count) {
-                                Text(stringResource(R.string.photo_recovery_next))
-                            }
-                        }
-                    }
-                    if (candidate != null && case is PhotoRecoveryCase.Camera) {
-                        TextButton(onClick = { approvedDiscard = candidate }, enabled = enabled) {
-                            Text(stringResource(R.string.camera_discard_interrupted))
-                        }
-                    }
                 }
-            }
-        },
-        confirmButton = {
-            if (confirmingDiscard) {
-                val selected = candidate?.takeIf { it == approvedDiscard }
+            },
+            confirmButton = {
                 TextButton(onClick = {
                     approvedDiscard = null
                     if (selected != null && case is PhotoRecoveryCase.Camera) state.discardInterruptedCapture(case, selected)
                 }, enabled = enabled && selected != null) {
                     Text(stringResource(R.string.camera_discard_interrupted))
                 }
-            } else {
-                TextButton(onClick = { onOpen(case) }, enabled = enabled) {
-                    Text(stringResource(if (case is PhotoRecoveryCase.Saved || (!loading && preview == null))
-                        R.string.photo_recovery_inspect else R.string.camera_show_interrupted))
+            },
+            dismissButton = {
+                TextButton(onClick = { approvedDiscard = null }, enabled = enabled) {
+                    Text(stringResource(R.string.cancel_value))
+                }
+            },
+        )
+        return
+    }
+
+    val heading: @Composable () -> Unit = {
+        Text(stringResource(title), style = MaterialTheme.typography.titleLarge)
+        if (count > 1) {
+            Text(stringResource(R.string.photo_recovery_position, index + 1, count),
+                style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    val thumbnail: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier, contentAlignment = Alignment.Center) {
+            val image = preview?.image
+            when {
+                image != null -> Image(image.asImageBitmap(), stringResource(title),
+                    Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                loading -> Text(stringResource(R.string.import_working))
+                else -> Text(stringResource(R.string.photo_recovery_preview_unavailable))
+            }
+        }
+    }
+    val actions: @Composable () -> Unit = {
+        state.importDiagnostic?.let {
+            Text(stringResource(R.string.document_storage_diagnostic, it),
+                color = MaterialTheme.colorScheme.error)
+        }
+        if (count > 1) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ReviewPill(ReviewAction(R.string.photo_recovery_previous, enabled && index > 0) { onStep(-1) },
+                    Modifier.weight(1f))
+                ReviewPill(ReviewAction(R.string.photo_recovery_next, enabled && index + 1 < count) { onStep(1) },
+                    Modifier.weight(1f))
+            }
+        }
+        ReviewPill(ReviewAction(
+            if (case is PhotoRecoveryCase.Saved || (!loading && preview == null))
+                R.string.photo_recovery_inspect else R.string.camera_show_interrupted,
+            enabled,
+        ) { onOpen(case) }, Modifier.fillMaxWidth(), primary = true)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (candidate != null && case is PhotoRecoveryCase.Camera) {
+                ReviewPill(ReviewAction(R.string.camera_discard_interrupted, enabled) { approvedDiscard = candidate },
+                    Modifier.weight(1f))
+            }
+            ReviewPill(ReviewAction(R.string.photo_list_close, enabled, onDismiss), Modifier.weight(1f))
+        }
+    }
+
+    Dialog(
+        onDismissRequest = { if (enabled) onDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            Modifier.widthIn(max = 760.dp).fillMaxWidth(0.94f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
+                if (maxWidth > maxHeight && maxWidth >= 500.dp) {
+                    val panelWidth = minOf(320.dp, maxWidth * 0.45f)
+                    val dialogHeight = minOf(420.dp, maxHeight)
+                    Row(Modifier.fillMaxWidth().height(dialogHeight),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        thumbnail(Modifier.weight(1f).fillMaxHeight())
+                        Column(
+                            Modifier.width(panelWidth).fillMaxHeight().verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            heading()
+                            actions()
+                        }
+                    }
+                } else {
+                    val imageHeight = minOf(400.dp, maxHeight * 0.50f)
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        heading()
+                        thumbnail(Modifier.fillMaxWidth().height(imageHeight))
+                        actions()
+                    }
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = {
-                if (confirmingDiscard) approvedDiscard = null else onDismiss()
-            }, enabled = enabled) {
-                Text(stringResource(if (confirmingDiscard) R.string.cancel_value else R.string.photo_list_close))
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable

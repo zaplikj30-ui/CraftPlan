@@ -56,7 +56,7 @@ internal fun previewJpeg(candidate: ImportCandidate, bytes: ByteArray, existing:
 }
 
 internal fun decodeRecoveryPreview(copy: CaptureCopy): Bitmap =
-    decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 256).bitmap
+    decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 768).bitmap
 
 private fun inspectJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPhoto {
     // Header-only probe supplies raw dimensions. ImageDecoder returns oriented dimensions.
