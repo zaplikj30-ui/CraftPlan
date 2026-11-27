@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -174,7 +175,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         else -> R.string.import_preview
                     }))
                 },
-                text = {
+                text = { narrow ->
                     Column {
                         if (state.importPreview?.sourceDamaged == true) {
                             Text(stringResource(R.string.import_damage_warning),
@@ -203,7 +204,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 Text(stringResource(R.string.camera_recovery_open_original))
                             }
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        val secondaryActions: @Composable () -> Unit = {
                             if (capture != null && !state.recoveringConfirmedPhoto &&
                                 state.captureSources.isEmpty() && state.selectedCaptureSource == null &&
                                 state.importPreview?.candidate?.photoId == capture
@@ -216,6 +217,13 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
                                     Text(stringResource(discardLabel))
                                 }
+                            }
+                        }
+                        if (narrow) {
+                            Column(Modifier.fillMaxWidth()) { secondaryActions() }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                secondaryActions()
                             }
                         }
                     }
@@ -259,7 +267,7 @@ private fun PhotoReviewDialog(
     bitmap: Bitmap?,
     onDismissRequest: () -> Unit,
     title: @Composable () -> Unit,
-    text: @Composable () -> Unit,
+    text: @Composable (Boolean) -> Unit,
     confirmButton: @Composable () -> Unit,
     dismissButton: @Composable () -> Unit,
 ) {
@@ -273,7 +281,7 @@ private fun PhotoReviewDialog(
                         Image(it.asImageBitmap(), stringResource(R.string.import_preview),
                             Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
                     }
-                    text()
+                    text(false)
                 }
             },
             confirmButton = confirmButton,
@@ -291,10 +299,15 @@ private fun PhotoReviewDialog(
                 if (maxWidth > maxHeight && bitmap != null) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxHeight())
-                        Column(Modifier.weight(0.7f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                        Column(
+                            Modifier.width(minOf(180.dp, maxWidth * 0.30f)).fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.Start,
+                        ) {
                             title()
-                            text()
-                            ReviewActions(dismissButton, confirmButton)
+                            text(true)
+                            confirmButton()
+                            dismissButton()
                         }
                     }
                 } else {
@@ -308,7 +321,7 @@ private fun PhotoReviewDialog(
                             if (bitmap != null) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
                                 .verticalScroll(rememberScrollState())
                             else Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                        ) { text() }
+                        ) { text(false) }
                         ReviewActions(dismissButton, confirmButton)
                     }
                 }
