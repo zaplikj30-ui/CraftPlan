@@ -40,6 +40,11 @@
     <string name="dimension_move_selected">Až po označení</string>
     <string name="dimension_move_done">Hotovo</string>
     <string name="dimension_move_description">Posouvání kót: %1$s</string>
+    <string name="toolbar_move_direct_hint">Přímé posouvání zapnuto</string>
+    <string name="toolbar_move_selected_hint">Posouvání až po označení</string>
+    <string name="toolbar_drawing_off">Kreslení vypnuto</string>
+    <string name="toolbar_deleted">Kóta odstraněna</string>
+    <string name="toolbar_test_appearances_cleared">Testovací nastavení zrušena</string>
     <string name="add_dimension">Přidat kótu</string>
     <string name="toolbar_dimension">Kóta</string>
     <string name="toolbar_tools">Nabídka nástrojů</string>

@@ -75,6 +75,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -302,6 +303,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun closePhoto() {
+        clearToolbarHint()
         check(saveJob?.isActive != true)
         cancelStressGeneration()
         stopDiagnostics()
@@ -478,6 +480,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var dimensionsRequireSelection by mutableStateOf(false)
         private set
+    var toolbarHintsEnabled by mutableStateOf(true)
+        private set
+    var toolbarHint by mutableStateOf<Int?>(null)
+        private set
+    private var toolbarHintJob: Job? = null
     var labelsLocked by mutableStateOf(false)
         private set
     var statusBarSettings by mutableStateOf(EditorStatusBarSettings())
@@ -519,6 +526,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         toolbarExpanded = source.getBoolean("toolbar_expanded", false)
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         dimensionsRequireSelection = source.getBoolean("dimensions_require_selection", false)
+        toolbarHintsEnabled = source.getBoolean("toolbar_hints_enabled", true)
         labelsLocked = source.getBoolean("labels_locked", false)
         val legacyAppearance = source.getInt("dimension_appearance_calibration", 0) < 1
         val geometryPercent = source.getInt("dimension_geometry_size", 100)
@@ -551,6 +559,29 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
             landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,
         )
+    }
+
+    fun updateToolbarHintsEnabled(enabled: Boolean) {
+        toolbarHintsEnabled = enabled
+        preferences?.edit()?.putBoolean("toolbar_hints_enabled", enabled)?.apply()
+        if (!enabled) clearToolbarHint()
+    }
+
+    fun clearToolbarHint() {
+        toolbarHintJob?.cancel()
+        toolbarHintJob = null
+        toolbarHint = null
+    }
+
+    fun showToolbarHint(label: Int) {
+        if (!toolbarHintsEnabled) return
+        toolbarHintJob?.cancel()
+        toolbarHint = label
+        toolbarHintJob = viewModelScope.launch {
+            delay(3_000)
+            toolbarHint = null
+            toolbarHintJob = null
+        }
     }
 
     fun updateDimensionsRequireSelection(enabled: Boolean) {

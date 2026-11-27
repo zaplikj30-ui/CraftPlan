@@ -81,7 +81,8 @@ internal fun EditorToolbar(
 ) {
     val tool = state.scene.tool
     val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
-    Column(modifier.fillMaxWidth()) {
+    Box(modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth()) {
         if (tool != DimensionTool.SELECT) {
             Surface(
                 Modifier.align(Alignment.CenterHorizontally)
@@ -98,6 +99,24 @@ internal fun EditorToolbar(
             }
         }
         EditorToolbarSurface(state, onFixedToolbarTop, onGripRegion)
+    }
+        // Overlay only: transient feedback must not move the toolbar or the photo.
+        // Leave the existing active drawing guidance intact.
+        val hint = state.toolbarHint
+        if (state.toolbarHintsEnabled && hint != null && state.valueDraft == null) {
+            Box(Modifier.matchParentSize()) {
+                Surface(
+                    Modifier.align(Alignment.TopCenter)
+                        .absoluteOffset(x = repeatHintOffset, y = (-32).dp)
+                        .padding(horizontal = 4.dp),
+                    shape = toolbarShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Text(stringResource(hint), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }
 
@@ -408,11 +427,14 @@ private fun EditorToolbarSurface(
                 if (verticalExpanded) {
                     Row(Modifier.fillMaxWidth().padding(bottom = 3.dp).horizontalScroll(extraScrollState), horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = state::requestFit, modifier = toolbarButtonSize) {
+                        IconButton(onClick = { state.requestFit(); state.showToolbarHint(R.string.toolbar_fit) }, modifier = toolbarButtonSize) {
                             Icon(painterResource(R.drawable.ic_toolbar_fit), stringResource(R.string.toolbar_fit), Modifier.size(toolbarIconSize))
                         }
                         IconButton(
-                            onClick = state::toggleNotes,
+                            onClick = {
+                                state.toggleNotes()
+                                state.showToolbarHint(if (state.showNotes) R.string.dimension_notes_visible else R.string.dimension_notes_hidden)
+                            },
                             modifier = toolbarButtonSize.background(
                                 if (state.showNotes) activeColors.primaryContainer else Color.Transparent, toolbarShape,
                             ),
@@ -425,7 +447,10 @@ private fun EditorToolbarSurface(
                         }
                         IconButton(
                             enabled = state.scene.selectedId != null || tool != DimensionTool.SELECT,
-                            onClick = { state.scene = state.scene.closePhoto() },
+                            onClick = {
+                                state.scene = state.scene.closePhoto()
+                                state.showToolbarHint(R.string.toolbar_deselect)
+                            },
                             modifier = toolbarButtonSize,
                         ) {
                             Icon(painterResource(R.drawable.ic_toolbar_deselect), stringResource(R.string.toolbar_deselect), Modifier.size(toolbarIconSize))
@@ -434,7 +459,7 @@ private fun EditorToolbarSurface(
                         if (BuildConfig.ENABLE_STRESS_TOOLS && state.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) StressToolbarMenu(state)
                     }
                     if (state.dimensionTestAppearances.values.isNotEmpty()) {
-                        TextButton(onClick = state::clearTestAppearances) {
+                        TextButton(onClick = { state.clearTestAppearances(); state.showToolbarHint(R.string.toolbar_test_appearances_cleared) }) {
                             Text(stringResource(R.string.toolbar_clear_test_appearances))
                         }
                     }
@@ -466,7 +491,7 @@ private fun EditorToolbarSurface(
                     ) {
                         Box {
                             IconButton(
-                                onClick = { menuOpen = true },
+                                onClick = { menuOpen = true; state.showToolbarHint(R.string.toolbar_tools) },
                                 modifier = toolbarQuickSize.background(
                                     if (menuOpen) activeColors.primaryContainer else Color.Transparent, toolbarShape,
                                 ),
@@ -494,6 +519,7 @@ private fun EditorToolbarSurface(
                                     },
                                     onClick = {
                                         state.scene = state.scene.prepareSingle()
+                                        state.showToolbarHint(R.string.drag_dimension_short)
                                         menuOpen = false
                                     },
                                 )
@@ -511,9 +537,15 @@ private fun EditorToolbarSurface(
                                 .semantics { contentDescription = dimensionLabel }
                                 .combinedClickable(
                                     role = Role.Button,
-                                    onClick = { state.scene = state.scene.tapDrawingTool() },
+                                    onClick = {
+                                        state.scene = state.scene.tapDrawingTool()
+                                        state.showToolbarHint(drawingToolHint(state.scene.tool))
+                                    },
                                     onLongClickLabel = repeatAction,
-                                    onLongClick = { state.scene = state.scene.toggleRepeat() },
+                                    onLongClick = {
+                                        state.scene = state.scene.toggleRepeat()
+                                        state.showToolbarHint(drawingToolHint(state.scene.tool))
+                                    },
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -530,11 +562,25 @@ private fun EditorToolbarSurface(
                     if (expanded) {
                         Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outline))
                         Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
-                            HistoryAction(false, R.string.toolbar_undo, state.history.canUndo, state::undo)
-                            HistoryAction(true, R.string.toolbar_redo, state.history.canRedo, state::redo)
+                            HistoryAction(false, R.string.toolbar_undo, state.history.canUndo) {
+                                val before = state.history
+                                state.undo()
+                                if (state.history !== before) state.showToolbarHint(R.string.toolbar_undo)
+                            }
+                            HistoryAction(true, R.string.toolbar_redo, state.history.canRedo) {
+                                val before = state.history
+                                state.redo()
+                                if (state.history !== before) state.showToolbarHint(R.string.toolbar_redo)
+                            }
                             IconButton(
                                 enabled = state.scene.selectedId != null,
-                                onClick = state::deleteSelected,
+                                onClick = {
+                                    val target = state.scene.selectedId
+                                    state.deleteSelected()
+                                    if (target != null && state.scene.find(target) == null) {
+                                        state.showToolbarHint(R.string.toolbar_deleted)
+                                    }
+                                },
                                 modifier = toolbarButtonSize,
                             ) {
                                 Icon(painterResource(R.drawable.ic_dimension_delete), stringResource(R.string.toolbar_delete), Modifier.size(toolbarIconSize))
@@ -543,7 +589,10 @@ private fun EditorToolbarSurface(
                             val lockLabel = stringResource(if (locked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
                             IconToggleButton(
                                 checked = locked,
-                                onCheckedChange = { state.toggleLabelLock() },
+                                onCheckedChange = {
+                                    state.toggleLabelLock()
+                                    state.showToolbarHint(if (state.labelsLocked) R.string.toolbar_label_locked else R.string.toolbar_label_unlocked)
+                                },
                                 colors = IconButtonDefaults.iconToggleButtonColors(
                                     containerColor = Color.Transparent,
                                     contentColor = activeColors.onSurface,
@@ -582,6 +631,12 @@ private fun EditorToolbarSurface(
     }
 }
 
+private fun drawingToolHint(tool: DimensionTool): Int = when (tool) {
+    DimensionTool.SELECT -> R.string.toolbar_drawing_off
+    DimensionTool.SINGLE -> R.string.drag_dimension_short
+    DimensionTool.REPEAT -> R.string.toolbar_repeat_active
+}
+
 @Composable
 private fun DimensionMoveAction(state: PhotoEditorState) {
     val selected = state.dimensionsRequireSelection
@@ -590,7 +645,10 @@ private fun DimensionMoveAction(state: PhotoEditorState) {
     val description = stringResource(R.string.dimension_move_description, label)
     IconToggleButton(
         checked = selected,
-        onCheckedChange = state::updateDimensionsRequireSelection,
+        onCheckedChange = {
+            state.updateDimensionsRequireSelection(it)
+            state.showToolbarHint(if (state.dimensionsRequireSelection) R.string.toolbar_move_selected_hint else R.string.toolbar_move_direct_hint)
+        },
         colors = IconButtonDefaults.iconToggleButtonColors(
             containerColor = Color.Transparent,
             contentColor = colors.onSurface,
