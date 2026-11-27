@@ -71,6 +71,10 @@
     <string name="import_confirm">Potvrdit import</string>
     <string name="import_later">Později</string>
     <string name="import_failed">Import se nepodařilo dokončit.</string>
+    <string name="photo_add_failed">Fotografii se nepodařilo přidat.</string>
+    <string name="photo_add_no_space">Nedostatek místa v úložišti.</string>
+    <string name="photo_add_too_large">Fotografie je příliš velká.</string>
+    <string name="photo_add_ok">OK</string>
     <string name="sample_title">Testovací fotografie</string>
     <string name="back_to_start">Zpět</string>
     <string name="photo_gestures">Přiblížení dvěma prsty, posun jedním prstem.</string>

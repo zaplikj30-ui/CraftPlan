@@ -146,7 +146,13 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         PhotoListStatus.READY -> Unit
     }
     val noReview = state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden
-    val canOffer = noReview && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
+    val canOffer = noReview && !state.newPhotoFailed && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
+    LaunchedEffect(state.newPhotoFailed) {
+        if (state.newPhotoFailed) {
+            recoveryOffered = true
+            recoveryOpen = false
+        }
+    }
     LaunchedEffect(canOffer, cases, state.importedPhotos.emptyCaptureOnly) {
         if (canOffer && cases.isNotEmpty() && !recoveryOffered) {
             recoveryOffered = true
@@ -158,7 +164,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             }
         }
     }
-    if (recoveryOpen && cases.isNotEmpty() && noReview && listPage == null) {
+    if (recoveryOpen && !state.newPhotoFailed && cases.isNotEmpty() && noReview && listPage == null) {
         val index = recoveryIndex.coerceIn(cases.indices)
         PhotoRecoveryDialog(
             state, cases[index], index, cases.size,
@@ -308,9 +314,28 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 later = if (ordinary) null else ReviewAction(R.string.photo_list_close, enabled, state::deferImport),
             )
         }
-    } ?: state.importDiagnostic?.let {
-        Text(stringResource(if (it.startsWith("CAMERA_CAPTURE /")) R.string.camera_failed else R.string.import_failed))
-        Text(stringResource(R.string.document_storage_diagnostic, it))
+    } ?: state.importDiagnostic?.let { code ->
+        if (state.newPhotoFailed) {
+            if (!state.importBusy) {
+                val message = when (code.substringAfter(" / ")) {
+                    "NO_SPACE" -> R.string.photo_add_no_space
+                    "PHOTO_SIZE_LIMIT", "PHOTO_PIXEL_LIMIT" -> R.string.photo_add_too_large
+                    else -> R.string.photo_add_failed
+                }
+                AlertDialog(
+                    onDismissRequest = state::dismissNewPhotoFailure,
+                    text = { Text(stringResource(message)) },
+                    confirmButton = {
+                        TextButton(onClick = state::dismissNewPhotoFailure) {
+                            Text(stringResource(R.string.photo_add_ok))
+                        }
+                    },
+                )
+            }
+        } else {
+            Text(stringResource(if (code.startsWith("CAMERA_CAPTURE /")) R.string.camera_failed else R.string.import_failed))
+            Text(stringResource(R.string.document_storage_diagnostic, code))
+        }
     }
 }
 

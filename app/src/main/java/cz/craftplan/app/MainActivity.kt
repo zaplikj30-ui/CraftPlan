@@ -7,6 +7,8 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.os.storage.StorageManager
+import android.provider.OpenableColumns
 import android.view.Window
 import android.view.WindowInsets as AndroidWindowInsets
 import android.view.WindowInsetsController
@@ -187,6 +189,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var importDiagnostic by mutableStateOf<String?>(null)
         private set
+    var newPhotoFailed by mutableStateOf(false)
+        private set
+
+    fun dismissNewPhotoFailure() {
+        newPhotoFailed = false
+        importDiagnostic = null
+    }
 
     private val storage get() = AppDocumentStorage.get(getApplication())
     private var importRefresh: Job? = null
@@ -344,14 +353,49 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     fun receivePhoto(uri: Uri) {
         if (importCandidate != null || cameraPreviewId != null) return
         runImport(StoragePhase.IMPORT_STAGE) {
-            val candidate = withContext(Dispatchers.IO) {
-                val resolver = getApplication<Application>().contentResolver
-                require(uri.scheme == ContentResolver.SCHEME_CONTENT)
-                val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
-                input.use { storage.imports.receive(it) }
+            try {
+                val candidate = withContext(Dispatchers.IO) {
+                    val resolver = getApplication<Application>().contentResolver
+                    require(uri.scheme == ContentResolver.SCHEME_CONTENT)
+                    checkImportCapacity(resolver, uri)
+                    val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
+                    input.use { storage.imports.receive(it) }
+                }
+                loadPreview(candidate)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                clearImportPreview()
+                newPhotoFailed = true
+                throw error
             }
-            loadPreview(candidate)
         }
+    }
+
+    // The provider may not know the length, or the system capacity query can fail.
+    // In that case the bounded stream and actual write remain the authority.
+    private fun checkImportCapacity(resolver: ContentResolver, uri: Uri) {
+        val knownSize = try {
+            resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (column >= 0 && cursor.moveToFirst() && !cursor.isNull(column)) cursor.getLong(column) else null
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        }
+        if (knownSize == null || knownSize <= 0L || knownSize > MAX_PHOTO_BYTES.toLong()) return
+        val available = try {
+            val app = getApplication<Application>()
+            val manager = app.getSystemService(StorageManager::class.java) ?: return
+            manager.getAllocatableBytes(manager.getUuidForPath(app.filesDir))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            return
+        }
+        if (knownSize > available) throw PhotoSpaceUnavailable()
     }
 
     fun updateCaptureInFlight(id: PhotoId?) {
@@ -406,13 +450,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 withContext(Dispatchers.IO) { storage.imports.finishCanceledCapture(id) }
             }
         } else if (cameraPreviewId == null && importCandidate == null) {
-            loadCameraResult(id, mode)
+            loadCameraResult(id, mode, fresh = true)
         }
     }
 
     fun previewCapture(id: PhotoId) = loadCameraResult(id, CameraResultMode.CRAFTPLAN_PREVIEW)
 
-    private fun loadCameraResult(id: PhotoId, mode: CameraResultMode) {
+    private fun loadCameraResult(id: PhotoId, mode: CameraResultMode, fresh: Boolean = false) {
         if (captureInFlight == id) return
         runImport(StoragePhase.CAMERA_CAPTURE) {
             cameraReviewHidden = mode == CameraResultMode.DIRECT_AFTER_SUCCESS
@@ -428,7 +472,14 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
+                    if (fresh) {
+                        // This was a new addition, not a save of an accepted photo.
+                        // Preserve uncertain sources on disk without requiring technical inspection.
+                        clearImportPreview()
+                        newPhotoFailed = true
+                    } else {
+                        captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
+                    }
                     throw error
                 }
                 val preview = checkNotNull(importPreview)
@@ -575,6 +626,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         refresh?.cancel()
         importBusy = true
         importDiagnostic = null
+        newPhotoFailed = false
         viewModelScope.launch {
             try {
                 // A canceled startup scan may still be leaving a blocking filesystem call.

@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.system.ErrnoException
+import android.system.OsConstants
 import androidx.sqlite.SQLiteException
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -18,6 +19,8 @@ internal enum class StoragePhase(val photoPreparation: Boolean = false) {
 }
 
 internal class StorageFailure(val phase: StoragePhase, cause: Exception) : IOException(cause)
+
+internal class PhotoSpaceUnavailable : IOException()
 
 internal inline fun <T> storagePhase(phase: StoragePhase, block: () -> T): T = try {
     block()
@@ -39,7 +42,9 @@ internal fun storageFailureCode(error: Exception, fallback: StoragePhase): Strin
         val current = cause ?: return "$phase / $reason"
         when (current) {
             is ImportValidationFailure -> return "$phase / ${current.reason.name}"
-            is ErrnoException -> return "$phase / ERRNO_${current.errno}"
+            is PhotoSpaceUnavailable -> return "$phase / NO_SPACE"
+            is ErrnoException -> return if (current.errno == OsConstants.ENOSPC || current.errno == OsConstants.EDQUOT)
+                "$phase / NO_SPACE" else "$phase / ERRNO_${current.errno}"
             is DocumentConflict -> return "${StoragePhase.CONFLICT} / STALE_REVISION"
             is AtomicMoveNotSupportedException -> return "$phase / ATOMIC_MOVE_UNSUPPORTED"
             is AccessDeniedException, is SecurityException -> reason = "ACCESS_DENIED"
