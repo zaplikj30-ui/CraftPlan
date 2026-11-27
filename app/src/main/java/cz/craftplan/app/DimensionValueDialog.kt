@@ -1467,4 +1467,3 @@ internal fun editDimensionInput(
     return TextFieldValue(text, TextRange(start + replacement.length))
 }
 
-/** Percentages are independent corrections of the automatic display size. */

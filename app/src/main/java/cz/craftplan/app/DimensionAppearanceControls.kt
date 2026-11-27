@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -86,8 +86,8 @@ private fun DimensionColor.labelRes(): Int = when (this) {
 private fun DimensionLabelBackground.labelRes(): Int = when (this) {
     DimensionLabelBackground.TRANSPARENT -> R.string.dimension_background_transparent
     DimensionLabelBackground.AUTO -> R.string.dimension_background_auto
-    DimensionLabelBackground.BLACK -> R.string.dimension_color_black
-    DimensionLabelBackground.WHITE -> R.string.dimension_color_white
+    DimensionLabelBackground.BLACK -> R.string.dimension_background_black
+    DimensionLabelBackground.WHITE -> R.string.dimension_background_white
 }
 
 @Composable

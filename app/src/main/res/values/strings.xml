@@ -163,6 +163,8 @@
     <string name="dimension_label_background">Pozadí popisku</string>
     <string name="dimension_background_transparent">Průhledné</string>
     <string name="dimension_background_auto">Automatický kontrast</string>
+    <string name="dimension_background_black">Černé</string>
+    <string name="dimension_background_white">Bílé</string>
     <string name="dimension_background_auto_explanation">Pro barvu popisku se automaticky vybere kontrastnější černé nebo bílé pozadí.</string>
     <string name="dimension_color_yellow">Žlutá</string>
     <string name="dimension_color_white">Bílá</string>
