@@ -520,14 +520,29 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         dimensionsRequireSelection = source.getBoolean("dimensions_require_selection", false)
         labelsLocked = source.getBoolean("labels_locked", false)
+        val legacyAppearance = source.getInt("dimension_appearance_calibration", 0) < 1
+        val geometryPercent = source.getInt("dimension_geometry_size", 100)
+        val labelPercent = source.getInt("dimension_label_size", 100)
+        val tolerance = source.getInt("dimension_inline_drag_tolerance_degrees", DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES)
         dimensionAppearance = DimensionAppearance(
             inline = source.getBoolean("dimension_label_inline", true),
-            transparent = source.getBoolean("dimension_label_transparent", false),
-            geometryPercent = dimensionSizePercent(source.getInt("dimension_geometry_size", 100)),
-            labelPercent = dimensionSizePercent(source.getInt("dimension_label_size", 100)),
-            inlineDragToleranceDegrees = clampInlineDragTolerance(source.getInt(
-                "dimension_inline_drag_tolerance_degrees", DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES)),
+            transparent = if (legacyAppearance) true else source.getBoolean("dimension_label_transparent", true),
+            geometryPercent = if (legacyAppearance) rebaseLegacyDimensionSize(geometryPercent, DIMENSION_GEOMETRY_BASE_PERCENT)
+                else dimensionSizePercent(geometryPercent),
+            labelPercent = if (legacyAppearance) rebaseLegacyDimensionSize(labelPercent, DIMENSION_LABEL_BASE_PERCENT)
+                else dimensionSizePercent(labelPercent),
+            inlineDragToleranceDegrees = if (legacyAppearance && tolerance == 20) DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES
+                else clampInlineDragTolerance(tolerance),
         )
+        if (legacyAppearance) {
+            // Old transparency was false by default and was written even when only a size changed.
+            // Adopt the new reference default once; subsequent choices are retained unchanged.
+            source.edit().putBoolean("dimension_label_transparent", dimensionAppearance.transparent)
+                .putInt("dimension_geometry_size", dimensionAppearance.geometryPercent)
+                .putInt("dimension_label_size", dimensionAppearance.labelPercent)
+                .putInt("dimension_inline_drag_tolerance_degrees", dimensionAppearance.inlineDragToleranceDegrees)
+                .putInt("dimension_appearance_calibration", 1).apply()
+        }
         statusBarSettings = EditorStatusBarSettings(
             portraitOverride = if (source.contains("status_bar_hide_portrait")) source.getBoolean("status_bar_hide_portrait", false) else null,
             landscapeOverride = if (source.contains("status_bar_hide_landscape")) source.getBoolean("status_bar_hide_landscape", false) else null,

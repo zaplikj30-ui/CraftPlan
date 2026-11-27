@@ -83,6 +83,31 @@ class DimensionGeometryTest {
     }
 
     @Test
+    fun recalibratedReferenceAndLegacyPreferences() {
+        val reference = DimensionAppearance()
+        assertTrue(reference.inline)
+        assertTrue(reference.transparent)
+        assertEquals(100, reference.geometryPercent)
+        assertEquals(100, reference.labelPercent)
+        assertEquals(22, reference.inlineDragToleranceDegrees)
+        assertEquals(100, rebaseLegacyDimensionSize(110, DIMENSION_GEOMETRY_BASE_PERCENT))
+        assertEquals(100, rebaseLegacyDimensionSize(120, DIMENSION_LABEL_BASE_PERCENT))
+        assertEquals(100, rebaseLegacyDimensionSize(100, DIMENSION_GEOMETRY_BASE_PERCENT))
+        assertEquals(100, rebaseLegacyDimensionSize(100, DIMENSION_LABEL_BASE_PERCENT))
+        assertEquals(150, rebaseLegacyDimensionSize(165, DIMENSION_GEOMETRY_BASE_PERCENT))
+        assertEquals(150, rebaseLegacyDimensionSize(180, DIMENSION_LABEL_BASE_PERCENT))
+        assertEquals(50, rebaseLegacyDimensionSize(50, DIMENSION_LABEL_BASE_PERCENT))
+        for (old in 55..250 step 5) {
+            if (old == 100) continue
+            for (base in listOf(DIMENSION_GEOMETRY_BASE_PERCENT, DIMENSION_LABEL_BASE_PERCENT)) {
+                val rebased = rebaseLegacyDimensionSize(old, base)
+                assertTrue(rebased in 50..250 && rebased % 5 == 0)
+                assertTrue(kotlin.math.abs(rebased * base / 100f - old) <= 5.01f)
+            }
+        }
+    }
+
+    @Test
     fun manualAppearanceSizesAreIndependentBoundedAndResetOnlySizes() {
         for (size in 50..250 step 5) assertEquals(size, dimensionSizePercent(size))
         assertEquals(50, dimensionSizePercent(Int.MIN_VALUE))
@@ -91,13 +116,13 @@ class DimensionGeometryTest {
         assertEquals(110, dimensionSizePercent(112))
         for (automatic in listOf(1f, 1.15f, 1.3f)) {
             val defaults = DimensionAppearance()
-            assertEquals(automatic, defaults.geometryFactor(automatic), 0f)
-            assertEquals(automatic, defaults.labelFactor(automatic), 0f)
+            assertEquals(automatic * 1.10f, defaults.geometryFactor(automatic), 0.00001f)
+            assertEquals(automatic * 1.20f, defaults.labelFactor(automatic), 0.00001f)
             for (geometry in 50..250 step 5) {
                 for (label in 50..250 step 5) {
                     val appearance = DimensionAppearance(false, true, geometry, label)
-                    assertEquals(automatic * geometry / 100f, appearance.geometryFactor(automatic), 0.00001f)
-                    assertEquals(automatic * label / 100f, appearance.labelFactor(automatic), 0.00001f)
+                    assertEquals(automatic * 1.10f * geometry / 100f, appearance.geometryFactor(automatic), 0.00001f)
+                    assertEquals(automatic * 1.20f * label / 100f, appearance.labelFactor(automatic), 0.00001f)
                     assertEquals(DimensionAppearance(false, true), appearance.resetSizes())
                 }
             }
@@ -181,7 +206,7 @@ class DimensionGeometryTest {
     }
 
     @Test
-    fun inlineDragUsesTwentyDegreesInBothDirectionsAndAtAnyOrientation() {
+    fun inlineDragUsesTwentyTwoDegreesInBothDirectionsAndAtAnyOrientation() {
         for (orientation in listOf(0.0, 90.0, 42.0, -53.0, 180.0)) {
             fun vector(angle: Double, length: Float): EditorPoint {
                 val radians = Math.toRadians(angle)
@@ -190,11 +215,11 @@ class DimensionGeometryTest {
             }
             val axis = vector(orientation, 100f)
             for (direction in listOf(0.0, 180.0)) {
-                for (offset in listOf(-19.99, -17.5, 0.0, 17.5, 19.99)) {
+                for (offset in listOf(-21.99, -17.5, 0.0, 17.5, 21.99)) {
                     assertEquals(InlineLabelDragMode.LABEL, resolveInlineLabelDrag(
                         null, axis, vector(orientation + direction + offset, 30f), 7f, false))
                 }
-                for (offset in listOf(-90.0, -22.5, -20.01, 20.01, 22.5, 90.0)) {
+                for (offset in listOf(-90.0, -22.5, -22.01, 22.01, 22.5, 90.0)) {
                     assertEquals(InlineLabelDragMode.BODY, resolveInlineLabelDrag(
                         null, axis, vector(orientation + direction + offset, 30f), 7f, false))
                 }
@@ -248,7 +273,7 @@ class DimensionGeometryTest {
         val axis = EditorPoint(100f, 0f)
         assertEquals(10, clampInlineDragTolerance(Int.MIN_VALUE))
         assertEquals(40, clampInlineDragTolerance(Int.MAX_VALUE))
-        assertEquals(20, DimensionAppearance().inlineDragToleranceDegrees)
+        assertEquals(22, DimensionAppearance().inlineDragToleranceDegrees)
         val appearance = DimensionAppearance(false, true, 150, 200, 37)
         assertEquals(DimensionAppearance(false, true, 100, 100, 37), appearance.resetSizes())
         for (degrees in 10..40) {

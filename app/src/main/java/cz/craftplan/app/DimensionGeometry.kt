@@ -16,7 +16,7 @@ internal enum class InlineLabelDragMode { LABEL, BODY }
 
 internal const val MIN_INLINE_DRAG_TOLERANCE_DEGREES = 10
 internal const val MAX_INLINE_DRAG_TOLERANCE_DEGREES = 40
-internal const val DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES = 20
+internal const val DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES = 22
 
 internal fun clampInlineDragTolerance(degrees: Int): Int =
     degrees.coerceIn(MIN_INLINE_DRAG_TOLERANCE_DEGREES, MAX_INLINE_DRAG_TOLERANCE_DEGREES)
@@ -194,6 +194,17 @@ internal data class DimensionLabelGeometry(
 internal const val MIN_DIMENSION_SIZE_PERCENT = 50
 internal const val MAX_DIMENSION_SIZE_PERCENT = 250
 internal const val DIMENSION_SIZE_STEP_PERCENT = 5
+internal const val DIMENSION_GEOMETRY_BASE_PERCENT = 110
+internal const val DIMENSION_LABEL_BASE_PERCENT = 120
+
+/** Old 100% meant the previous default; adopt the newly approved default.
+ * Other saved sizes keep their physical appearance as closely as the 5% grid permits.
+ */
+internal fun rebaseLegacyDimensionSize(value: Int, basePercent: Int): Int {
+    val old = dimensionSizePercent(value)
+    if (old == 100) return 100
+    return dimensionSizePercent((old * 100 + basePercent / 2) / basePercent)
+}
 
 internal fun dimensionSizePercent(value: Int): Int =
     ((value.coerceIn(MIN_DIMENSION_SIZE_PERCENT, MAX_DIMENSION_SIZE_PERCENT) +
@@ -212,16 +223,16 @@ internal fun automaticDimensionSizeFactor(smallestWidthDp: Int): Float = when {
 /** App-wide display preferences, not stored measurement data. */
 internal data class DimensionAppearance(
     val inline: Boolean = true,
-    val transparent: Boolean = false,
+    val transparent: Boolean = true,
     val geometryPercent: Int = 100,
     val labelPercent: Int = 100,
     val inlineDragToleranceDegrees: Int = DEFAULT_INLINE_DRAG_TOLERANCE_DEGREES,
 ) {
     fun geometryFactor(automaticFactor: Float): Float =
-        automaticFactor * (dimensionSizePercent(geometryPercent) / 100f)
+        automaticFactor * (DIMENSION_GEOMETRY_BASE_PERCENT / 100f) * (dimensionSizePercent(geometryPercent) / 100f)
 
     fun labelFactor(automaticFactor: Float): Float =
-        automaticFactor * (dimensionSizePercent(labelPercent) / 100f)
+        automaticFactor * (DIMENSION_LABEL_BASE_PERCENT / 100f) * (dimensionSizePercent(labelPercent) / 100f)
 
     fun resetSizes(): DimensionAppearance = copy(geometryPercent = 100, labelPercent = 100)
 }
