@@ -431,6 +431,11 @@ private fun EditorToolbarSurface(
                         }
                         if (BuildConfig.ENABLE_STRESS_TOOLS && state.scene.photoId == PhotoId.SYNTHETIC_WORKBENCH) StressToolbarMenu(state)
                     }
+                    if (state.dimensionTestAppearances.values.isNotEmpty()) {
+                        TextButton(onClick = state::clearTestAppearances) {
+                            Text(stringResource(R.string.toolbar_clear_test_appearances))
+                        }
+                    }
                 }
                 Row(
                     modifier = Modifier.align(Alignment.Start).padding(top = if (verticalExpanded) 3.dp else 0.dp),

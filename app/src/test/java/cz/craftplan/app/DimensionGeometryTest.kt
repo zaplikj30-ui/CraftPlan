@@ -23,6 +23,29 @@ class DimensionGeometryTest {
         )?.hit
 
     @Test
+    fun testAppearancesIsolateAllSettingsByPhotoAndDimensionAndResetToCurrentGlobal() {
+        val other = dimension.copy(id = UUID.randomUUID())
+        // Even a matching dimension UUID must not leak a test style across photos.
+        val anotherPhoto = dimension.copy(photoId = PhotoId(UUID.randomUUID().toString()))
+        val global = DimensionAppearance()
+        val local = DimensionAppearance(false, true, 150, 200, 37)
+        val localOther = DimensionAppearance(true, false, 50, 250, 10)
+        val comparisons = DimensionTestAppearances().withOverride(dimension, local)
+            .withOverride(other, localOther)
+        assertEquals(local, comparisons.effective(dimension, global))
+        assertEquals(localOther, comparisons.effective(other, global))
+        assertEquals(global, comparisons.effective(anotherPhoto, global))
+        val newGlobal = global.copy(labelPercent = 115, inlineDragToleranceDegrees = 24)
+        assertEquals(local, comparisons.effective(dimension, newGlobal))
+        assertEquals(newGlobal, comparisons.effective(anotherPhoto, newGlobal))
+        assertEquals(newGlobal, DimensionTestAppearances().effective(dimension, newGlobal))
+        val switched = comparisons.withOverride(anotherPhoto, localOther)
+        assertEquals(newGlobal, switched.effective(dimension, newGlobal))
+        assertEquals(localOther, switched.effective(anotherPhoto, newGlobal))
+        assertEquals(local, comparisons.effective(dimension, global))
+    }
+
+    @Test
     fun automaticAppearanceSizeInterpolatesInDpAndClampsAtTrialLimits() {
         for (width in listOf(0, 320, 360, 411, 480)) {
             assertEquals(1f, automaticDimensionSizeFactor(width), 0f)

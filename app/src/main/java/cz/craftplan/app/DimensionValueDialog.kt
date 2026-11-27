@@ -56,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -160,6 +161,8 @@ internal fun DimensionValueDialog(
     onStatusBarHidden: (portrait: Boolean, hidden: Boolean) -> Unit,
     appearance: DimensionAppearance,
     onAppearanceChange: (DimensionAppearance) -> Unit,
+    testAppearance: DimensionAppearance?,
+    onTestAppearanceChange: (DimensionAppearance) -> Unit,
     diagnostics: EditorDiagnostics? = null,
 ) {
     val portrait = LocalConfiguration.current.orientation != Configuration.ORIENTATION_LANDSCAPE
@@ -225,6 +228,7 @@ internal fun DimensionValueDialog(
     var settingsOpen by remember { mutableStateOf(false) }
     var statusBarSettingsOpen by rememberSaveable { mutableStateOf(false) }
     var appearanceSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var testAppearanceOnly by rememberSaveable(draft.targetId) { mutableStateOf(false) }
     // Explicit synthetic A/B recording only; no gate in ordinary editing.
     val inkCheckGate = remember(diagnostics) {
         if (diagnostics?.isolateInkCheck == true) CompletableDeferred<Unit>() else null
@@ -798,7 +802,7 @@ internal fun DimensionValueDialog(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.dimension_appearance_settings)) },
-                                onClick = { settingsOpen = false; appearanceSettingsOpen = true },
+                                onClick = { settingsOpen = false; testAppearanceOnly = false; appearanceSettingsOpen = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.editor_status_bar_settings)) },
@@ -1134,6 +1138,10 @@ internal fun DimensionValueDialog(
             )
         }
         if (appearanceSettingsOpen) {
+            val activeAppearance = if (testAppearanceOnly) testAppearance ?: appearance else appearance
+            val applyAppearance: (DimensionAppearance) -> Unit = {
+                if (testAppearanceOnly) onTestAppearanceChange(it) else onAppearanceChange(it)
+            }
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { appearanceSettingsOpen = false },
                 title = {
@@ -1143,32 +1151,40 @@ internal fun DimensionValueDialog(
                 text = {
                     Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(if (appearance.inline) R.string.dimension_label_inline
+                            Checkbox(checked = testAppearanceOnly, onCheckedChange = { testAppearanceOnly = it })
+                            Text(stringResource(R.string.dimension_test_only), Modifier.weight(1f))
+                        }
+                        if (testAppearanceOnly || testAppearance != null) {
+                            Text(stringResource(if (testAppearanceOnly) R.string.dimension_test_only_explanation
+                                else R.string.dimension_test_override_active))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(if (activeAppearance.inline) R.string.dimension_label_inline
                                 else R.string.dimension_label_above), Modifier.weight(1f))
-                            Switch(checked = appearance.inline,
-                                onCheckedChange = { onAppearanceChange(appearance.copy(inline = it)) })
+                            Switch(checked = activeAppearance.inline,
+                                onCheckedChange = { applyAppearance(activeAppearance.copy(inline = it)) })
                         }
                         Text(stringResource(R.string.dimension_label_placement_explanation))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.dimension_label_transparent), Modifier.weight(1f))
-                            Switch(checked = appearance.transparent,
-                                onCheckedChange = { onAppearanceChange(appearance.copy(transparent = it)) })
+                            Switch(checked = activeAppearance.transparent,
+                                onCheckedChange = { applyAppearance(activeAppearance.copy(transparent = it)) })
                         }
                         val automaticPercent = kotlin.math.round(
                             automaticDimensionSizeFactor(LocalConfiguration.current.smallestScreenWidthDp) * 100f
                         ).toInt()
                         Text(stringResource(R.string.dimension_automatic_size, automaticPercent))
-                        DimensionSizeSlider(R.string.dimension_geometry_size, appearance.geometryPercent) {
-                            onAppearanceChange(appearance.copy(geometryPercent = it))
+                        DimensionSizeSlider(R.string.dimension_geometry_size, activeAppearance.geometryPercent) {
+                            applyAppearance(activeAppearance.copy(geometryPercent = it))
                         }
-                        DimensionSizeSlider(R.string.dimension_label_size, appearance.labelPercent) {
-                            onAppearanceChange(appearance.copy(labelPercent = it))
+                        DimensionSizeSlider(R.string.dimension_label_size, activeAppearance.labelPercent) {
+                            applyAppearance(activeAppearance.copy(labelPercent = it))
                         }
-                        TextButton(onClick = { onAppearanceChange(appearance.resetSizes()) }) {
+                        TextButton(onClick = { applyAppearance(activeAppearance.resetSizes()) }) {
                             Text(stringResource(R.string.dimension_reset_sizes))
                         }
-                        InlineDragToleranceSlider(appearance.inlineDragToleranceDegrees) {
-                            onAppearanceChange(appearance.copy(inlineDragToleranceDegrees = it))
+                        InlineDragToleranceSlider(activeAppearance.inlineDragToleranceDegrees) {
+                            applyAppearance(activeAppearance.copy(inlineDragToleranceDegrees = it))
                         }
                     }
                 },

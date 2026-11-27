@@ -58,7 +58,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val movesLabel: Boolean = false,
         val inlineDragMode: InlineLabelDragMode? = null,
         val dragThreshold: Float,
-        val inlineDragToleranceDegrees: Int,
+        val appearance: DimensionAppearance,
         val preview: PhotoDimension? = null,
     )
 
@@ -117,6 +117,21 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             if (layoutChanged) updateDimensionLabels()
             invalidate()
         }
+    var testAppearances = DimensionTestAppearances()
+        set(value) {
+            if (field == value) return
+            val placementChanged = scene.dimensions.any {
+                field.effective(it, appearance).inline != value.effective(it, appearance).inline
+            }
+            field = value
+            clearDimensionGesture()
+            if (placementChanged) updateDimensionLabels()
+            invalidate()
+        }
+
+    private fun appearanceFor(dimension: PhotoDimension): DimensionAppearance =
+        testAppearances.effective(dimension, appearance)
+
     var automaticSizeFactor = 1f
         set(value) {
             if (field == value) return
@@ -124,15 +139,15 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             clearDimensionGesture()
             invalidate()
         }
-    private val geometrySizeFactor: Float
-        get() = appearance.geometryFactor(automaticSizeFactor)
-    private val dimensionStrokeScale: Float
-        get() = viewport.dimensionStrokeScale * geometrySizeFactor
+    private fun geometrySizeFactor(style: DimensionAppearance): Float =
+        style.geometryFactor(automaticSizeFactor)
+    private fun dimensionStrokeScale(style: DimensionAppearance): Float =
+        viewport.dimensionStrokeScale * geometrySizeFactor(style)
 
     // Keep the 15sp layout cached. Scale the entire decoration (including icons,
     // background and spacing) together without rebuilding labels on each pinch frame.
-    private val dimensionLabelScale: Float
-        get() = viewport.dimensionLabelScale * appearance.labelFactor(automaticSizeFactor)
+    private fun dimensionLabelScale(style: DimensionAppearance): Float =
+        viewport.dimensionLabelScale * style.labelFactor(automaticSizeFactor)
     private val noteWhitespace = Regex("\\s+")
     private var labels = emptyMap<UUID, DimensionLabel>()
     var labelsLocked = false
@@ -332,7 +347,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun drawCommittedDimension(
         canvas: Canvas, dimension: PhotoDimension, selected: Boolean, inMagnifier: Boolean = false,
     ) = drawDimension(canvas, dimension.start, dimension.end, selected,
-        labels.getValue(dimension.id), dimension.labelT, inMagnifier)
+        labels.getValue(dimension.id), dimension.labelT, inMagnifier, appearanceFor(dimension))
 
     private fun dimensionBoundsVisible(
         canvas: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, padding: Float, inMagnifier: Boolean,
@@ -348,6 +363,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     private fun drawDimension(
         canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, decoration: DimensionLabel,
         labelT: Float = 0f, inMagnifier: Boolean = false,
+        style: DimensionAppearance = appearance,
     ): Boolean {
         val x1 = viewport.screenX(start)
         val y1 = viewport.screenY(start)
@@ -356,19 +372,19 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val dx = x2 - x1
         val dy = y2 - y1
         val length = hypot(dx, dy)
-        val labelScale = dimensionLabelScale
+        val labelScale = dimensionLabelScale(style)
         val labelPadding = maxOf(24f * density, decoration.geometry.cullingRadius + labelPaint.textSize) *
             decoration.geometry.cullingScale(labelScale)
-        val strokeDensity = density * dimensionStrokeScale
-        val handlePadding = anchorRadius + 0.7f * density * geometrySizeFactor
+        val strokeDensity = density * dimensionStrokeScale(style)
+        val handlePadding = anchorRadius(style) + 0.7f * density * geometrySizeFactor(style)
         // Reject distant objects before constructing inline spans; the outside
         // label can extend by at most half the line plus its full group width.
-        val broadPadding = if (appearance.inline)
+        val broadPadding = if (style.inline)
             length * 0.46f + 3f * labelPadding + handlePadding + 14f * strokeDensity + 2f * density
             else maxOf(labelPadding, handlePadding, 14f * strokeDensity)
         if (!dimensionBoundsVisible(canvas, x1, y1, x2, y2, broadPadding, inMagnifier)) return false
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        val placement = labelPlacement(decoration.geometry, length, angle, labelT)
+        val placement = labelPlacement(decoration.geometry, length, angle, labelT, style)
         val fraction = if (length > 0f) placement.distance / length else 0.5f
         val labelX = x1 + dx * fraction
         val labelY = y1 + dy * fraction
@@ -382,8 +398,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         if (!showStroke && !showStart && !showEnd && !showLabel) return false
         if (showStroke) drawScreenDimensionLine(canvas, x1, y1, length, angle, selected,
             strokeDensity, placement.bodySpans)
-        if (showStart) drawAnchor(canvas, start)
-        if (showEnd) drawAnchor(canvas, end)
+        if (showStart) drawAnchor(canvas, start, style)
+        if (showEnd) drawAnchor(canvas, end, style)
         if (!showLabel) return true
         canvas.save()
         canvas.translate(labelX, labelY)
@@ -402,7 +418,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.translate(geometry.rulerNeighborOffset(labelScale) / labelScale, 0f)
         val textBounds = geometry.text
         if (label != null && textBounds != null) {
-            if (!appearance.transparent) {
+            if (!style.transparent) {
                 overlayPaint.color = WORKSPACE_COLOR
                 canvas.drawRoundRect(textBounds.left, textBounds.top, textBounds.right, textBounds.bottom,
                     3f * density, 3f * density, overlayPaint)
@@ -443,19 +459,20 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
 
     private fun labelPlacement(
         geometry: DimensionLabelGeometry, length: Float, angle: Float, labelT: Float,
+        style: DimensionAppearance,
     ): DimensionLabelPlacement {
-        val strokeDensity = density * dimensionStrokeScale
+        val strokeDensity = density * dimensionStrokeScale(style)
         // Protect the full existing selected handle and the inward arrowheads,
         // accounting for square caps and the selected-body highlight as well.
         val halfStroke = maxOf(viewport.dimensionOutlineWidth, 5f) * strokeDensity / 2f
-        val clearance = maxOf(anchorRadius, minOf(9f * strokeDensity, length / 4f) + halfStroke)
-        return placeDimensionLabel(geometry, length, labelT, dimensionLabelScale,
-            angle > 90f || angle <= -90f, appearance.inline, clearance, halfStroke + 2f * density)
+        val clearance = maxOf(anchorRadius(style), minOf(9f * strokeDensity, length / 4f) + halfStroke)
+        return placeDimensionLabel(geometry, length, labelT, dimensionLabelScale(style),
+            angle > 90f || angle <= -90f, style.inline, clearance, halfStroke + 2f * density)
     }
 
     private fun labelHitDistances(
         point: EditorPoint, start: EditorPoint, end: EditorPoint, decoration: DimensionLabel,
-        placement: DimensionLabelPlacement,
+        placement: DimensionLabelPlacement, style: DimensionAppearance,
     ): List<LabelCandidate> {
         val axis = end - start
         val length = hypot(axis.x, axis.y)
@@ -465,7 +482,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val angle = Math.toRadians(readableAngle(axis).toDouble())
         val along = (x * cos(angle) + y * sin(angle)).toFloat()
         val across = (-x * sin(angle) + y * cos(angle)).toFloat()
-        val labelScale = dimensionLabelScale
+        val labelScale = dimensionLabelScale(style)
         val geometry = decoration.geometry
         val candidates = mutableListOf<LabelCandidate>()
         val neighborOffset = geometry.rulerNeighborOffset(labelScale)
@@ -501,16 +518,18 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val textWidth = text?.let(labelPaint::measureText) ?: 0f
         val geometry = dimensionLabelGeometry(density, text?.let { textWidth },
             labelHeight, besideRuler, notebook)
-        return DimensionLabel(text, if (appearance.inline) geometry.centeredOnLine() else geometry)
+        return DimensionLabel(text, if (appearanceFor(dimension).inline) geometry.centeredOnLine() else geometry)
     }
 
-    private fun drawDimensionLine(canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean) {
+    private fun drawDimensionLine(
+        canvas: Canvas, start: PhotoAnchor, end: PhotoAnchor, selected: Boolean, style: DimensionAppearance,
+    ) {
         val x1 = viewport.screenX(start)
         val y1 = viewport.screenY(start)
         val dx = viewport.screenX(end) - x1
         val dy = viewport.screenY(end) - y1
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * dimensionStrokeScale)
+        drawScreenDimensionLine(canvas, x1, y1, hypot(dx, dy), angle, selected, density * dimensionStrokeScale(style))
     }
 
     private fun drawScreenDimensionLine(
@@ -551,19 +570,19 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         canvas.restore()
     }
 
-    private val anchorRadius: Float
-        get() = dimensionHandleRadius(density * geometrySizeFactor, viewport.dimensionStrokeScale,
+    private fun anchorRadius(style: DimensionAppearance): Float =
+        dimensionHandleRadius(density * geometrySizeFactor(style), viewport.dimensionStrokeScale,
             viewport.dimensionTickScale, viewport.dimensionOutlineWidth)
 
-    private fun drawAnchor(canvas: Canvas, anchor: PhotoAnchor) {
+    private fun drawAnchor(canvas: Canvas, anchor: PhotoAnchor, style: DimensionAppearance = appearance) {
         overlayPaint.color = 0x30FFFFFF
         val x = viewport.screenX(anchor)
         val y = viewport.screenY(anchor)
-        val radius = anchorRadius
+        val radius = anchorRadius(style)
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.color = 0xBAFFFFFF.toInt()
         overlayPaint.style = Paint.Style.STROKE
-        overlayPaint.strokeWidth = 1.4f * density * geometrySizeFactor
+        overlayPaint.strokeWidth = 1.4f * density * geometrySizeFactor(style)
         canvas.drawCircle(x, y, radius, overlayPaint)
         overlayPaint.style = Paint.Style.FILL
     }
@@ -622,7 +641,8 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
                 drawCommittedDimension(canvas, dimension, selected = false, inMagnifier = true)
             }
         }
-        if (end != null && start != end) drawDimensionLine(canvas, start, end, selected = false)
+        if (end != null && start != end) drawDimensionLine(canvas, start, end, selected = false,
+            style = scene.find(editedId)?.let(::appearanceFor) ?: appearance)
         canvas.restore()
 
         drawCrosshair(canvas, centerX, centerY, Color.BLACK, 2.4f * density)
@@ -812,7 +832,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             )
             dimensionEdit = DimensionEdit(dimension, target.hit, pointerId, down, downAnchor, target,
                 movesLabel = target.label && !target.notebook, dragThreshold = threshold,
-                inlineDragToleranceDegrees = appearance.inlineDragToleranceDegrees).also {
+                appearance = appearanceFor(dimension)).also {
                 activeDiagnostics?.let { recorder ->
                     recorder.action(it.diagnosticAction(), DiagnosticResult.START, dimension.id, threshold)
                     recorder.action(DiagnosticAction.EDIT_SPAN, DiagnosticResult.START, dimension.id, span)
@@ -853,18 +873,19 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             scene.find(scene.selectedId)?.let { add(it) }
             addAll(scene.dimensions.asReversed().filterNot { it.id == scene.selectedId })
         }
-        val strokeScale = dimensionStrokeScale
         val tickScale = viewport.dimensionTickScale
         val targets = frontToBack.flatMap { dimension ->
+            val style = appearanceFor(dimension)
+            val strokeScale = dimensionStrokeScale(style)
             val start = viewport.screenPoint(dimension.start)
             val end = viewport.screenPoint(dimension.end)
             val decoration = labels.getValue(dimension.id)
             val axis = end - start
             val angle = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
-            val placement = labelPlacement(decoration.geometry, hypot(axis.x, axis.y), angle, dimension.labelT)
+            val placement = labelPlacement(decoration.geometry, hypot(axis.x, axis.y), angle, dimension.labelT, style)
             val stroke = dimensionStrokeTargets(point, start, end, profile.hitDensity, strokeScale, tickScale,
                 placement.bodySpans)
-            val labelsAtPoint = labelHitDistances(point, start, end, decoration, placement)
+            val labelsAtPoint = labelHitDistances(point, start, end, decoration, placement, style)
             stroke.map {
                 DimensionTarget(dimension, it.hit, false, it.distance, it.centerDistance, it.direct, gripCore = it.gripCore)
             } + labelsAtPoint.map {
@@ -978,10 +999,10 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
     }
 
     private fun resolveEditDrag(draft: DimensionEdit, contact: EditorPoint): DimensionEdit {
-        if (!appearance.inline || !draft.movesLabel || draft.inlineDragMode != null) return draft
+        if (!draft.appearance.inline || !draft.movesLabel || draft.inlineDragMode != null) return draft
         val axis = viewport.screenPoint(draft.original.end) - viewport.screenPoint(draft.original.start)
         val mode = resolveInlineLabelDrag(null, axis, contact - draft.down, draft.dragThreshold,
-            labelsLocked, draft.inlineDragToleranceDegrees) ?: return draft
+            labelsLocked, draft.appearance.inlineDragToleranceDegrees) ?: return draft
         return draft.copy(inlineDragMode = mode)
     }
 
@@ -990,7 +1011,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         val original = draft.original
         if (draft.tapTarget.notebook) return original
         if (!draft.movesLabel) return viewport.moveDimension(original, draft.hit, delta)
-        if (appearance.inline) {
+        if (draft.appearance.inline) {
             when (draft.inlineDragMode) {
                 InlineLabelDragMode.BODY -> return viewport.moveDimension(original, DimensionHit.BODY, delta)
                 InlineLabelDragMode.LABEL -> Unit
@@ -998,10 +1019,10 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
             }
         }
         val axis = viewport.screenPoint(original.end) - viewport.screenPoint(original.start)
-        if (!appearance.inline) return original.shiftLabel(axis, delta, labelsLocked)
+        if (!draft.appearance.inline) return original.shiftLabel(axis, delta, labelsLocked)
         val length = hypot(axis.x, axis.y)
         val angle = Math.toDegrees(atan2(axis.y.toDouble(), axis.x.toDouble())).toFloat()
-        val placement = labelPlacement(labels.getValue(original.id).geometry, length, angle, original.labelT)
+        val placement = labelPlacement(labels.getValue(original.id).geometry, length, angle, original.labelT, draft.appearance)
         return original.shiftPlacedLabel(axis, delta, labelsLocked, placement)
     }
 
@@ -1011,7 +1032,7 @@ internal class PhotoEditorView(context: Context, private val photo: Bitmap, medi
         dimensionEdit = dimensionEdit?.let {
             val resolved = resolveEditDrag(it, contact)
             // Do not create a preview until the inline direction is resolved.
-            if (appearance.inline && resolved.movesLabel && resolved.inlineDragMode == null) resolved
+            if (resolved.appearance.inline && resolved.movesLabel && resolved.inlineDragMode == null) resolved
             else resolved.copy(preview = editedDimension(resolved, contact))
         }
         invalidate()

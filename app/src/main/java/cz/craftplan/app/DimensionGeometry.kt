@@ -226,6 +226,19 @@ internal data class DimensionAppearance(
     fun resetSizes(): DimensionAppearance = copy(geometryPercent = 100, labelPercent = 100)
 }
 
+/** Temporary comparison styles for one open photo. Never part of a document snapshot. */
+internal data class DimensionTestAppearances(
+    val photoId: PhotoId? = null,
+    val values: Map<java.util.UUID, DimensionAppearance> = emptyMap(),
+) {
+    fun effective(dimension: PhotoDimension, global: DimensionAppearance): DimensionAppearance =
+        if (dimension.photoId == photoId) values[dimension.id] ?: global else global
+
+    fun withOverride(dimension: PhotoDimension, value: DimensionAppearance): DimensionTestAppearances =
+        DimensionTestAppearances(dimension.photoId,
+            (if (photoId == dimension.photoId) values else emptyMap()) + (dimension.id to value))
+}
+
 internal data class DimensionLineSpan(val start: Float, val end: Float)
 internal data class DimensionLabelPlacement(
     val distance: Float,

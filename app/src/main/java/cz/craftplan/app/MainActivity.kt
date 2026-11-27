@@ -195,6 +195,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun enterEditor(document: OpenDocument, bitmap: Bitmap) {
         val snapshot = document.snapshot
         if (snapshot.photo.id != PhotoId.SYNTHETIC_WORKBENCH) stopDiagnostics()
+        clearTestAppearances()
         currentPhoto = snapshot.photo
         scene = DimensionScene(snapshot.dimensions, photoId = snapshot.photo.id)
         if (document.recovered || retainedHistoryVersion != document.version) history = DimensionHistory()
@@ -312,6 +313,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         gestureEditing = false
         photo = null
         currentPhoto = null
+        clearTestAppearances()
         storageDiagnostic = null
         scene = DimensionScene()
     }
@@ -480,6 +482,18 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var dimensionAppearance by mutableStateOf(DimensionAppearance())
         private set
+    var dimensionTestAppearances by mutableStateOf(DimensionTestAppearances())
+        private set
+
+    fun updateTestAppearance(id: UUID, value: DimensionAppearance) {
+        val dimension = scene.find(id) ?: return
+        if (currentPhoto?.id != dimension.photoId || autosave == null) return
+        dimensionTestAppearances = dimensionTestAppearances.withOverride(dimension, value)
+    }
+
+    fun clearTestAppearances() {
+        dimensionTestAppearances = DimensionTestAppearances()
+    }
     private var preferences: SharedPreferences? = null
 
     fun restorePreferences(source: SharedPreferences) {
@@ -811,6 +825,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                 showNotes = editorState.showNotes,
                 labelsLocked = editorState.labelsLocked,
                 appearance = editorState.dimensionAppearance,
+                testAppearances = editorState.dimensionTestAppearances,
                 automaticSizeFactor = automaticDimensionSizeFactor(configuration.smallestScreenWidthDp),
                 fitRequest = editorState.fitRequest,
                 diagnostics = editorState.diagnostics.takeIf {
@@ -855,6 +870,9 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     onStatusBarHidden = editorState::setStatusBarHidden,
                     appearance = editorState.dimensionAppearance,
                     onAppearanceChange = editorState::updateDimensionAppearance,
+                    testAppearance = editorState.dimensionTestAppearances.values[draft.targetId]
+                        .takeIf { editorState.dimensionTestAppearances.photoId == editorState.scene.photoId },
+                    onTestAppearanceChange = { editorState.updateTestAppearance(draft.targetId, it) },
                     diagnostics = editorState.diagnostics.takeIf { BuildConfig.ENABLE_STRESS_TOOLS && editorState.diagnosticsRecording },
                 )
             }
@@ -928,6 +946,7 @@ private fun SamplePhoto(
     showNotes: Boolean,
     labelsLocked: Boolean,
     appearance: DimensionAppearance,
+    testAppearances: DimensionTestAppearances,
     automaticSizeFactor: Float,
     fitRequest: Int,
     diagnostics: EditorDiagnostics?,
@@ -972,6 +991,7 @@ private fun SamplePhoto(
                 view.showNotes = showNotes
                 view.labelsLocked = labelsLocked
                 view.appearance = appearance
+                view.testAppearances = testAppearances
                 view.automaticSizeFactor = automaticSizeFactor
                 view.scene = scene
                 view.fitRequest = fitRequest
