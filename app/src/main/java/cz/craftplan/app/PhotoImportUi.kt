@@ -47,6 +47,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
@@ -97,20 +98,38 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val recoveryIds = (listOfNotNull(state.failedPhotoRecovery) + state.importedPhotos.confirmedWithRecoverySources).distinct()
     val pendingCount = captures.size + state.importedPhotos.pending.size
     var listPage by rememberSaveable { mutableStateOf<String?>(null) }
+    val listStatus = state.photoListStatus
+    var listLayoutRecorded by remember(listStatus, state.diagnosticsRecording) { mutableStateOf(false) }
+    val listEnabled = enabled && listStatus != PhotoListStatus.LOADING
 
     Button(
         onClick = { listPage = "saved" },
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth(),
+        enabled = listEnabled,
+        modifier = Modifier.fillMaxWidth().onGloballyPositioned {
+            if (state.diagnosticsRecording && listStatus == PhotoListStatus.READY && !listLayoutRecorded) {
+                listLayoutRecorded = true
+                state.diagnostics.photoListStage(PhotoListDiagnosticStage.LIST_LAYOUT)
+            }
+        },
     ) {
-        Text(stringResource(R.string.photo_list_saved, state.importedPhotos.confirmed.size))
+        Text(if (listStatus == PhotoListStatus.READY)
+            stringResource(R.string.photo_list_saved, state.importedPhotos.confirmed.size)
+            else stringResource(R.string.photo_list_saved_title))
     }
     Button(
         onClick = { listPage = "pending" },
-        enabled = enabled,
+        enabled = listEnabled,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(stringResource(R.string.photo_list_pending, pendingCount))
+        Text(if (listStatus == PhotoListStatus.READY) stringResource(R.string.photo_list_pending, pendingCount)
+            else stringResource(R.string.photo_list_pending_title))
+    }
+    when (listStatus) {
+        PhotoListStatus.LOADING -> Text(stringResource(R.string.photo_list_loading))
+        PhotoListStatus.FAILED -> TextButton(onClick = state::refreshImports, enabled = enabled) {
+            Text(stringResource(R.string.photo_list_retry))
+        }
+        PhotoListStatus.READY -> Unit
     }
     if (recoveryIds.isNotEmpty()) {
         TextButton(onClick = { listPage = "saved" }, enabled = enabled) {
@@ -122,14 +141,17 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     if (state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden) {
         when (listPage) {
             "saved" -> PhotoListDialog(R.string.photo_list_saved_title, { listPage = null }) {
-                if (state.importedPhotos.confirmed.isEmpty() && recoveryIds.isEmpty()) {
+                if (listStatus != PhotoListStatus.READY) {
+                    item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
+                        R.string.photo_list_loading else R.string.photo_list_retry)) }
+                } else if (state.importedPhotos.confirmed.isEmpty() && recoveryIds.isEmpty()) {
                     item { Text(stringResource(R.string.photo_list_empty)) }
                 }
                 itemsIndexed(state.importedPhotos.confirmed, key = { _, id -> "saved-${id.name}" }) { index, photo ->
                     TextButton(onClick = {
                         listPage = null
                         state.openPhoto(photo)
-                    }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                    }, enabled = listEnabled, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.import_open_confirmed, index + 1))
                     }
                 }
@@ -138,14 +160,22 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     TextButton(onClick = {
                         listPage = null
                         state.showConfirmedRecovery(id)
-                    }, enabled = enabled && id != state.captureInFlight, modifier = Modifier.fillMaxWidth()) {
+                    }, enabled = listEnabled && id != state.captureInFlight, modifier = Modifier.fillMaxWidth()) {
                         Text(if (index < 0) stringResource(R.string.camera_recovery_open_sources)
                             else stringResource(R.string.camera_recovery_open_indexed, index + 1))
                     }
                 }
             }
             "pending" -> PhotoListDialog(R.string.photo_list_pending_title, { listPage = null }) {
-                if (pendingCount == 0) item { Text(stringResource(R.string.photo_list_empty)) }
+                if (listStatus != PhotoListStatus.READY) {
+                    item { Text(stringResource(if (listStatus == PhotoListStatus.LOADING)
+                        R.string.photo_list_loading else R.string.photo_list_retry)) }
+                } else if (pendingCount == 0) item { Text(stringResource(R.string.photo_list_empty)) }
+                state.importDiagnostic?.let { code ->
+                    item { Text(stringResource(R.string.document_storage_diagnostic, code),
+                        color = MaterialTheme.colorScheme.error) }
+                }
+                if (state.importBusy) item { Text(stringResource(R.string.import_working)) }
                 if (captures.isNotEmpty()) item {
                     Text(stringResource(R.string.photo_list_pending_info),
                         style = MaterialTheme.typography.bodyMedium)
@@ -160,11 +190,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 TextButton(onClick = {
                                     listPage = null
                                     state.previewCapture(id)
-                                }, enabled = enabled) {
+                                }, enabled = listEnabled) {
                                     Text(stringResource(R.string.camera_show_interrupted))
                                 }
                                 if (offer?.discardCandidate != null) {
-                                    TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
+                                    TextButton(onClick = { confirmDiscard = true }, enabled = listEnabled) {
                                         Text(stringResource(R.string.camera_discard_interrupted))
                                     }
                                 }
@@ -173,7 +203,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 TextButton(onClick = {
                                     state.deferInterruptedCapture(offer.id)
                                     listPage = null
-                                }, enabled = enabled) { Text(stringResource(R.string.import_later)) }
+                                }, enabled = listEnabled) { Text(stringResource(R.string.import_later)) }
                             }
                         }
                     }
@@ -185,8 +215,8 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             confirmButton = {
                                 TextButton(onClick = {
                                     confirmDiscard = false
-                                    state.discardInterruptedCapture(offer)
-                                }, enabled = enabled) { Text(stringResource(R.string.camera_discard_interrupted)) }
+                                    state.discardInterruptedCapture(checkNotNull(offer))
+                                }, enabled = listEnabled) { Text(stringResource(R.string.camera_discard_interrupted)) }
                             },
                             dismissButton = {
                                 TextButton(onClick = { confirmDiscard = false }) {
@@ -200,11 +230,12 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     TextButton(onClick = {
                         listPage = null
                         state.previewImport(candidate)
-                    }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                    }, enabled = listEnabled, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.import_resume, captures.size + index + 1))
                     }
                 }
             }
+            else -> Unit
         }
     }
     if (state.importBusy) Text(stringResource(R.string.import_working))

@@ -8,6 +8,29 @@ import org.junit.Test
 
 class EditorDiagnosticsTest {
     @Test
+    fun photoListDiagnosticsRecordOnlyTimingAndCountsWhileRecording() {
+        var now = 0L
+        val recorder = EditorDiagnostics(now = { now })
+        recorder.photoListStage(PhotoListDiagnosticStage.REFRESH_FAILED)
+        recorder.start()
+        recorder.photoListStage(PhotoListDiagnosticStage.HOME_LAYOUT)
+        now += 100_000_000
+        recorder.photoListStage(PhotoListDiagnosticStage.RECOVERY_START)
+        now += 700_000_000
+        recorder.photoListStage(PhotoListDiagnosticStage.RECOVERY_END, 700_000_000, 3)
+        now += 10_000_000
+        recorder.photoListStage(PhotoListDiagnosticStage.LIST_END, 10_000_000, 30, 4)
+        recorder.stop()
+        recorder.photoListStage(PhotoListDiagnosticStage.REFRESH_CANCELED)
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(4, report.lineSequence().count { it.contains("\tphoto_list ") })
+        assertTrue(report.contains("800\tphoto_list RECOVERY_END elapsed_ns=700000000 count=3 pending=NA"))
+        assertTrue(report.contains("810\tphoto_list LIST_END elapsed_ns=10000000 count=30 pending=4"))
+        assertFalse(report.contains("\tphoto_list REFRESH_FAILED"))
+        assertFalse(report.contains("\tphoto_list REFRESH_CANCELED"))
+    }
+
+    @Test
     fun nativeImeOpenRecordsActualInsetsOnlyDuringRecording() {
         val recorder = EditorDiagnostics(now = { 0L })
         recorder.nativeImeOpen(DimensionField.VALUE, 1, true, false, false, 0, null, null)

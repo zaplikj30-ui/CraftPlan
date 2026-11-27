@@ -156,10 +156,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+internal enum class PhotoListStatus { LOADING, READY, FAILED }
+
 internal class PhotoEditorState(application: Application) : AndroidViewModel(application) {
     var currentPhoto by mutableStateOf<StoredPhoto?>(null)
         private set
     var importedPhotos by mutableStateOf(PhotoList(emptyList(), emptyList()))
+        private set
+    var photoListStatus by mutableStateOf(PhotoListStatus.LOADING)
         private set
     var importPreview by mutableStateOf<ImportPreview?>(null)
         private set
@@ -266,26 +270,46 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun refreshImports() {
-        if (photo != null || importBusy) return
+        if (photo != null || importBusy || openingPhoto) return
         importRefresh?.cancel()
+        photoListStatus = PhotoListStatus.LOADING
         importRefresh = viewModelScope.launch {
+            diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_START)
             try {
                 if (!cameraRecoveryScanned) {
                     val active = captureInFlight
+                    val start = System.nanoTime()
+                    diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_START)
                     interruptedCaptures = withContext(Dispatchers.IO) {
                         storage.imports.interruptedCaptures(active, releaseOutput = {
                             revokeCameraOutput(getApplication(), it)
                         })
                     }
                     cameraRecoveryScanned = true
+                    diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_END,
+                        elapsedNs = System.nanoTime() - start, count = interruptedCaptures.size)
                 }
-                importedPhotos = withContext(Dispatchers.IO) { storage.imports.list() }
+                readPhotoList()
             } catch (error: CancellationException) {
+                diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_CANCELED)
                 throw error
             } catch (error: Exception) {
+                photoListStatus = PhotoListStatus.FAILED
+                diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_FAILED)
                 importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
             }
         }
+    }
+
+    private suspend fun readPhotoList() {
+        val start = System.nanoTime()
+        diagnostics.photoListStage(PhotoListDiagnosticStage.LIST_START)
+        val listed = withContext(Dispatchers.IO) { storage.imports.list() }
+        importedPhotos = listed
+        photoListStatus = PhotoListStatus.READY
+        diagnostics.photoListStage(PhotoListDiagnosticStage.LIST_END,
+            elapsedNs = System.nanoTime() - start, count = listed.confirmed.size,
+            pending = listed.pending.size + listed.captures.size)
     }
 
     fun deferInterruptedCapture(id: PhotoId) {
@@ -544,10 +568,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 importDiagnostic = storageFailureCode(error, phase)
             } finally {
                 try {
-                    importedPhotos = withContext(Dispatchers.IO) { storage.imports.list() }
+                    readPhotoList()
                 } catch (error: CancellationException) {
+                    diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_CANCELED)
                     throw error
                 } catch (error: Exception) {
+                    photoListStatus = PhotoListStatus.FAILED
+                    diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_FAILED)
                     if (importDiagnostic == null) importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
                 } finally {
                     importBusy = false
@@ -1225,8 +1252,14 @@ private fun CraftPlan(
                 )
             }
         } else {
+            var homeLayoutRecorded by remember(editorState.diagnosticsRecording) { mutableStateOf(false) }
             Column(
-                modifier = screen.verticalScroll(rememberScrollState()).padding(24.dp),
+                modifier = screen.onGloballyPositioned {
+                    if (editorState.diagnosticsRecording && !homeLayoutRecorded) {
+                        homeLayoutRecorded = true
+                        editorState.diagnostics.photoListStage(PhotoListDiagnosticStage.HOME_LAYOUT)
+                    }
+                }.verticalScroll(rememberScrollState()).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
             ) {

@@ -31,6 +31,8 @@
     <string name="photo_list_saved_title">Uložené fotografie</string>
     <string name="photo_list_pending_title">Rozpracované fotografie</string>
     <string name="photo_list_empty">Žádné fotografie</string>
+    <string name="photo_list_loading">Načítám přehled fotografií…</string>
+    <string name="photo_list_retry">Přehled se nepodařilo načíst. Zkusit znovu</string>
     <string name="photo_list_close">Zavřít</string>
     <string name="photo_list_pending_info">Tyto snímky dosud nejsou potvrzené. Zkontrolujte je před použitím.</string>
     <string name="photo_list_recovery_available">Zobrazit záchranné zdroje uložených fotografií</string>
