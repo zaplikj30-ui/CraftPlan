@@ -276,7 +276,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             } else if (state.retryingPhotoConfirmation) R.string.document_retry
             else if (capture != null) R.string.camera_confirm else R.string.import_confirm
             PhotoReviewDialog(
-                fullScreen = capture != null,
                 bitmap = shown?.bitmap,
                 showQuality = capture != null && shown != null && !shown.sourceDamaged &&
                     !state.recoveringConfirmedPhoto && state.captureSources.isEmpty() &&
@@ -532,7 +531,7 @@ private data class ReviewAction(val label: Int, val enabled: Boolean, val onClic
 
 /** Immersive policy is scoped to the review dialog, not the editor/activity window. */
 @Composable
-private fun CameraReviewFullscreenEffect() {
+private fun PhotoReviewFullscreenEffect() {
     val window = (LocalView.current.parent as? DialogWindowProvider)?.window
     DisposableEffect(window) {
         if (window == null) {
@@ -560,10 +559,9 @@ private fun CameraReviewFullscreenEffect() {
     }
 }
 
-/** Keep the camera review separate from validation and durable confirmation. */
+/** Shared full-screen photo review, separate from validation and durable confirmation. */
 @Composable
 private fun PhotoReviewDialog(
-    fullScreen: Boolean,
     bitmap: Bitmap?,
     showQuality: Boolean,
     onDismissRequest: () -> Unit,
@@ -574,29 +572,6 @@ private fun PhotoReviewDialog(
     confirm: ReviewAction,
     later: ReviewAction?,
 ) {
-    if (!fullScreen) {
-        AlertDialog(
-            onDismissRequest = onDismissRequest,
-            title = title,
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    bitmap?.let {
-                        Image(it.asImageBitmap(), stringResource(R.string.import_preview),
-                            Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
-                    }
-                    details()
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        retake?.let { ReviewTextAction(it) }
-                        discard?.let { ReviewTextAction(it) }
-                    }
-                }
-            },
-            confirmButton = { ReviewTextAction(confirm) },
-            dismissButton = { later?.let { ReviewTextAction(it) } },
-        )
-        return
-    }
-
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
@@ -605,7 +580,7 @@ private fun PhotoReviewDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        CameraReviewFullscreenEffect()
+        PhotoReviewFullscreenEffect()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
                 if (maxWidth > maxHeight && bitmap != null) {
