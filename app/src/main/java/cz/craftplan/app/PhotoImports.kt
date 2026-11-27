@@ -424,16 +424,33 @@ internal class PhotoImports(
         ) discard(candidate)
     }
 
-    suspend fun discard(candidate: ImportCandidate) {
+    private suspend fun DocumentDao.mayDiscardStandaloneStage(id: PhotoId): Boolean =
+        head(id.documentId) == null && !hasRevisions(id.documentId) && !catalog.exists(id.name) &&
+            captures.outputDefinitelyAbsent(id) && staging.rejectedCapture(id) == null
+
+    /** A UI hint for an explicit rejection, not permission to delete without rechecking. */
+    suspend fun canDiscardUnconfirmedImport(candidate: ImportCandidate): Boolean = captureLock.withLock {
+        transactions.read {
+            if (!mayDiscardStandaloneStage(candidate.photoId)) return@read false
+            if (staging.candidates().filter { it.photoId == candidate.photoId }.singleOrNull() != candidate) {
+                return@read false
+            }
+            staging.read(candidate)
+            true
+        }
+    }
+
+    suspend fun discard(candidate: ImportCandidate) = captureLock.withLock {
         val id = candidate.photoId
         transactions.write {
-            if (head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)) {
+            // Recheck the evidence inside the write transaction even after a UI check.
+            if (!mayDiscardStandaloneStage(id)) {
                 throw ImportValidationFailure(ImportRejection.CAMERA_SOURCE_PROTECTED)
             }
-            check(!captures.hasOutput(id))
             val current = captureCandidate(id)
             check(current == null || current == candidate)
             if (current != null) staging.read(current)
+            // An absent stage is also valid when retrying after an uncertain directory ACK.
             staging.remove(candidate)
         }
     }

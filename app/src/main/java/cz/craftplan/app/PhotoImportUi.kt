@@ -271,7 +271,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             val shown = state.importPreview
             val ordinary = state.ordinaryCameraReview && !state.retryingPhotoConfirmation
             val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinary ||
-                (capture == null && !state.recoveringConfirmedPhoto && shown != null))
+                (capture == null && !state.recoveringConfirmedPhoto && (shown != null || state.canDiscardFailedImport)))
             val confirmLabel = if (state.selectedCaptureSource != null) {
                 if (shown?.sourceDamaged == true) R.string.camera_recovery_save_damaged
                 else R.string.camera_recovery_save

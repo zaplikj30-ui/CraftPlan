@@ -211,7 +211,14 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private var importRefresh: Job? = null
     private var cameraRecoveryScanned = false
     private var confirmationAttempts by mutableStateOf(emptySet<ImportCandidate>())
-    val retryingPhotoConfirmation get() = importPreview?.candidate?.let { it in confirmationAttempts } == true
+    private var failedImportDiscardCandidate by mutableStateOf<ImportCandidate?>(null)
+    val retryingPhotoConfirmation get() = (importPreview?.candidate ?: importCandidate)?.let { candidate ->
+        confirmationAttempts.any { it.photoId == candidate.photoId }
+    } == true
+    val canDiscardFailedImport get() = importCandidate?.let {
+        it == failedImportDiscardCandidate && importPreview == null && cameraPreviewId == null &&
+            !recoveringConfirmedPhoto && !retryingPhotoConfirmation
+    } == true
     val ordinaryCameraReview get() = cameraPreviewId != null && cameraPreviewId == importPreview?.candidate?.photoId &&
         !recoveringConfirmedPhoto && selectedCaptureSource == null && captureSources.isEmpty()
     var cameraReviewHidden by mutableStateOf(false)
@@ -573,17 +580,38 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private suspend fun loadPreview(candidate: ImportCandidate, newExternalImport: Boolean = false) {
         importCandidate = candidate
         importPreview = null
-        val (preview, confirmationExists) = withContext(Dispatchers.IO) {
-            val imports = storage.imports
-            val preview = try {
-                imports.preview(candidate, newExternalImport = newExternalImport)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                if (newExternalImport) imports.rejectMalformedNewImport(candidate, error)
-                throw error
+        failedImportDiscardCandidate = null
+        val (preview, confirmationExists) = try {
+            withContext(Dispatchers.IO) {
+                val imports = storage.imports
+                val preview = try {
+                    imports.preview(candidate, newExternalImport = newExternalImport)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (newExternalImport) imports.rejectMalformedNewImport(candidate, error)
+                    throw error
+                }
+                preview to imports.hasConfirmationEvidence(candidate.photoId)
             }
-            preview to imports.hasConfirmationEvidence(candidate.photoId)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (!newExternalImport && cameraPreviewId == null && !recoveringConfirmedPhoto &&
+                confirmationAttempts.none { it.photoId == candidate.photoId }
+            ) {
+                // A failed bitmap is not evidence that a draft is safe to remove.
+                // Independently verify the exact stage and absence of protected work.
+                val canDiscard = try {
+                    withContext(Dispatchers.IO) { storage.imports.canDiscardUnconfirmedImport(candidate) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    false
+                }
+                if (canDiscard) failedImportDiscardCandidate = candidate
+            }
+            throw error
         }
         if (confirmationExists) confirmationAttempts = confirmationAttempts + candidate
         importPreview = preview
@@ -598,6 +626,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     private fun clearImportPreview() {
         importPreview = null
         importCandidate = null
+        failedImportDiscardCandidate = null
         cameraPreviewId = null
         captureSources = emptyList()
         selectedCaptureSource = null
@@ -628,6 +657,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         val capture = cameraPreviewId
         val candidate = importCandidate ?: return
         if (capture != null && !ordinaryCameraReview) return
+        if (capture == null && importPreview == null && !canDiscardFailedImport) return
         runImport(if (capture == null) StoragePhase.IMPORT_STAGE else StoragePhase.CAMERA_CAPTURE) {
             withContext(Dispatchers.IO) {
                 if (capture != null) {

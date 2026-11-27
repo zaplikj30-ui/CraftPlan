@@ -70,6 +70,9 @@ internal class CameraCaptureStore(
 
     fun hasOutput(id: PhotoId): Boolean = Files.exists(file(id).toPath(), NOFOLLOW_LINKS)
 
+    // A false exists() can also mean that the filesystem could not determine existence.
+    fun outputDefinitelyAbsent(id: PhotoId): Boolean = Files.notExists(file(id).toPath(), NOFOLLOW_LINKS)
+
     fun matches(id: PhotoId, digest: String): Boolean {
         val output = file(id).toPath()
         val before = Files.readAttributes(output, BasicFileAttributes::class.java, NOFOLLOW_LINKS)

@@ -72,6 +72,64 @@ class PhotoImportTest {
     }
 
     @Test
+    fun unconfirmedUndecodableStageCanBeExplicitlyDiscardedButProtectedSourcesCannot() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val files = staging(dir)
+        val catalog = TestCatalog(db)
+        val imports = PhotoImports(dir, {}, files, db, catalog) { _, _ -> error("No publication expected") }
+        val payload = byteArrayOf(1, 2, 3)
+        val candidate = imports.receive(payload.inputStream())
+        assertTrue(imports.canDiscardUnconfirmedImport(candidate))
+        // Publication evidence appearing after the UI check must block the destructive action.
+        catalog.rows[candidate.photoId.name] = PhotoImportRow(candidate.photoId.name, ByteArray(4097))
+        assertFalse(imports.canDiscardUnconfirmedImport(candidate))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.discard(candidate) } }
+        assertArrayEquals(payload, files.read(candidate))
+        catalog.rows.remove(candidate.photoId.name)
+
+        val competing = files.receive(byteArrayOf(4, 5, 6).inputStream(), candidate.photoId)
+        assertFalse(imports.canDiscardUnconfirmedImport(candidate))
+        assertThrows(IllegalStateException::class.java) { runBlocking { imports.discard(candidate) } }
+        assertArrayEquals(payload, files.read(candidate))
+        assertArrayEquals(byteArrayOf(4, 5, 6), files.read(competing))
+        files.remove(competing)
+
+        val cameraId = imports.beginCapture()
+        val cameraStage = files.receive(payload.inputStream(), cameraId)
+        assertFalse(imports.canDiscardUnconfirmedImport(cameraStage))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.discard(cameraStage) } }
+        assertArrayEquals(payload, files.read(cameraStage))
+
+        files.recordCaptureRejection(candidate)
+        assertFalse(imports.canDiscardUnconfirmedImport(candidate))
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.discard(candidate) } }
+        files.clearCaptureRejection(candidate.photoId)
+
+        assertTrue(imports.canDiscardUnconfirmedImport(candidate))
+        imports.discard(candidate)
+        imports.discard(candidate)
+        assertFalse(imports.canDiscardUnconfirmedImport(candidate))
+        assertEquals(listOf(cameraStage), files.candidates())
+    }
+
+    @Test
+    fun changedUnconfirmedStageCannotBeOfferedOrDiscardedWithoutDigestVerification() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val files = staging(dir)
+        val imports = PhotoImports(dir, {}, files, db, TestCatalog(db)) { _, _ -> error("No publication expected") }
+        val candidate = imports.receive(byteArrayOf(1, 2, 3).inputStream())
+        val changed = byteArrayOf(4, 5, 6)
+        File(dir, candidate.fileName).writeBytes(changed)
+        assertThrows(ImportValidationFailure::class.java) {
+            runBlocking { imports.canDiscardUnconfirmedImport(candidate) }
+        }
+        assertThrows(ImportValidationFailure::class.java) { runBlocking { imports.discard(candidate) } }
+        assertArrayEquals(changed, File(dir, candidate.fileName).readBytes())
+    }
+
+    @Test
     fun directCameraConfirmationRequiresSuccessAndAnUndamagedImage() {
         assertTrue(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(true, false))
         assertFalse(CameraResultMode.DIRECT_AFTER_SUCCESS.confirmsAutomatically(false, false))
