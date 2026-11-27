@@ -252,6 +252,20 @@ Formáty k ověření po JPEG: PNG pro bezztrátové podklady a HEIC/HEIF pro je
 - **Lokální ověření PASS:** 268 jednotkových testů včetně šesti nových regresí focení, lint, kontrola sloučeného manifestu a cílené nezávislé bezpečnostní review. Fyzický test, APK a GitHub Actions NOT RUN.
 - Fyzicky ověřit fotoaparát Samsung i jiné zařízení, oprávnění URI, prázdný a částečný výstup, výsledek po otočení a zabití procesu, obnovu po přerušení a případnou kopii vytvořenou aplikací fotoaparátu v Galerii. Fyzický výpadek napájení není simulovaný chybový test. Pouze nahraditelná data.
 
+### Nezávislý SOURCE / SECURITY audit systémového fotografování (27. 11. 2026)
+
+Auditovaná revize [c5f25208784d71750c0018b1f3d4dc39d7334eac](https://github.com/zaplikj30-ui/CraftPlan/compare/2b53f3b537dab6b79fb41c7146fead385fea7e6b...c5f25208784d71750c0018b1f3d4dc39d7334eac), 2 commity, 14 souborů. Před zápisem ověřen HEAD `f9533201695549389d8c68166b44b634b9552435` (oproti auditované revizi pouze README). Verdikt **CHANGES REQUIRED**, technologie a běžná potvrzovací cesta vyhovují statické kontrole. 268 JVM testů, lint a kontrola manifestu PASS dle předchozího ověření Codexu, nikoli nově spuštěné auditorem. Fyzické scénáře a výpadek napájení NOT RUN.
+
+| ID / priorita | Nález a další postup | Stav |
+|---|---|---|
+| CAM-01 / P2 | PhotoImports.stageCapture: odlišný výstup a staging nebo poškozený staging blokují uživatelskou obnovu dostupných bajtů. Umožnit samostatné ověření, náhled a vědomé zachránění platných verzí bez přepisu druhého zdroje. | OPEN |
+| CAM-02 / P1 | PhotoImports.list/open: publikovaný ukazatel skrývá záchranné zdroje i při selhání ověření potvrzené revize/média. Při obnově validovat revizi, identitu, metadata a očekávaný SHA-256; nabídnout nedestruktivní obnovu, nikdy nepotvrdit jiný obsah nebo přepsat revizi. | OPEN |
+| CAM-03 / P2 | PhotoImports.list/removeRedundantCapture: odlišný výstup po potvrzení stagingu zůstává skrytý. Zpřístupnit jako konflikt, bezpečná volba záchrany či výslovného odstranění pouze příslušného souboru. | OPEN |
+| CAM-04 / P2 | ImportStaging/PrivatePhotoStore: po pádu mohou zůstat .import-*.part a .photo-staged-*.jpg. Samostatný krok pro bezpečnou evidenci/úklid pouze prokazatelně nepotřebných souborů bez aktivních či záchranných vazeb. Žádné plošné mazání. | OPEN |
+| CAM-05 / P3 | SystemPhotoCamera/ActivityResultRegistry: ověřit obnovu aktivity, otočení, ukončení procesu, ukončení čekání a opožděné výsledky bez záměny identit. Nejde o prokázanou chybu. | NOT RUN |
+
+Pracovní doporučení: společná cílená oprava CAM-01–03 před sériovým focením, následně cílený nezávislý retest nálezů; CAM-04 odděleně, CAM-05 fyzicky. Doplnit regresní scénáře poškozeného finálního média s platným stagingem, konfliktu obou verzí, poškozeného stagingu s platným výstupem, ztraceného ACK, restartu a ochrany potvrzených dat před stornem. Fyzicky ověřit také skutečný nedostatek místa, oprávnění a Galerii na Samsungu a dalším zařízení. Sériový režim viz PR #4 `fcea06c86c6a7d9a92d517ce2fc28f182e98cb06`, test série 20 snímků při jeho implementaci. Pouze nahraditelná data. Evidence auditu a návrh pořadí, nikoliv GO k implementaci, sestavení nebo Actions.
+
 ## M1 – uložení a opětovné otevření syntetické fotografie
 
 **APK 85 – praktický PASS základního save/reopen (26. 11. 2026):** zdrojová revize `4a032e1a975cfc90c8c1251ec5e45af38185f83b`, publikační revize `f25d24d12f0c640b6f85afc602259e43896e3e49`, [Actions 45732529293](https://github.com/zaplikj30-ui/CraftPlan/actions/runs/45732529293) SUCCESS (JVM testy, lint, sestavení a podpis). Vlastník na telefonu potvrdil první otevření a stav `ULOŽENO`, uložení a návrat čtyř kót (1250 mm, 0 mm, NEZMĚŘENO, 1/3 in), poznámky, poloh kót a posunutého čísla po návratu z úvodní obrazovky. Stejný dokument zachován po zahození z posledních aplikací a vynuceném ukončení přes nastavení, každý scénář dvakrát. Ukončení probíhalo až po potvrzení `ULOŽENO`; nejde o test pádu během zápisu. Pouze syntetická data.
