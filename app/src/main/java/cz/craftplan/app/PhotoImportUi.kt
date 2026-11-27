@@ -1,6 +1,9 @@
 package cz.craftplan.app
 
 import android.graphics.Bitmap
+import android.view.ViewTreeObserver
+import android.view.WindowInsets as AndroidWindowInsets
+import android.view.WindowInsetsController
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -20,17 +23,21 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +51,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -130,12 +140,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             Text(stringResource(R.string.photo_list_retry))
         }
         PhotoListStatus.READY -> Unit
-    }
-    if (recovery.isNotEmpty()) {
-        TextButton(onClick = { listPage = "pending" }, enabled = listEnabled) {
-            Text(stringResource(R.string.photo_list_pending_review, recovery.size),
-                color = MaterialTheme.colorScheme.primary)
-        }
     }
     if (recoveryIds.isNotEmpty()) {
         TextButton(onClick = { listPage = "saved" }, enabled = listEnabled) {
@@ -278,9 +282,23 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 },
             )
         } else {
+            val shown = state.importPreview
+            val canRetake = capture != null && !state.recoveringConfirmedPhoto &&
+                state.captureSources.isEmpty() && state.selectedCaptureSource == null &&
+                shown?.candidate?.photoId == capture
+            val canDiscard = discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)
+            val confirmLabel = if (state.selectedCaptureSource != null) {
+                if (shown?.sourceDamaged == true) R.string.camera_recovery_save_damaged
+                else R.string.camera_recovery_save
+            } else if (shown?.sourceDamaged == true) {
+                R.string.import_confirm_damaged
+            } else if (capture != null) R.string.camera_confirm else R.string.import_confirm
             PhotoReviewDialog(
                 fullScreen = capture != null,
-                bitmap = state.importPreview?.bitmap,
+                bitmap = shown?.bitmap,
+                showQuality = capture != null && shown != null && !shown.sourceDamaged &&
+                    !state.recoveringConfirmedPhoto && state.captureSources.isEmpty() &&
+                    state.selectedCaptureSource == null,
                 onDismissRequest = state::deferImport,
                 title = {
                     Text(stringResource(when {
@@ -289,15 +307,15 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         else -> R.string.import_preview
                     }))
                 },
-                text = { narrow ->
+                details = {
                     Column {
-                        if (state.importPreview?.sourceDamaged == true) {
+                        if (shown?.sourceDamaged == true) {
                             Text(stringResource(R.string.import_damage_warning),
                                 color = MaterialTheme.colorScheme.error)
                         }
                         if (state.importBusy) Text(stringResource(R.string.import_working))
                         state.importDiagnostic?.let {
-                            if (state.importPreview == null) {
+                            if (shown == null) {
                                 Text(stringResource(if (capture == null) R.string.import_failed else R.string.camera_failed))
                             }
                             Text(stringResource(R.string.document_storage_diagnostic, it))
@@ -318,53 +336,19 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                 Text(stringResource(R.string.camera_recovery_open_original))
                             }
                         }
-                        val secondaryActions: @Composable () -> Unit = {
-                            if (capture != null && !state.recoveringConfirmedPhoto &&
-                                state.captureSources.isEmpty() && state.selectedCaptureSource == null &&
-                                state.importPreview?.candidate?.photoId == capture
-                            ) {
-                                TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
-                                    Text(stringResource(R.string.camera_retake))
-                                }
-                            }
-                            if (discardSource || (!state.recoveringConfirmedPhoto && state.captureSources.size < 2)) {
-                                TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
-                                    Text(stringResource(discardLabel))
-                                }
-                            }
-                        }
-                        if (narrow) {
-                            Column(Modifier.fillMaxWidth()) { secondaryActions() }
-                        } else {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                secondaryActions()
-                            }
-                        }
                     }
                 },
-                confirmButton = {
-                    val shown = state.importPreview
-                    TextButton(onClick = {
-                        if (shown != null) {
-                            val consent = if (shown.sourceDamaged) PhotoConfirmation.EXPLICIT_DAMAGED
-                                else PhotoConfirmation.EXPLICIT
-                            state.confirmImport(shown.candidate, consent)
-                        }
-                    }, enabled = enabled && shown != null) {
-                        val label = if (state.selectedCaptureSource != null) {
-                            if (state.importPreview?.sourceDamaged == true) R.string.camera_recovery_save_damaged
-                            else R.string.camera_recovery_save
-                        } else if (state.importPreview?.sourceDamaged == true) {
-                            R.string.import_confirm_damaged
-                        } else if (capture != null) R.string.camera_confirm else R.string.import_confirm
-                        Text(stringResource(label))
+                retake = if (canRetake) ReviewAction(R.string.camera_retake,
+                    enabled && state.captureInFlight == null, onCapture) else null,
+                discard = if (canDiscard) ReviewAction(discardLabel, enabled) { confirmDiscard = true } else null,
+                confirm = ReviewAction(confirmLabel, enabled && shown != null) {
+                    if (shown != null) {
+                        val consent = if (shown.sourceDamaged) PhotoConfirmation.EXPLICIT_DAMAGED
+                            else PhotoConfirmation.EXPLICIT
+                        state.confirmImport(shown.candidate, consent)
                     }
                 },
-                dismissButton = {
-                    TextButton(onClick = state::deferImport, enabled = enabled) {
-                        Text(stringResource(R.string.import_later))
-                    }
-                },
+                later = ReviewAction(R.string.import_later, enabled, state::deferImport),
             )
         }
     } ?: state.importDiagnostic?.let {
@@ -393,16 +377,51 @@ private fun PhotoListDialog(title: Int, onDismiss: () -> Unit, content: LazyList
     }
 }
 
+private data class ReviewAction(val label: Int, val enabled: Boolean, val onClick: () -> Unit)
+
+/** Immersive policy is scoped to the review dialog, not the editor/activity window. */
+@Composable
+private fun CameraReviewFullscreenEffect() {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+    DisposableEffect(window) {
+        if (window == null) {
+            onDispose { }
+        } else {
+            val decor = window.decorView
+            fun hideBars() {
+                window.insetsController?.let { controller ->
+                    controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(AndroidWindowInsets.Type.statusBars() or AndroidWindowInsets.Type.navigationBars())
+                }
+            }
+            val observer = decor.viewTreeObserver
+            val listener = ViewTreeObserver.OnWindowFocusChangeListener { focused ->
+                if (focused) hideBars()
+            }
+            observer.addOnWindowFocusChangeListener(listener)
+            hideBars()
+            onDispose {
+                if (observer.isAlive) observer.removeOnWindowFocusChangeListener(listener)
+                else decor.viewTreeObserver.removeOnWindowFocusChangeListener(listener)
+                // The dialog window is dismissed; never request bars over the next editor window.
+            }
+        }
+    }
+}
+
 /** Keep the camera review separate from validation and durable confirmation. */
 @Composable
 private fun PhotoReviewDialog(
     fullScreen: Boolean,
     bitmap: Bitmap?,
+    showQuality: Boolean,
     onDismissRequest: () -> Unit,
     title: @Composable () -> Unit,
-    text: @Composable (Boolean) -> Unit,
-    confirmButton: @Composable () -> Unit,
-    dismissButton: @Composable () -> Unit,
+    details: @Composable () -> Unit,
+    retake: ReviewAction?,
+    discard: ReviewAction?,
+    confirm: ReviewAction,
+    later: ReviewAction,
 ) {
     if (!fullScreen) {
         AlertDialog(
@@ -414,49 +433,73 @@ private fun PhotoReviewDialog(
                         Image(it.asImageBitmap(), stringResource(R.string.import_preview),
                             Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Fit)
                     }
-                    text(false)
+                    details()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        retake?.let { ReviewTextAction(it) }
+                        discard?.let { ReviewTextAction(it) }
+                    }
                 }
             },
-            confirmButton = confirmButton,
-            dismissButton = dismissButton,
+            confirmButton = { ReviewTextAction(confirm) },
+            dismissButton = { ReviewTextAction(later) },
         )
         return
     }
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
+        CameraReviewFullscreenEffect()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)) {
+            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
                 if (maxWidth > maxHeight && bitmap != null) {
+                    // Evaluate BoxWithConstraints values before entering RowScope.
                     val controlsWidth = minOf(180.dp, maxWidth * 0.30f)
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxSize()) {
                         ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxHeight())
                         Column(
                             Modifier.width(controlsWidth).fillMaxHeight()
-                                .verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.Start,
+                                .verticalScroll(rememberScrollState()).padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            title()
-                            text(true)
-                            confirmButton()
-                            dismissButton()
+                            ReviewHeading(showQuality, title)
+                            details()
+                            ReviewPill(confirm, Modifier.fillMaxWidth(), primary = true)
+                            retake?.let { ReviewPill(it, Modifier.fillMaxWidth()) }
+                            ReviewPill(later, Modifier.fillMaxWidth())
+                            discard?.let { ReviewPill(it, Modifier.fillMaxWidth()) }
                         }
                     }
                 } else {
-                    val detailsLimit = maxHeight * 0.4f
-                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        title()
+                    val detailsLimit = maxHeight * 0.48f
+                    Column(Modifier.fillMaxSize()) {
                         if (bitmap != null) {
                             ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxWidth())
                         }
                         Column(
-                            if (bitmap != null) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
-                                .verticalScroll(rememberScrollState())
-                            else Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                        ) { text(false) }
-                        ReviewActions(dismissButton, confirmButton)
+                            (if (bitmap != null) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
+                            else Modifier.weight(1f).fillMaxWidth())
+                                .verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            ReviewHeading(showQuality, title)
+                            details()
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                retake?.let { ReviewPill(it, Modifier.weight(1f)) }
+                                ReviewPill(confirm, Modifier.weight(1f), primary = true)
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                discard?.let { ReviewPill(it, Modifier.weight(1f)) }
+                                ReviewPill(later, Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
@@ -465,10 +508,36 @@ private fun PhotoReviewDialog(
 }
 
 @Composable
-private fun ReviewActions(dismissButton: @Composable () -> Unit, confirmButton: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { dismissButton() }
-        Box(Modifier.weight(1.5f), contentAlignment = Alignment.CenterEnd) { confirmButton() }
+private fun ReviewHeading(showQuality: Boolean, title: @Composable () -> Unit) {
+    if (showQuality) {
+        Text(stringResource(R.string.camera_quality_full),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else {
+        title()
+    }
+}
+
+@Composable
+private fun ReviewTextAction(action: ReviewAction) {
+    TextButton(onClick = action.onClick, enabled = action.enabled) {
+        Text(stringResource(action.label))
+    }
+}
+
+@Composable
+private fun ReviewPill(action: ReviewAction, modifier: Modifier, primary: Boolean = false) {
+    val shape = RoundedCornerShape(20.dp)
+    val padding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+    val label: @Composable () -> Unit = {
+        Text(stringResource(action.label), textAlign = TextAlign.Center)
+    }
+    if (primary) {
+        Button(onClick = action.onClick, modifier = modifier, enabled = action.enabled,
+            shape = shape, contentPadding = padding) { label() }
+    } else {
+        FilledTonalButton(onClick = action.onClick, modifier = modifier, enabled = action.enabled,
+            shape = shape, contentPadding = padding) { label() }
     }
 }
 
