@@ -237,30 +237,34 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             capture == null -> R.string.import_discard
             else -> R.string.camera_discard
         }
-        var confirmDiscard by remember(id, state.selectedCaptureSource) { mutableStateOf(false) }
+        var confirmDiscard by rememberSaveable(id.name, state.selectedCaptureSource) { mutableStateOf(false) }
         if (confirmDiscard) {
             val ordinaryDiscard = capture != null && !discardSource
             AlertDialog(
-                onDismissRequest = { confirmDiscard = false },
+                onDismissRequest = { if (enabled) confirmDiscard = false },
                 title = { Text(stringResource(if (ordinaryDiscard) R.string.camera_discard_title else discardLabel)) },
                 text = {
-                    Text(stringResource(when {
-                        discardSource -> R.string.camera_discard_selected_warning
-                        capture == null -> R.string.import_discard_warning
-                        else -> R.string.camera_discard_warning
-                    }))
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Text(stringResource(when {
+                            discardSource -> R.string.camera_discard_selected_warning
+                            capture == null -> R.string.import_discard_warning
+                            else -> R.string.camera_discard_warning
+                        }))
+                        DiscardOperationStatus(state)
+                    }
                 },
                 confirmButton = {
                     val action = ReviewAction(discardLabel, enabled) {
-                        confirmDiscard = false
+                        // Stay in confirmation until the selected draft/source actually disappears.
+                        // A failed operation leaves the same action available for retry or cancel.
                         if (discardSource) state.discardSelectedCaptureSource() else state.discardImport()
                     }
-                    if (ordinaryDiscard) ReviewPill(action, Modifier, destructive = true)
+                    if (!discardSource) ReviewPill(action, Modifier, destructive = true)
                     else ReviewTextAction(action)
                 },
                 dismissButton = {
-                    val action = ReviewAction(R.string.cancel_value, true) { confirmDiscard = false }
-                    if (ordinaryDiscard) ReviewPill(action, Modifier) else ReviewTextAction(action)
+                    val action = ReviewAction(R.string.cancel_value, enabled) { confirmDiscard = false }
+                    if (!discardSource) ReviewPill(action, Modifier) else ReviewTextAction(action)
                 },
             )
         } else {
@@ -402,11 +406,12 @@ private fun PhotoRecoveryDialog(
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(stringResource(R.string.camera_discard_warning))
+                    DiscardOperationStatus(state)
                 }
             },
             confirmButton = {
                 ReviewPill(ReviewAction(R.string.camera_discard_interrupted, enabled && selected != null) {
-                    approvedDiscard = null
+                    // A successful refresh removes this case; failure keeps the confirmation open.
                     if (selected != null && case is PhotoRecoveryCase.Camera) state.discardInterruptedCapture(case, selected)
                 }, Modifier, destructive = true)
             },
@@ -524,6 +529,14 @@ private fun PhotoListDialog(title: Int, onDismiss: () -> Unit, content: LazyList
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DiscardOperationStatus(state: PhotoEditorState) {
+    if (state.importBusy) Text(stringResource(R.string.import_working))
+    state.importDiagnostic?.let {
+        Text(stringResource(R.string.document_storage_diagnostic, it), color = MaterialTheme.colorScheme.error)
     }
 }
 
