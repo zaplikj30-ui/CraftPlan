@@ -18,6 +18,15 @@
     <string name="document_leave_warning">Zůstaňte a zkuste uložení znovu. Odchod ukončí tuto pracovní relaci; změny, které se nepotvrdily, se ztratí.</string>
     <string name="document_stay">Zůstat</string>
     <string name="document_leave">Odejít</string>
+    <string name="camera_take_picture">Vyfotit fotografii</string>
+    <string name="camera_stop_waiting">Ukončit čekání na fotoaparát</string>
+    <string name="camera_resume">Pokračovat ve focení %1$d</string>
+    <string name="camera_preview">Náhled snímku – plná kvalita</string>
+    <string name="camera_retake">Vyfotit znovu</string>
+    <string name="camera_confirm">Použít fotografii</string>
+    <string name="camera_discard">Storno</string>
+    <string name="camera_discard_warning">Zahodit tento nepotvrzený snímek?</string>
+    <string name="camera_failed">Snímek ze systémového fotoaparátu se nepodařilo převzít.</string>
     <string name="import_photo">Importovat fotografii JPEG</string>
     <string name="import_resume">Obnovit rozpracovaný import %1$d</string>
     <string name="import_open_confirmed">Otevřít importovanou fotografii %1$d</string>

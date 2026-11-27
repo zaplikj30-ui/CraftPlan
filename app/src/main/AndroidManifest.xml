@@ -10,6 +10,15 @@
             android:name="com.google.mlkit.common.internal.MlKitInitProvider"
             android:authorities="${applicationId}.mlkitinitprovider"
             tools:node="remove" />
+        <provider
+            android:name=".CameraOutputProvider"
+            android:authorities="${applicationId}.camera-output"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/camera_output_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"

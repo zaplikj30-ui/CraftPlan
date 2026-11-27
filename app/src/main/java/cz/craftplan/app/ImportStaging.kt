@@ -22,7 +22,11 @@ internal class ImportStaging(
     private val syncDirectory: (File) -> Unit,
     private val rename: (File, File) -> Unit,
 ) {
-    fun receive(input: InputStream): ImportCandidate {
+    fun receive(
+        input: InputStream,
+        photoId: PhotoId = PhotoId(UUID.randomUUID().toString()),
+        beforePublish: (ImportCandidate) -> Unit = {},
+    ): ImportCandidate {
         val tmp = Files.createTempFile(directory.toPath(), ".import-", ".part").toFile()
         try {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -41,9 +45,10 @@ internal class ImportStaging(
                 output.fd.sync()
             }
             val candidate = ImportCandidate(
-                PhotoId(UUID.randomUUID().toString()), digest.digest().joinToString("") { "%02x".format(it) },
+                photoId, digest.digest().joinToString("") { "%02x".format(it) },
             )
             readVerified(tmp, candidate)
+            beforePublish(candidate)
             val ready = File(directory, candidate.fileName)
             check(Files.notExists(ready.toPath(), LinkOption.NOFOLLOW_LINKS))
             rename(tmp, ready)

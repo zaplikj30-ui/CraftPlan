@@ -84,6 +84,7 @@ import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     private val editorState by viewModels<PhotoEditorState>()
+    private val systemCamera by lazy { SystemPhotoCamera(this, editorState) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,13 +92,27 @@ class MainActivity : ComponentActivity() {
         editorState.restorePreferences(getSharedPreferences("editor_preferences", MODE_PRIVATE))
         editorState.diagnosticGripBounds = null
         editorState.diagnosticSharedGripBounds = null
+        systemCamera.restore(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
-                CraftPlan(editorState, window)
+                CraftPlan(
+                    editorState, window, onCapture = { editorState.requestCapture(systemCamera::launch) },
+                    onStopCameraWait = systemCamera::stopWaiting,
+                )
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        systemCamera.save(outState)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onDestroy() {
+        systemCamera.unregister()
+        super.onDestroy()
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -145,6 +160,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     var importPreview by mutableStateOf<ImportPreview?>(null)
         private set
     var importCandidate by mutableStateOf<ImportCandidate?>(null)
+        private set
+    var captureInFlight by mutableStateOf<PhotoId?>(null)
+        private set
+    var cameraPreviewId by mutableStateOf<PhotoId?>(null)
         private set
     var importBusy by mutableStateOf(false)
         private set
@@ -227,13 +246,70 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun receivePhoto(uri: Uri) {
-        if (importCandidate != null) return
+        if (importCandidate != null || cameraPreviewId != null) return
         runImport(StoragePhase.IMPORT_STAGE) {
             val candidate = withContext(Dispatchers.IO) {
                 val resolver = getApplication<Application>().contentResolver
                 require(uri.scheme == ContentResolver.SCHEME_CONTENT)
                 val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
                 input.use { storage.imports.receive(it) }
+            }
+            loadPreview(candidate)
+        }
+    }
+
+    fun updateCaptureInFlight(id: PhotoId?) {
+        captureInFlight = id
+    }
+
+    fun reportCameraError(error: Exception) {
+        importDiagnostic = storageFailureCode(error, StoragePhase.CAMERA_CAPTURE)
+    }
+
+    fun requestCapture(launch: (PhotoId) -> Unit) {
+        if (captureInFlight != null) return
+        var id: PhotoId? = null
+        runImport(StoragePhase.CAMERA_CAPTURE, after = { id?.let(launch) }) {
+            id = withContext(Dispatchers.IO) { storage.imports.beginCapture() }
+            clearImportPreview()
+        }
+    }
+
+    fun cameraLaunchFailed(id: PhotoId, code: String) {
+        runImport(StoragePhase.CAMERA_CAPTURE) {
+            withContext(Dispatchers.IO) {
+                revokeCameraOutput(getApplication(), id)
+                storage.imports.finishCanceledCapture(id)
+            }
+            importDiagnostic = code
+        }
+    }
+
+    fun cameraResult(id: PhotoId, success: Boolean) {
+        try {
+            revokeCameraOutput(getApplication(), id)
+        } catch (error: Exception) {
+            reportCameraError(error)
+            refreshImports()
+            return
+        }
+        if (!success) {
+            runImport(StoragePhase.CAMERA_CAPTURE) {
+                withContext(Dispatchers.IO) { storage.imports.finishCanceledCapture(id) }
+            }
+        } else if (cameraPreviewId == null && importCandidate == null) {
+            previewCapture(id)
+        }
+    }
+
+    fun previewCapture(id: PhotoId) {
+        if (captureInFlight == id) return
+        runImport(StoragePhase.CAMERA_CAPTURE) {
+            clearImportPreview()
+            cameraPreviewId = id
+            val candidate = withContext(Dispatchers.IO) {
+                revokeCameraOutput(getApplication(), id)
+                storage.imports.stageCapture(id)
             }
             loadPreview(candidate)
         }
@@ -251,9 +327,14 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     fun deferImport() {
         if (importBusy) return
+        clearImportPreview()
+        importDiagnostic = null
+    }
+
+    private fun clearImportPreview() {
         importPreview = null
         importCandidate = null
-        importDiagnostic = null
+        cameraPreviewId = null
     }
 
     fun confirmImport() {
@@ -261,22 +342,27 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         runImport(StoragePhase.REVISION_CONFIRM) {
             val document = withContext(Dispatchers.IO) { storage.imports.confirm(preview.candidate, preview.photo) }
             check(document.snapshot.photo == preview.photo)
-            importPreview = null
-            importCandidate = null
+            clearImportPreview()
             enterEditor(document, preview.bitmap)
         }
     }
 
     fun discardImport() {
-        val candidate = importCandidate ?: return
-        runImport(StoragePhase.IMPORT_STAGE) {
-            withContext(Dispatchers.IO) { storage.imports.discard(candidate) }
-            importPreview = null
-            importCandidate = null
+        val capture = cameraPreviewId
+        val candidate = importCandidate
+        if (capture == null && candidate == null) return
+        runImport(if (capture == null) StoragePhase.IMPORT_STAGE else StoragePhase.CAMERA_CAPTURE) {
+            withContext(Dispatchers.IO) {
+                if (capture != null) {
+                    revokeCameraOutput(getApplication(), capture)
+                    storage.imports.discardCapture(capture)
+                } else storage.imports.discard(checkNotNull(candidate))
+            }
+            clearImportPreview()
         }
     }
 
-    private fun runImport(phase: StoragePhase, action: suspend () -> Unit) {
+    private fun runImport(phase: StoragePhase, after: () -> Unit = {}, action: suspend () -> Unit) {
         if (importBusy || openingPhoto || photo != null) return
         importRefresh?.cancel()
         importBusy = true
@@ -299,6 +385,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                     importBusy = false
                 }
             }
+            after()
         }
     }
 
@@ -823,7 +910,9 @@ internal fun EditorDialogStatusBarEffect(hidden: Boolean) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
+private fun CraftPlan(
+    editorState: PhotoEditorState, window: Window, onCapture: () -> Unit, onStopCameraWait: () -> Unit,
+) {
     val photo = editorState.photo
     val photoOpen = photo != null
     LaunchedEffect(photoOpen) { if (!photoOpen) editorState.refreshImports() }
@@ -973,7 +1062,7 @@ private fun CraftPlan(editorState: PhotoEditorState, window: Window) {
                     Text(stringResource(R.string.document_open_failed))
                     Text(stringResource(R.string.document_storage_diagnostic, code))
                 }
-                PhotoImportControls(editorState)
+                PhotoImportControls(editorState, onCapture, onStopCameraWait)
                 val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
                     if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)

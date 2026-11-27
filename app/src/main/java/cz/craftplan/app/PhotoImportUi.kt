@@ -24,13 +24,26 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 @Composable
-internal fun PhotoImportControls(state: PhotoEditorState) {
+internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit, onStopCameraWait: () -> Unit) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) state.receivePhoto(uri)
     }
     val enabled = !state.importBusy && !state.openingPhoto
+    Button(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
+        Text(stringResource(R.string.camera_take_picture))
+    }
+    if (state.captureInFlight != null) {
+        TextButton(onClick = onStopCameraWait, enabled = enabled) {
+            Text(stringResource(R.string.camera_stop_waiting))
+        }
+    }
     Button(onClick = { picker.launch(arrayOf("image/jpeg")) }, enabled = enabled) {
         Text(stringResource(R.string.import_photo))
+    }
+    state.importedPhotos.captures.filterNot { it == state.captureInFlight }.forEachIndexed { index, id ->
+        TextButton(onClick = { state.previewCapture(id) }, enabled = enabled) {
+            Text(stringResource(R.string.camera_resume, index + 1))
+        }
     }
     state.importedPhotos.pending.forEachIndexed { index, candidate ->
         TextButton(onClick = { state.previewImport(candidate) }, enabled = enabled) {
@@ -43,18 +56,21 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
         }
     }
     if (state.importBusy) Text(stringResource(R.string.import_working))
-    state.importCandidate?.let { candidate ->
-        var confirmDiscard by remember(candidate) { mutableStateOf(false) }
+    val capture = state.cameraPreviewId
+    val pendingId = capture ?: state.importCandidate?.photoId
+    pendingId?.let { id ->
+        val discardLabel = if (capture == null) R.string.import_discard else R.string.camera_discard
+        var confirmDiscard by remember(id) { mutableStateOf(false) }
         if (confirmDiscard) {
             AlertDialog(
                 onDismissRequest = { confirmDiscard = false },
-                title = { Text(stringResource(R.string.import_discard)) },
-                text = { Text(stringResource(R.string.import_discard_warning)) },
+                title = { Text(stringResource(discardLabel)) },
+                text = { Text(stringResource(if (capture == null) R.string.import_discard_warning else R.string.camera_discard_warning)) },
                 confirmButton = {
                     TextButton(onClick = {
                         confirmDiscard = false
                         state.discardImport()
-                    }, enabled = enabled) { Text(stringResource(R.string.import_discard)) }
+                    }, enabled = enabled) { Text(stringResource(discardLabel)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.cancel_value)) }
@@ -63,7 +79,7 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
         } else {
             AlertDialog(
                 onDismissRequest = state::deferImport,
-                title = { Text(stringResource(R.string.import_preview)) },
+                title = { Text(stringResource(if (capture == null) R.string.import_preview else R.string.camera_preview)) },
                 text = {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
                         state.importPreview?.let {
@@ -73,11 +89,18 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
                         }
                         if (state.importBusy) Text(stringResource(R.string.import_working))
                         state.importDiagnostic?.let {
-                            if (state.importPreview == null) Text(stringResource(R.string.import_failed))
+                            if (state.importPreview == null) {
+                                Text(stringResource(if (capture == null) R.string.import_failed else R.string.camera_failed))
+                            }
                             Text(stringResource(R.string.document_storage_diagnostic, it))
                         }
+                        if (capture != null) {
+                            TextButton(onClick = onCapture, enabled = enabled && state.captureInFlight == null) {
+                                Text(stringResource(R.string.camera_retake))
+                            }
+                        }
                         TextButton(onClick = { confirmDiscard = true }, enabled = enabled) {
-                            Text(stringResource(R.string.import_discard))
+                            Text(stringResource(discardLabel))
                         }
                     }
                 },
@@ -85,7 +108,7 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
                     TextButton(onClick = state::confirmImport, enabled = enabled && state.importPreview != null) {
                         val label = if (state.importPreview?.sourceDamaged == true) {
                             R.string.import_confirm_damaged
-                        } else R.string.import_confirm
+                        } else if (capture != null) R.string.camera_confirm else R.string.import_confirm
                         Text(stringResource(label))
                     }
                 },
@@ -97,7 +120,7 @@ internal fun PhotoImportControls(state: PhotoEditorState) {
             )
         }
     } ?: state.importDiagnostic?.let {
-        Text(stringResource(R.string.import_failed))
+        Text(stringResource(if (it.startsWith("CAMERA_CAPTURE /")) R.string.camera_failed else R.string.import_failed))
         Text(stringResource(R.string.document_storage_diagnostic, it))
     }
 }

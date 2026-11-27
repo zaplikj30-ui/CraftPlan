@@ -5,11 +5,15 @@ import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal data class ImportPreview(
     val candidate: ImportCandidate, val photo: StoredPhoto, val bitmap: Bitmap, val sourceDamaged: Boolean,
 )
-internal data class PhotoList(val confirmed: List<PhotoId>, val pending: List<ImportCandidate>)
+internal data class PhotoList(
+    val confirmed: List<PhotoId>, val pending: List<ImportCandidate>, val captures: List<PhotoId> = emptyList(),
+)
 
 internal class PhotoImports(
     private val directory: File,
@@ -19,6 +23,9 @@ internal class PhotoImports(
     private val catalog: PhotoImportDao,
     private val repository: (StoredPhoto, () -> ByteArray) -> DocumentRepository,
 ) {
+    private val captureLock = Mutex()
+    private val captures = CameraCaptureStore(File(directory, CameraCaptureStore.DIRECTORY), syncDirectory)
+
     suspend fun list(): PhotoList {
         // Listing is lightweight. Verify the reachable revision and media when a photo opens.
         val confirmed = transactions.read { confirmedPhotoIds() }.mapNotNull { id ->
@@ -28,12 +35,58 @@ internal class PhotoImports(
                 null
             }
         }
+        val cameraAttempts = captures.attempts()
+        val represented = (confirmed + cameraAttempts).toHashSet()
         val committed = confirmed.toHashSet()
-        return PhotoList(confirmed, staging.candidates().filterNot { it.photoId in committed })
+        return PhotoList(confirmed, staging.candidates().filterNot { it.photoId in represented },
+            cameraAttempts.filterNot { it in committed })
     }
 
     fun receive(input: InputStream): ImportCandidate = storagePhase(StoragePhase.IMPORT_STAGE) {
         staging.receive(input)
+    }
+
+    fun beginCapture(): PhotoId = storagePhase(StoragePhase.CAMERA_CAPTURE) { captures.begin() }
+
+    suspend fun finishCanceledCapture(id: PhotoId) = captureLock.withLock {
+        storagePhase(StoragePhase.CAMERA_CAPTURE) {
+            // Some camera apps write even when they return CANCELED. Keep any real output for
+            // an explicit recovery/discard decision, and never promote it from this callback.
+            captures.discardEmpty(id)
+        }
+    }
+
+    suspend fun stageCapture(id: PhotoId): ImportCandidate = captureLock.withLock {
+        storagePhase(StoragePhase.CAMERA_CAPTURE) {
+            transactions.read { check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId)) }
+            val existing = captureCandidate(id)
+            if (existing != null) {
+                if (captures.hasOutput(id)) checkCaptureBytes(existing)
+                existing
+            } else captures.readOutput(id) { input ->
+                if (input.channel.size() == 0L) throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_EMPTY)
+                staging.receive(input, id, beforePublish = ::checkCaptureBytes)
+            }
+        }
+    }
+
+    suspend fun discardCapture(id: PhotoId) = captureLock.withLock {
+        val candidate = captureCandidate(id)
+        if (candidate != null) discard(candidate)
+        else transactions.read { check(head(id.documentId)?.revisionId == null && !hasRevisions(id.documentId)) }
+        captures.remove(id)
+    }
+
+    private fun checkCaptureBytes(candidate: ImportCandidate) {
+        if (!captures.matches(candidate.photoId, candidate.digest)) {
+            throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_CHANGED)
+        }
+    }
+
+    private fun captureCandidate(id: PhotoId): ImportCandidate? {
+        val candidates = staging.candidates().filter { it.photoId == id }
+        check(candidates.size <= 1)
+        return candidates.firstOrNull()
     }
 
     suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
@@ -59,15 +112,23 @@ internal class PhotoImports(
                 operationId = photo.id.name, targetId = photo.mediaId.toString()))
         }
         return document.open().also { verified ->
-            if (!verified.recovered) removeRedundantStage(candidate)
+            check(verified.version.revisionId != null && verified.snapshot.photo == photo)
+            finishVerifiedImport(verified)
         }
     }
 
     suspend fun open(id: PhotoId): OpenDocument =
-        DocumentRepository.openConfirmed(transactions, id, ::existingRepository).also { verified ->
-            val photo = verified.snapshot.photo
-            if (!verified.recovered) removeRedundantStage(ImportCandidate(photo.id, photo.sha256))
-        }
+        DocumentRepository.openConfirmed(transactions, id, ::existingRepository).also { finishVerifiedImport(it) }
+
+    private suspend fun finishVerifiedImport(verified: OpenDocument) {
+        if (verified.recovered) return
+        // A visible head can be the result of an earlier save with a lost directory ACK.
+        // Re-establish this barrier before acknowledging it or removing either private source.
+        storagePhase(StoragePhase.DB_DIRECTORY_SYNC) { syncDirectory(directory) }
+        val photo = verified.snapshot.photo
+        removeRedundantStage(ImportCandidate(photo.id, photo.sha256))
+        removeRedundantCapture(photo)
+    }
 
     suspend fun save(request: DocumentSave): DocumentAck =
         existingRepository(request.snapshot.photo).save(request)
@@ -97,6 +158,16 @@ internal class PhotoImports(
 
     private fun existingRepository(photo: StoredPhoto): DocumentRepository =
         repository(photo) { error("Confirmed photos are reopened from their private final file") }
+
+    private suspend fun removeRedundantCapture(photo: StoredPhoto) = captureLock.withLock {
+        try {
+            captures.removeIfMatching(photo.id, photo.sha256)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Keep the output if cleanup is uncertain, and retry when reopening the verified photo.
+        }
+    }
 
     private fun removeRedundantStage(candidate: ImportCandidate) {
         try {

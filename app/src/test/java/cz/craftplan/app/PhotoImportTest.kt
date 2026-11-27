@@ -23,6 +23,190 @@ class PhotoImportTest {
     @get:Rule val folder = TemporaryFolder()
 
     @Test
+    fun cameraAttemptSurvivesRestartAndFailedConfirmationWithOriginalBytes() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        fun imports() = PhotoImports(dir, {}, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source)) {}
+        }
+        val bytes = bundledSyntheticPhoto() + byteArrayOf(0x53, 0x45, 0x46)
+        val first = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, first)
+        assertTrue(raw.isFile)
+        raw.writeBytes(bytes)
+        val restarted = imports()
+        assertEquals(listOf(first), restarted.list().captures)
+        val candidate = restarted.stageCapture(first)
+        assertEquals(first, candidate.photoId)
+        assertEquals(candidate, imports().stageCapture(first))
+        assertEquals(sha256(bytes), candidate.digest)
+        assertArrayEquals(bytes, staging(dir).read(candidate))
+        assertTrue(restarted.list().pending.isEmpty())
+        assertTrue(restarted.list().confirmed.isEmpty())
+
+        val retake = restarted.beginCapture()
+        assertNotEquals(first, retake)
+        assertArrayEquals(bytes, raw.readBytes())
+        val photo = testPhoto(candidate, bytes.size)
+        db.failPublish = true
+        assertThrows(UncertainDocumentSave::class.java) { runBlocking { restarted.confirm(candidate, photo) } }
+        assertTrue(restarted.list().confirmed.isEmpty())
+        assertArrayEquals(bytes, raw.readBytes())
+        assertArrayEquals(bytes, staging(dir).read(candidate))
+
+        db.failPublish = false
+        val verified = imports().confirm(candidate, photo)
+        assertEquals(photo.id.name, db.revisions.values.single().saveOperationId)
+        assertEquals(photo, verified.snapshot.photo)
+        assertArrayEquals(bytes, imports().open(photo.id).photoBytes)
+        assertFalse(raw.exists())
+        assertTrue(staging(dir).candidates().isEmpty())
+        assertEquals(listOf(retake), restarted.list().captures)
+        assertThrows(IllegalStateException::class.java) { runBlocking { restarted.discardCapture(first) } }
+        assertArrayEquals(bytes, restarted.open(first).photoBytes)
+    }
+
+    @Test
+    fun canceledAndMissingCameraOutputNeverCreatesARevision() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val imports = PhotoImports(dir, {}, staging(dir), db, TestCatalog(db)) { _, _ -> error("No revision expected") }
+
+        val empty = imports.beginCapture()
+        val error = assertThrows(StorageFailure::class.java) { runBlocking { imports.stageCapture(empty) } }
+        assertEquals("CAMERA_CAPTURE / CAMERA_OUTPUT_EMPTY", storageFailureCode(error, StoragePhase.OPEN))
+        imports.finishCanceledCapture(empty)
+        assertFalse(CameraCaptureStore.outputFile(dir, empty).exists())
+        val missing = assertThrows(StorageFailure::class.java) { runBlocking { imports.stageCapture(empty) } }
+        assertEquals("CAMERA_CAPTURE / FILE_UNAVAILABLE", storageFailureCode(missing, StoragePhase.OPEN))
+
+        val written = imports.beginCapture()
+        val output = CameraCaptureStore.outputFile(dir, written)
+        output.writeBytes(byteArrayOf(1, 2, 3))
+        imports.finishCanceledCapture(written)
+        assertEquals(listOf(written), imports.list().captures)
+        assertTrue(staging(dir).candidates().isEmpty())
+        val candidate = imports.stageCapture(written)
+        File(dir, candidate.fileName).writeBytes(byteArrayOf(3, 2, 1))
+        assertThrows(StorageFailure::class.java) { runBlocking { imports.preview(candidate) } }.also {
+            assertEquals("IMPORT_PREVIEW / STAGED_INTEGRITY", storageFailureCode(it, StoragePhase.OPEN))
+        }
+        assertArrayEquals(byteArrayOf(1, 2, 3), output.readBytes())
+        imports.discardCapture(written)
+        assertFalse(output.exists())
+        assertTrue(staging(dir).candidates().isEmpty())
+        assertTrue(imports.list().confirmed.isEmpty())
+    }
+
+    @Test
+    fun cameraLostRevisionAckKeepsSourcesAndPreventsRestagingAConfirmedId() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        var denyAck = false
+        fun verifyDirectory() {
+            if (denyAck) throw IOException("Injected database directory sync failure")
+        }
+        fun imports() = PhotoImports(dir, { verifyDirectory() }, staging(dir), db, catalog) { photo, source ->
+            DocumentRepository(db, PrivatePhotoStore(dir, {}, ::rename, photo, source), ::verifyDirectory)
+        }
+        val id = imports().beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val bytes = bundledSyntheticPhoto()
+        raw.writeBytes(bytes)
+        val candidate = imports().stageCapture(id)
+        val photo = testPhoto(candidate, bytes.size)
+
+        denyAck = true
+        assertThrows(UncertainDocumentSave::class.java) { runBlocking { imports().confirm(candidate, photo) } }
+        assertEquals(listOf(id), imports().list().confirmed)
+        assertTrue(imports().list().captures.isEmpty())
+        assertThrows(StorageFailure::class.java) { runBlocking { imports().stageCapture(id) } }
+        assertThrows(StorageFailure::class.java) { runBlocking { imports().confirm(candidate, photo) } }
+        assertThrows(StorageFailure::class.java) { runBlocking { imports().open(id) } }
+        assertArrayEquals(bytes, raw.readBytes())
+        assertArrayEquals(bytes, staging(dir).read(candidate))
+        assertEquals(1, db.revisions.size)
+
+        denyAck = false
+        assertArrayEquals(bytes, imports().open(id).photoBytes)
+        assertFalse(raw.exists())
+        assertTrue(staging(dir).candidates().isEmpty())
+        assertEquals(1, db.revisions.size)
+    }
+
+    @Test
+    fun lateCameraWriterCannotSubstituteDifferentBytesForTheStagedCandidate() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val imports = PhotoImports(dir, {}, staging(dir), db, TestCatalog(db)) { _, _ -> error("No revision expected") }
+        val id = imports.beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val original = bundledSyntheticPhoto()
+        raw.writeBytes(original)
+        val candidate = imports.stageCapture(id)
+        val changed = original + byteArrayOf(1, 2, 3)
+        raw.writeBytes(changed)
+
+        val error = assertThrows(StorageFailure::class.java) { runBlocking { imports.stageCapture(id) } }
+        assertEquals("CAMERA_CAPTURE / CAMERA_OUTPUT_CHANGED", storageFailureCode(error, StoragePhase.OPEN))
+        assertArrayEquals(original, staging(dir).read(candidate))
+        assertArrayEquals(changed, raw.readBytes())
+        assertTrue(imports.list().confirmed.isEmpty())
+    }
+
+    @Test
+    fun unstableCameraSourceDoesNotPublishAPartialStageAndCanBeRetried() = runBlocking {
+        val dir = folder.newFolder()
+        val store = CameraCaptureStore(File(dir, CameraCaptureStore.DIRECTORY)) {}
+        val id = store.begin()
+        val output = CameraCaptureStore.outputFile(dir, id)
+        val original = bundledSyntheticPhoto()
+        val completed = original + byteArrayOf(1, 2, 3)
+        output.writeBytes(original)
+        val stage = staging(dir)
+        val error = assertThrows(ImportValidationFailure::class.java) {
+            store.readOutput(id) { input ->
+                stage.receive(input, id) { candidate ->
+                    output.writeBytes(completed)
+                    if (!store.matches(id, candidate.digest)) {
+                        throw ImportValidationFailure(ImportRejection.CAMERA_OUTPUT_CHANGED)
+                    }
+                }
+            }
+        }
+        assertEquals(ImportRejection.CAMERA_OUTPUT_CHANGED, error.reason)
+        assertTrue(stage.candidates().isEmpty())
+        assertArrayEquals(completed, output.readBytes())
+        val db = TestDocumentTransactions()
+        val imports = PhotoImports(dir, {}, stage, db, TestCatalog(db)) { _, _ -> error("No revision expected") }
+        assertArrayEquals(completed, stage.read(imports.stageCapture(id)))
+    }
+
+    @Test
+    fun cameraStageRenameWithoutDirectoryAckKeepsRawAndReusesTheSameCandidate() = runBlocking {
+        val dir = folder.newFolder()
+        val db = TestDocumentTransactions()
+        val catalog = TestCatalog(db)
+        val unstable = PhotoImports(dir, {}, staging(dir) { throw IOException("Injected stage fsync failure") },
+            db, catalog) { _, _ -> error("No revision expected") }
+        val id = unstable.beginCapture()
+        val raw = CameraCaptureStore.outputFile(dir, id)
+        val bytes = bundledSyntheticPhoto()
+        raw.writeBytes(bytes)
+        assertThrows(StorageFailure::class.java) { runBlocking { unstable.stageCapture(id) } }
+        val stage = staging(dir)
+        val existing = stage.candidates().single()
+        val restarted = PhotoImports(dir, {}, stage, db, catalog) { _, _ -> error("No revision expected") }
+        assertEquals(id, existing.photoId)
+        assertEquals(existing, restarted.stageCapture(id))
+        assertArrayEquals(bytes, stage.read(existing))
+        assertArrayEquals(bytes, raw.readBytes())
+        assertTrue(restarted.list().confirmed.isEmpty())
+    }
+
+    @Test
     fun recoversPrivateBytesAfterSourceRemovalAndDetectsChangedStage() {
         val dir = folder.newFolder()
         val source = folder.newFile()
