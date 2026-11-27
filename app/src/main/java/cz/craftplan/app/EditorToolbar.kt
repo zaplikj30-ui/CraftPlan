@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
@@ -390,6 +391,7 @@ private fun EditorToolbarSurface(
     onGripRegion: (ToolbarGripRegion) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val expanded = state.toolbarExpanded
     val verticalExpanded = state.toolbarExtraExpanded
     val sideGrip = !expanded && !verticalExpanded
@@ -401,6 +403,9 @@ private fun EditorToolbarSurface(
     val activeColors = MaterialTheme.colorScheme
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
+    if (settingsOpen) {
+        EditorSettingsDialog(state, onDismiss = { settingsOpen = false })
+    }
     Box {
         Surface(
             modifier = (if (expanded || verticalExpanded) Modifier.fillMaxWidth() else Modifier)
@@ -562,6 +567,15 @@ private fun EditorToolbarSurface(
                     if (expanded) {
                         Box(Modifier.width(1.dp).height(28.dp).background(activeColors.outline))
                         Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = {
+                                    state.clearToolbarHint()
+                                    settingsOpen = true
+                                },
+                                modifier = toolbarButtonSize,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_toolbar_settings), stringResource(R.string.editor_settings), Modifier.size(toolbarIconSize))
+                            }
                             HistoryAction(false, R.string.toolbar_undo, state.history.canUndo) {
                                 val before = state.history
                                 state.undo()

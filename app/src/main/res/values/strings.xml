@@ -40,6 +40,10 @@
     <string name="dimension_move_selected">Až po označení</string>
     <string name="dimension_move_done">Hotovo</string>
     <string name="dimension_move_description">Posouvání kót: %1$s</string>
+    <string name="editor_settings">Nastavení</string>
+    <string name="editor_settings_help_section">Nápověda</string>
+    <string name="editor_settings_toolbar_hints">Krátká nápověda ikon</string>
+    <string name="editor_settings_toolbar_hints_detail">Zobrazovat popisky po stisknutí ikon nástrojových lišt.</string>
     <string name="toolbar_move_direct_hint">Přímé posouvání zapnuto</string>
     <string name="toolbar_move_selected_hint">Posouvání až po označení</string>
     <string name="toolbar_drawing_off">Kreslení vypnuto</string>
