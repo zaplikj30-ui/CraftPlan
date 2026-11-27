@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,36 +30,42 @@ import androidx.compose.ui.window.DialogProperties
 internal fun EditorSettingsDialog(state: PhotoEditorState, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 16.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.editor_settings), style = MaterialTheme.typography.headlineSmall)
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.dimension_move_done)) }
-                }
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.editor_settings_help_section),
-                        Modifier.padding(top = 16.dp, bottom = 8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.titleSmall)
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(
-                            value = state.toolbarHintsEnabled,
-                            role = Role.Switch,
-                            onValueChange = state::updateToolbarHintsEnabled,
-                        ).padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.editor_settings_toolbar_hints),
-                                style = MaterialTheme.typography.bodyLarge)
-                            Text(stringResource(R.string.editor_settings_toolbar_hints_detail),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium)
-                        }
-                        Switch(checked = state.toolbarHintsEnabled, onCheckedChange = null)
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.editor_settings), style = MaterialTheme.typography.headlineSmall)
+                        TextButton(onClick = onDismiss) { Text(stringResource(R.string.dimension_move_done)) }
                     }
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        Text(stringResource(R.string.editor_settings_help_section),
+                            Modifier.padding(top = 16.dp, bottom = 8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleSmall)
+                        Row(
+                            Modifier.fillMaxWidth().toggleable(
+                                value = state.toolbarHintsEnabled,
+                                role = Role.Switch,
+                                onValueChange = state::updateToolbarHintsEnabled,
+                            ).padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.editor_settings_toolbar_hints),
+                                    style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.editor_settings_toolbar_hints_detail),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Switch(checked = state.toolbarHintsEnabled, onCheckedChange = null)
+                        }
+                    }
+                }
+                if (state.toolbarHintsEnabled && state.toolbarHint == R.string.editor_settings) {
+                    ToolbarHintSurface(R.string.editor_settings,
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
                 }
             }
         }

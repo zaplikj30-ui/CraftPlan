@@ -83,41 +83,43 @@ internal fun EditorToolbar(
     val tool = state.scene.tool
     val sideGrip = !state.toolbarExpanded && !state.toolbarExtraExpanded
     Box(modifier.fillMaxWidth()) {
-    Column(Modifier.fillMaxWidth()) {
-        if (tool != DimensionTool.SELECT) {
-            Surface(
-                Modifier.align(Alignment.CenterHorizontally)
-                    .absoluteOffset(x = repeatHintOffset, y = if (sideGrip) 0.dp else gripTopOuterHitPadding)
-                    .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
-                shape = toolbarShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Text(
-                    stringResource(if (tool == DimensionTool.REPEAT) R.string.toolbar_repeat_active else R.string.drag_dimension_short),
-                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-        }
-        EditorToolbarSurface(state, onFixedToolbarTop, onGripRegion)
-    }
-        // Overlay only: transient feedback must not move the toolbar or the photo.
-        // Leave the existing active drawing guidance intact.
-        val hint = state.toolbarHint
-        if (state.toolbarHintsEnabled && hint != null && state.valueDraft == null) {
-            Box(Modifier.matchParentSize()) {
+        Column(Modifier.fillMaxWidth()) {
+            if (tool != DimensionTool.SELECT) {
                 Surface(
-                    Modifier.align(Alignment.TopCenter)
-                        .absoluteOffset(x = repeatHintOffset, y = (-32).dp)
-                        .padding(horizontal = 4.dp),
+                    Modifier.align(Alignment.CenterHorizontally)
+                        .absoluteOffset(x = repeatHintOffset, y = if (sideGrip) 0.dp else gripTopOuterHitPadding)
+                        .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
                     shape = toolbarShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
-                    Text(stringResource(hint), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        stringResource(if (tool == DimensionTool.REPEAT) R.string.toolbar_repeat_active else R.string.drag_dimension_short),
+                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
             }
+            EditorToolbarSurface(state, onFixedToolbarTop, onGripRegion)
         }
+        // Overlay only: transient feedback must not move the toolbar or the photo.
+        // Leave the existing active drawing guidance intact.
+        val hint = state.toolbarHint
+        val activeGuidance = if (tool == DimensionTool.SELECT) null else drawingToolHint(tool)
+        if (state.toolbarHintsEnabled && hint != null && hint != activeGuidance && state.valueDraft == null) {
+            Box(Modifier.matchParentSize()) {
+                ToolbarHintSurface(hint, Modifier.align(Alignment.TopCenter)
+                    .absoluteOffset(x = repeatHintOffset, y = (-32).dp))
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ToolbarHintSurface(label: Int, modifier: Modifier = Modifier) {
+    Surface(modifier.padding(horizontal = 4.dp), shape = toolbarShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Text(stringResource(label), Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -404,7 +406,7 @@ private fun EditorToolbarSurface(
     val fixedToolsLabel = stringResource(R.string.toolbar_horizontal_gesture)
     val repeatAction = stringResource(if (repeat) R.string.toolbar_repeat_off else R.string.toolbar_repeat_on)
     if (settingsOpen) {
-        EditorSettingsDialog(state, onDismiss = { settingsOpen = false })
+        EditorSettingsDialog(state, onDismiss = { state.clearToolbarHint(); settingsOpen = false })
     }
     Box {
         Surface(
@@ -569,7 +571,7 @@ private fun EditorToolbarSurface(
                         Row(Modifier.weight(1f).horizontalScroll(scrollState), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
-                                    state.clearToolbarHint()
+                                    state.showToolbarHint(R.string.editor_settings)
                                     settingsOpen = true
                                 },
                                 modifier = toolbarButtonSize,
