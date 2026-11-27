@@ -1228,7 +1228,7 @@ private fun CraftPlan(
             Column(
                 modifier = screen.verticalScroll(rememberScrollState()).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
             ) {
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
                 if (BuildConfig.ENABLE_STRESS_TOOLS) DiagnosticsOverlay(editorState)
