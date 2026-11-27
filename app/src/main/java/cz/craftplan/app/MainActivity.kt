@@ -98,7 +98,11 @@ class MainActivity : ComponentActivity() {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
                 CraftPlan(
-                    editorState, window, onCapture = { editorState.requestCapture { id -> systemCamera.launch(id) } },
+                    editorState, window, onCapture = {
+                        val mode = if (editorState.cameraPreviewEnabled) CameraResultMode.CRAFTPLAN_PREVIEW
+                            else CameraResultMode.DIRECT_AFTER_SUCCESS
+                        editorState.requestCapture { id -> systemCamera.launch(id, mode) }
+                    },
                     onStopCameraWait = systemCamera::stopWaiting,
                 )
             }
@@ -724,6 +728,8 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         private set
     var toolbarLayout by mutableStateOf(ToolbarLayout.Default)
         private set
+    var cameraPreviewEnabled by mutableStateOf(true)
+        private set
     var toolbarHintsEnabled by mutableStateOf(true)
         private set
     var toolbarHint by mutableStateOf<Int?>(null)
@@ -771,6 +777,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         toolbarExtraExpanded = source.getBoolean("toolbar_extra_expanded", false)
         dimensionsRequireSelection = source.getBoolean("dimensions_require_selection", false)
         toolbarLayout = ToolbarLayout.fromPreference(source.all["toolbar_icon_layout"] as? String)
+        cameraPreviewEnabled = source.getBoolean("camera_preview_enabled", true)
         toolbarHintsEnabled = source.getBoolean("toolbar_hints_enabled", true)
         labelsLocked = source.getBoolean("labels_locked", false)
         val legacyAppearance = source.getInt("dimension_appearance_calibration", 0) < 1
@@ -818,6 +825,11 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         if (layout == toolbarLayout) return
         toolbarLayout = layout
         preferences?.edit()?.putString("toolbar_icon_layout", layout.toPreference())?.apply()
+    }
+
+    fun updateCameraPreviewEnabled(enabled: Boolean) {
+        cameraPreviewEnabled = enabled
+        preferences?.edit()?.putBoolean("camera_preview_enabled", enabled)?.apply()
     }
 
     fun updateToolbarHintsEnabled(enabled: Boolean) {

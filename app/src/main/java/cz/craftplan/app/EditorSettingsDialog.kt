@@ -39,6 +39,11 @@ internal fun EditorSettingsDialog(state: PhotoEditorState, onDismiss: () -> Unit
                         TextButton(onClick = onDismiss) { Text(stringResource(R.string.dimension_move_done)) }
                     }
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        Text(stringResource(R.string.camera_settings_section),
+                            Modifier.padding(top = 16.dp, bottom = 8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleSmall)
+                        CameraPreviewSetting(state)
                         Text(stringResource(R.string.editor_settings_help_section),
                             Modifier.padding(top = 16.dp, bottom = 8.dp),
                             color = MaterialTheme.colorScheme.primary,
