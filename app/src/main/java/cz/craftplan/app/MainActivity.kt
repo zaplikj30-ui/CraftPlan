@@ -163,7 +163,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        if (!isChangingConfigurations) editorState.stopDiagnostics()
+        // The explicitly launched document picker may cover the whole Activity.
+        // Preserve only that bounded recording; ordinary backgrounding still stops it.
+        if (!isChangingConfigurations &&
+            !(editorState.photo == null && editorState.diagnostics.keepRecordingForImportPicker)
+        ) editorState.stopDiagnostics()
         super.onStop()
     }
 }
@@ -1434,6 +1438,7 @@ private fun CraftPlan(
                     Text(stringResource(R.string.document_storage_diagnostic, code))
                 }
                 PhotoImportControls(editorState, onCapture, onStopCameraWait)
+                if (BuildConfig.ENABLE_STRESS_TOOLS) HomeDiagnosticMenu(editorState)
                 val number = BuildConfig.M1_BUILD_NUMBER
                 Text(
                     if (number > 0) stringResource(R.string.installed_version, BuildConfig.VERSION_NAME, number)

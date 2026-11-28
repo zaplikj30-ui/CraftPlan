@@ -173,6 +173,7 @@
     <string name="stress_hit">Detekce dotyku max. %1$.2f ms (%2$d měření)</string>
     <string name="installed_local_version">Verze %1$s · místní sestavení</string>
     <string name="diagnostic_timer">Záznam · %1$d s</string>
+    <string name="diagnostic_menu">Diagnostika</string>
     <string name="diagnostic_enable">Zapnout diagnostiku</string>
     <string name="diagnostic_disable">Vypnout diagnostiku</string>
     <string name="diagnostic_start">Zahájit záznam</string>

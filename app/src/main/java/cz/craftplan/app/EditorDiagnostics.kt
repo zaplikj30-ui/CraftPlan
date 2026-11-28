@@ -76,6 +76,7 @@ internal class EditorDiagnostics(
     private val targetNumbers = HashMap<UUID, Int>()
     private var started: Long? = null
     private var sessionIdentity = Any()
+    private var externalImportPickerPending = false
     private var ended: Long? = null
     private var nextMove = Long.MIN_VALUE
     private var nextPenHover = Long.MIN_VALUE
@@ -117,6 +118,18 @@ internal class EditorDiagnostics(
 
     fun expired(): Boolean = recording && now() - checkNotNull(started) >= durationLimitNs
 
+    // Main-thread, in-memory permission for this picker round trip only.
+    val keepRecordingForImportPicker: Boolean
+        get() = externalImportPickerPending && recording && !expired()
+
+    fun beginExternalImportPicker() {
+        externalImportPickerPending = recording && !expired()
+    }
+
+    fun finishExternalImportPicker() {
+        externalImportPickerPending = false
+    }
+
     fun start() {
         reset()
         started = now()
@@ -124,6 +137,7 @@ internal class EditorDiagnostics(
     }
 
     fun stop() {
+        finishExternalImportPicker()
         if (!recording) return
         ended = minOf(now(), checkNotNull(started) + durationLimitNs)
         val time = elapsedMs()
@@ -131,6 +145,7 @@ internal class EditorDiagnostics(
     }
 
     fun reset() {
+        finishExternalImportPicker()
         sessionIdentity = Any()
         started = null
         ended = null

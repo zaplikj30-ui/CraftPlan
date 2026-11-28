@@ -1,5 +1,6 @@
 package cz.craftplan.app
 
+import android.content.ActivityNotFoundException
 import android.graphics.Bitmap
 import android.widget.Toast
 import android.view.ViewTreeObserver
@@ -99,7 +100,10 @@ internal fun CameraPreviewSetting(state: PhotoEditorState, enabled: Boolean = tr
 
 @Composable
 internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit, onStopCameraWait: () -> Unit) {
+    val pickerContext = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        state.diagnostics.finishExternalImportPicker()
+        if (state.diagnostics.expired()) state.stopDiagnostics()
         if (uri != null) state.receivePhoto(uri)
     }
     val enabled = !state.importBusy && !state.openingPhoto
@@ -113,7 +117,20 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             Text(stringResource(R.string.camera_stop_waiting))
         }
     }
-    Button(onClick = { picker.launch(arrayOf("image/jpeg")) }, enabled = enabled) {
+    Button(onClick = {
+        state.diagnostics.beginExternalImportPicker()
+        var launched = false
+        try {
+            picker.launch(arrayOf("image/jpeg"))
+            launched = true
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(pickerContext.applicationContext, R.string.photo_add_failed, Toast.LENGTH_SHORT).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(pickerContext.applicationContext, R.string.photo_add_failed, Toast.LENGTH_SHORT).show()
+        } finally {
+            if (!launched) state.diagnostics.finishExternalImportPicker()
+        }
+    }, enabled = enabled) {
         Text(stringResource(R.string.import_photo))
     }
     val cases = state.importedPhotos.recoveryCases(state.captureInFlight, state.failedPhotoRecovery)

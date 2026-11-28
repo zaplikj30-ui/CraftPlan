@@ -11,8 +11,11 @@ import android.view.FrameMetrics
 import android.view.Window
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -123,7 +127,24 @@ internal fun rememberDiagnosticExport(state: PhotoEditorState): () -> Unit {
 }
 
 @Composable
-internal fun DiagnosticActions(state: PhotoEditorState, export: () -> Unit, closeMenu: () -> Unit) {
+internal fun HomeDiagnosticMenu(state: PhotoEditorState) {
+    var expanded by remember { mutableStateOf(false) }
+    val export = rememberDiagnosticExport(state)
+    Box {
+        TextButton(onClick = { expanded = true }, enabled = !state.importBusy && !state.openingPhoto) {
+            Text(stringResource(R.string.diagnostic_menu))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DiagnosticActions(state, export, allowInkIsolation = false) { expanded = false }
+        }
+    }
+}
+
+@Composable
+internal fun DiagnosticActions(
+    state: PhotoEditorState, export: () -> Unit, allowInkIsolation: Boolean = true,
+    closeMenu: () -> Unit,
+) {
     val context = LocalContext.current
     val diagnostics = state.diagnostics
     val build = BuildConfig.M1_BUILD_NUMBER.takeIf { it > 0 }
@@ -146,7 +167,7 @@ internal fun DiagnosticActions(state: PhotoEditorState, export: () -> Unit, clos
             closeMenu()
         },
     )
-    if (state.diagnosticsRecording) {
+    if (allowInkIsolation && state.diagnosticsRecording) {
         DropdownMenuItem(
             text = { Text(stringResource(if (diagnostics.isolateInkCheck) R.string.diagnostic_ink_isolation_off
                 else R.string.diagnostic_ink_isolation_on)) },

@@ -31,6 +31,35 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun externalPickerPreservesOnlyAnActiveBoundedRecording() {
+        var now = 0L
+        val recorder = EditorDiagnostics(now = { now }, durationLimitNs = 100L)
+        recorder.beginExternalImportPicker()
+        assertFalse(recorder.keepRecordingForImportPicker)
+        recorder.start()
+        assertFalse(recorder.keepRecordingForImportPicker)
+        recorder.beginExternalImportPicker()
+        assertTrue(recorder.keepRecordingForImportPicker)
+        recorder.finishExternalImportPicker()
+        assertFalse(recorder.keepRecordingForImportPicker)
+        assertTrue(recorder.recording)
+        recorder.beginExternalImportPicker()
+        recorder.stop()
+        assertFalse(recorder.keepRecordingForImportPicker)
+        recorder.start()
+        recorder.beginExternalImportPicker()
+        recorder.start()
+        assertFalse(recorder.keepRecordingForImportPicker)
+        recorder.beginExternalImportPicker()
+        now = 100L
+        assertFalse(recorder.keepRecordingForImportPicker)
+        assertTrue(recorder.expired())
+        recorder.stop()
+        recorder.start()
+        assertFalse(recorder.keepRecordingForImportPicker)
+    }
+
+    @Test
     fun importTimingIsLimitedToCurrentSessionAndRecordsCompletedAndFailedPhases() {
         var now = 0L
         val recorder = EditorDiagnostics(now = { now })
