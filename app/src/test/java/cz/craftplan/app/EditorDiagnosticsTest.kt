@@ -68,7 +68,7 @@ class EditorDiagnosticsTest {
         val old = recorder.beginPhotoImportTiming()
         recorder.start()
         recorder.finishPhotoImportTiming(old, true)
-        val timing = recorder.beginPhotoImportTiming()
+        val timing = recorder.beginPhotoImportTiming(optimizedCapacity = true)
         assertEquals(7, timing.measure(PhotoImportDiagnosticStage.STAGE_STREAM) { now += 20_000_000; 7 })
         timing.measure(PhotoImportDiagnosticStage.CAPACITY) {
             timing.measure(PhotoImportDiagnosticStage.CAPACITY_SOURCE_SIZE) { now += 3_000_000 }
@@ -86,6 +86,7 @@ class EditorDiagnosticsTest {
         recorder.finishPhotoImportTiming(timing, true)
         val report = recorder.export("local", null, "test", 36)
         assertEquals(8, report.lineSequence().count { it.contains("\tphoto_import ") })
+        assertTrue(report.contains("START capacity_mode=B"))
         assertTrue(report.contains("CAPACITY_SOURCE_SIZE elapsed_ns=3000000 completed=true"))
         assertTrue(report.contains("CAPACITY_VOLUME elapsed_ns=2000000 completed=true"))
         assertTrue(report.contains("CAPACITY_ALLOCATABLE elapsed_ns=15000000 completed=true"))

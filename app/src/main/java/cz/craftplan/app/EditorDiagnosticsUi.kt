@@ -167,6 +167,14 @@ internal fun DiagnosticActions(
             closeMenu()
         },
     )
+    if (!allowInkIsolation && BuildConfig.ENABLE_STRESS_TOOLS) {
+        DropdownMenuItem(
+            text = { Text(stringResource(if (state.optimizedImportCapacity) R.string.diagnostic_capacity_b
+                else R.string.diagnostic_capacity_a)) },
+            enabled = !state.importBusy && !state.openingPhoto,
+            onClick = { state.toggleImportCapacityMode(); closeMenu() },
+        )
+    }
     if (allowInkIsolation && state.diagnosticsRecording) {
         DropdownMenuItem(
             text = { Text(stringResource(if (diagnostics.isolateInkCheck) R.string.diagnostic_ink_isolation_off

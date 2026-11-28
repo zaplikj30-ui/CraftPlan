@@ -13,7 +13,7 @@ internal enum class PhotoListDiagnosticStage {
 }
 
 internal enum class PhotoImportDiagnosticStage {
-    REFRESH_WAIT, CAPACITY, CAPACITY_SOURCE_SIZE, CAPACITY_VOLUME, CAPACITY_ALLOCATABLE, SOURCE_OPEN, RECEIVE_TOTAL, STAGE_STREAM, STAGE_FILE_SYNC,
+    REFRESH_WAIT, CAPACITY, CAPACITY_SOURCE_SIZE, CAPACITY_VOLUME, CAPACITY_ALLOCATABLE, CAPACITY_STATFS, SOURCE_OPEN, RECEIVE_TOTAL, STAGE_STREAM, STAGE_FILE_SYNC,
     STAGE_VERIFY, STAGE_RENAME, STAGE_DIRECTORY_SYNC, PREVIEW_TOTAL, PREVIEW_READ_VERIFY,
     CATALOG_LOOKUP, DECODE, CONFIRMATION_EVIDENCE, LIST_REFRESH,
 }
@@ -273,9 +273,9 @@ internal class EditorDiagnostics(
             " elapsed_ns=${elapsedNs ?: "NA"} count=${count ?: "NA"} pending=${pending ?: "NA"}")
     }
 
-    fun beginPhotoImportTiming(): PhotoImportTiming? {
+    fun beginPhotoImportTiming(optimizedCapacity: Boolean = false): PhotoImportTiming? {
         val time = recordingTime() ?: return null
-        append(time, "photo_import START")
+        append(time, "photo_import START capacity_mode=${if (optimizedCapacity) "B" else "A"}")
         return PhotoImportTiming(sessionIdentity, now)
     }
 
@@ -498,7 +498,7 @@ internal class EditorDiagnostics(
         appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character/non-space class, no raw text; join by sample_end_uptime_ms (last retained point, not necessarily UP) and field, strokes is batch size.")
         appendLine("calculation_input: NATIVE_FIELD=BasicTextField callback (not proof of IME origin), FIELD=explicit field menu/pen action, KEYPAD=custom keys, INK=recognized handwriting; ECHO_IGNORED=exact duplicate before calculated state publication; system_input=system input permitted for that field. Tail is an allowlisted category after trimming ASCII spaces; lengths/counts only, no text. calculation_result records the actual draft calculation and field update; subsequent inputs may show a shorter prefix or other replacement, not proof of IME intent.")
         appendLine("photo_list: monotonic session timestamps, elapsed_ns includes dispatcher wait and IO; RECOVERY_END count=verified offers, LIST_END count=confirmed entries, pending=unconfirmed entries including active attempt; layout is Compose placement, not display presentation; counts only, no IDs or media.")
-        appendLine("photo_import: external selection callback to review ready/failure, monotonic durations; samples published at operation end, completed=false on interrupted/failed phase. CAPACITY/RECEIVE_TOTAL/PREVIEW_TOTAL/END include nested phases, do not add them together. Not frame presentation or external picker time. No URI, IDs, paths, metadata or image contents.")
+        appendLine("photo_import: external selection callback to review ready/failure, monotonic durations; samples published at operation end, completed=false on interrupted/failed phase. CAPACITY/RECEIVE_TOTAL/PREVIEW_TOTAL/END include nested phases, do not add them together. START capacity_mode=A detailed/B StatFs with detailed fallback; CAPACITY_STATFS only attempted in B with valid known source length; missing stages were not attempted. Not frame presentation or external picker time. No URI, IDs, paths, metadata or image contents.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }
