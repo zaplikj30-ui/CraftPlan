@@ -389,7 +389,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                 val candidate = withContext(Dispatchers.IO) {
                     val resolver = getApplication<Application>().contentResolver
                     require(uri.scheme == ContentResolver.SCHEME_CONTENT)
-                    timing.measure(PhotoImportDiagnosticStage.CAPACITY) { checkImportCapacity(resolver, uri) }
+                    timing.measure(PhotoImportDiagnosticStage.CAPACITY) { checkImportCapacity(resolver, uri, timing) }
                     val input = timing.measure(PhotoImportDiagnosticStage.SOURCE_OPEN) {
                         resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
                     }
@@ -412,11 +412,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     // The provider may not know the length, or the system capacity query can fail.
     // In that case the bounded stream and actual write remain the authority.
-    private fun checkImportCapacity(resolver: ContentResolver, uri: Uri) {
+    private fun checkImportCapacity(resolver: ContentResolver, uri: Uri, timing: PhotoImportTiming?) {
         val knownSize = try {
-            resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                val column = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (column >= 0 && cursor.moveToFirst() && !cursor.isNull(column)) cursor.getLong(column) else null
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_SOURCE_SIZE) {
+                resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                    val column = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (column >= 0 && cursor.moveToFirst() && !cursor.isNull(column)) cursor.getLong(column) else null
+                }
             }
         } catch (error: CancellationException) {
             throw error
@@ -427,7 +429,12 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         val available = try {
             val app = getApplication<Application>()
             val manager = app.getSystemService(StorageManager::class.java) ?: return
-            manager.getAllocatableBytes(manager.getUuidForPath(app.filesDir))
+            val uuid = timing.measure(PhotoImportDiagnosticStage.CAPACITY_VOLUME) {
+                manager.getUuidForPath(app.filesDir)
+            }
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_ALLOCATABLE) {
+                manager.getAllocatableBytes(uuid)
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {

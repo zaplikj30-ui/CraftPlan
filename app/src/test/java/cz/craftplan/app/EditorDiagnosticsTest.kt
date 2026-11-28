@@ -70,6 +70,11 @@ class EditorDiagnosticsTest {
         recorder.finishPhotoImportTiming(old, true)
         val timing = recorder.beginPhotoImportTiming()
         assertEquals(7, timing.measure(PhotoImportDiagnosticStage.STAGE_STREAM) { now += 20_000_000; 7 })
+        timing.measure(PhotoImportDiagnosticStage.CAPACITY) {
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_SOURCE_SIZE) { now += 3_000_000 }
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_VOLUME) { now += 2_000_000 }
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_ALLOCATABLE) { now += 15_000_000 }
+        }
         try {
             timing.measure(PhotoImportDiagnosticStage.DECODE) {
                 now += 30_000_000
@@ -80,10 +85,14 @@ class EditorDiagnosticsTest {
         recorder.stop()
         recorder.finishPhotoImportTiming(timing, true)
         val report = recorder.export("local", null, "test", 36)
-        assertEquals(4, report.lineSequence().count { it.contains("\tphoto_import ") })
+        assertEquals(8, report.lineSequence().count { it.contains("\tphoto_import ") })
+        assertTrue(report.contains("CAPACITY_SOURCE_SIZE elapsed_ns=3000000 completed=true"))
+        assertTrue(report.contains("CAPACITY_VOLUME elapsed_ns=2000000 completed=true"))
+        assertTrue(report.contains("CAPACITY_ALLOCATABLE elapsed_ns=15000000 completed=true"))
+        assertTrue(report.contains("CAPACITY elapsed_ns=20000000 completed=true"))
         assertTrue(report.contains("STAGE_STREAM elapsed_ns=20000000 completed=true"))
         assertTrue(report.contains("DECODE elapsed_ns=30000000 completed=false"))
-        assertTrue(report.contains("END elapsed_ns=50000000 completed=false"))
+        assertTrue(report.contains("END elapsed_ns=70000000 completed=false"))
         assertFalse(report.contains("private marker"))
     }
 
