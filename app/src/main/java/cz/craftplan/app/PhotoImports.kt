@@ -323,13 +323,11 @@ internal class PhotoImports(
         head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)
     }
 
-    suspend fun preview(
-        candidate: ImportCandidate, newExternalImport: Boolean = false,
-    ): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
+    suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         val bytes = staging.read(candidate)
         // Earlier versions could write the catalog before finishing the first revision.
         val existing = transactions.read { catalogPhoto(candidate.photoId) }
-        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = newExternalImport)
+        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = true)
     }
 
     suspend fun confirmPreview(
@@ -414,14 +412,34 @@ internal class PhotoImports(
     suspend fun save(request: DocumentSave): DocumentAck =
         existingRepository(request.snapshot.photo).save(request)
 
-    /** Only for a fresh external import whose native decoder could not produce an image.
-     * Never use for camera bytes, an uncertain save, a limit or a failed header probe. */
-    suspend fun rejectMalformedNewImport(candidate: ImportCandidate, error: Exception) {
-        val phase = error as? StorageFailure ?: return
-        val failure = phase.cause as? ImportValidationFailure ?: return
-        if (phase.phase == StoragePhase.IMPORT_PREVIEW &&
-            failure.reason == ImportRejection.JPEG_DECODE_MALFORMED && failure.decoderConfirmedMalformed
-        ) discard(candidate)
+    /**
+     * A rejected admission is not saved work. Native content errors also cover truncated
+     * images. A failed header alone may reject a fresh external selection, not a sole
+     * recovery source. The original outside the app is never changed.
+     * Camera cleanup uses the existing durable rejection protocol after a completed result.
+     */
+    suspend fun rejectInvalidPreview(
+        candidate: ImportCandidate, error: Exception,
+        freshExternal: Boolean = false, completedCamera: Boolean = false,
+    ): Boolean {
+        require(!(freshExternal && completedCamera))
+        val phase = error as? StorageFailure ?: return false
+        if (phase.phase != StoragePhase.IMPORT_PREVIEW) return false
+        val failure = phase.cause as? ImportValidationFailure ?: return false
+        val contentDamage = (failure.reason == ImportRejection.JPEG_DECODE_MALFORMED &&
+            failure.decoderConfirmedMalformed) ||
+            (failure.reason == ImportRejection.JPEG_TRUNCATED && failure.decoderConfirmedIncomplete)
+        val refusedExternal = freshExternal && (failure.reason == ImportRejection.JPEG_DECODE_MALFORMED ||
+            failure.reason == ImportRejection.JPEG_SIGNATURE)
+        if (!contentDamage && !refusedExternal) return false
+        if (hasConfirmationEvidence(candidate.photoId)) return false
+        if (completedCamera) {
+            rejectCapture(candidate)
+        } else {
+            if (!canDiscardUnconfirmedImport(candidate)) return false
+            discard(candidate)
+        }
+        return true
     }
 
     private suspend fun DocumentDao.mayDiscardStandaloneStage(id: PhotoId): Boolean =

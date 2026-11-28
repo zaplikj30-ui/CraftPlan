@@ -487,7 +487,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                         revokeCameraOutput(getApplication(), id)
                         storage.imports.stageCapture(id)
                     }
-                    loadPreview(candidate)
+                    loadPreview(candidate, completedCamera = fresh)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
@@ -496,7 +496,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                         // Preserve uncertain sources on disk without requiring technical inspection.
                         clearImportPreview()
                         newPhotoFailed = true
-                    } else {
+                    } else if (!newPhotoFailed) {
                         captureSources = withContext(Dispatchers.IO) { storage.imports.captureSources(id) }
                     }
                     throw error
@@ -579,19 +579,28 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         runImport(StoragePhase.IMPORT_PREVIEW) { loadPreview(candidate) }
     }
 
-    private suspend fun loadPreview(candidate: ImportCandidate, newExternalImport: Boolean = false) {
+    private suspend fun loadPreview(
+        candidate: ImportCandidate, newExternalImport: Boolean = false, completedCamera: Boolean = false,
+    ) {
         importCandidate = candidate
         importPreview = null
         failedImportDiscardCandidate = null
+        val mayReject = !recoveringConfirmedPhoto &&
+            confirmationAttempts.none { it.photoId == candidate.photoId } &&
+            (cameraPreviewId == null || completedCamera)
+        var rejected = false
         val (preview, confirmationExists) = try {
             withContext(Dispatchers.IO) {
                 val imports = storage.imports
                 val preview = try {
-                    imports.preview(candidate, newExternalImport = newExternalImport)
+                    imports.preview(candidate)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    if (newExternalImport) imports.rejectMalformedNewImport(candidate, error)
+                    if (mayReject) {
+                        rejected = imports.rejectInvalidPreview(candidate, error,
+                            freshExternal = newExternalImport, completedCamera = completedCamera)
+                    }
                     throw error
                 }
                 preview to imports.hasConfirmationEvidence(candidate.photoId)
@@ -599,7 +608,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            if (!newExternalImport && cameraPreviewId == null && !recoveringConfirmedPhoto &&
+            if (rejected) {
+                clearImportPreview()
+                newPhotoFailed = true
+            } else if (!newExternalImport && cameraPreviewId == null && !recoveringConfirmedPhoto &&
                 confirmationAttempts.none { it.photoId == candidate.photoId }
             ) {
                 // A failed bitmap is not evidence that a draft is safe to remove.

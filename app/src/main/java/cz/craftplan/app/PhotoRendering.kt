@@ -61,6 +61,9 @@ internal fun previewJpeg(
             // The same strict decoder also handles a failed header probe.
             // A complete result is not proof of corruption; raw bounds remain required.
             decodeJpeg(bytes, null, maximumEdge = 768).bitmap.recycle()
+            // If Android can decode it, do not classify inconsistent raw bounds
+            // as proven image damage. Geometry cannot yet be safely established.
+            throw ImportValidationFailure(ImportRejection.JPEG_METADATA_INVALID)
         }
         throw failure
     }
