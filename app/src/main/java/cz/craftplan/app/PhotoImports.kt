@@ -72,6 +72,13 @@ internal fun PhotoList.automaticRecoveryIndex(cases: List<PhotoRecoveryCase>, fa
     return cases.indexOfFirst { it.id !in emptyCaptureOnly }
 }
 
+/** Retain the selected identity when possible; after discard use the nearest page. */
+internal fun recoveryPageIndex(cases: List<PhotoRecoveryCase>, selected: PhotoId?, fallback: Int): Int {
+    if (cases.isEmpty()) return -1
+    val index = cases.indexOfFirst { it.id == selected }
+    return if (index >= 0) index else fallback.coerceIn(cases.indices)
+}
+
 /** One automatic offer per editor session, independent of the menu's composition.
  * Explicitly deferred work remains in the normal recovery list. */
 internal class AutomaticRecoveryOffer {

@@ -178,6 +178,19 @@ class PhotoImportTest {
     }
 
     @Test
+    fun recoveryPagingRetainsIdentityAndSelectsNearestRemainingCase() {
+        val first = PhotoRecoveryCase.Import(ImportCandidate(PhotoId(UUID.randomUUID().toString()), "a".repeat(64)))
+        val second = PhotoRecoveryCase.Camera(PhotoId(UUID.randomUUID().toString()))
+        val third = PhotoRecoveryCase.Saved(PhotoId(UUID.randomUUID().toString()))
+        val cases = listOf(first, second, third)
+        assertEquals(1, recoveryPageIndex(cases, second.id, 0))
+        assertEquals(0, recoveryPageIndex(listOf(second, third), second.id, 1))
+        assertEquals(1, recoveryPageIndex(listOf(first, third), second.id, 1))
+        assertEquals(1, recoveryPageIndex(listOf(first, second), third.id, 2))
+        assertEquals(-1, recoveryPageIndex(emptyList(), first.id, 0))
+    }
+
+    @Test
     fun automaticRecoveryOfferDoesNotReopenDeferredImportInSameSession() {
         val candidate = ImportCandidate(PhotoId(UUID.randomUUID().toString()), "a".repeat(64))
         val empty = PhotoList(emptyList(), emptyList())

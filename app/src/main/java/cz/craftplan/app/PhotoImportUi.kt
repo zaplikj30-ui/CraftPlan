@@ -9,6 +9,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -44,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
@@ -113,7 +119,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val technicalCaptures = if (BuildConfig.ENABLE_STRESS_TOOLS && state.diagnosticsEnabled)
         state.importedPhotos.emptyTechnicalCaptures(state.captureInFlight, state.failedPhotoRecovery) else emptyList()
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
-    var automaticRecovery by rememberSaveable { mutableStateOf(false) }
     var recoveryIndex by rememberSaveable { mutableStateOf(0) }
     var listPage by rememberSaveable { mutableStateOf<String?>(null) }
     val listStatus = state.photoListStatus
@@ -135,7 +140,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             else stringResource(R.string.photo_list_saved_title))
     }
     if (cases.isNotEmpty() && listStatus == PhotoListStatus.READY) {
-        TextButton(onClick = { state.suppressAutomaticRecovery(); automaticRecovery = false; recoveryOpen = true }, enabled = listEnabled) {
+        TextButton(onClick = {
+            state.suppressAutomaticRecovery()
+            recoveryIndex = 0
+            recoveryOpen = true
+        }, enabled = listEnabled) {
             Text(stringResource(R.string.photo_recovery_continue, cases.size))
         }
     }
@@ -152,7 +161,15 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         PhotoListStatus.READY -> Unit
     }
     val noReview = state.cameraPreviewId == null && state.importCandidate == null && !state.cameraReviewHidden
-    val canOffer = noReview && !state.newPhotoFailed && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
+    val canOffer = noReview && !recoveryOpen && !state.newPhotoFailed &&
+        listPage == null && listEnabled && listStatus == PhotoListStatus.READY
+    fun openCase(case: PhotoRecoveryCase) {
+        when (case) {
+            is PhotoRecoveryCase.Camera -> state.previewCapture(case.id)
+            is PhotoRecoveryCase.Import -> state.previewImport(case.candidate)
+            is PhotoRecoveryCase.Saved -> state.showConfirmedRecovery(case.id)
+        }
+    }
     LaunchedEffect(state.newPhotoFailed) {
         if (state.newPhotoFailed) {
             state.suppressAutomaticRecovery()
@@ -162,29 +179,24 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     LaunchedEffect(canOffer, cases) {
         if (canOffer) {
             val index = state.takeAutomaticRecoveryIndex(cases)
-            if (index >= 0) {
+            val case = cases.getOrNull(index)
+            // Preserve the startup rule: do not automatically interrupt for an
+            // unreadable source. Explicit recovery remains available for all cases.
+            if (case != null && (case.id == state.failedPhotoRecovery || state.recoveryPreview(case) != null)) {
                 recoveryIndex = index
-                automaticRecovery = true
                 recoveryOpen = true
             }
         }
     }
-    if (recoveryOpen && !state.newPhotoFailed && cases.isNotEmpty() && noReview && listPage == null) {
-        val index = recoveryIndex.coerceIn(cases.indices)
-        PhotoRecoveryDialog(
-            state, cases[index], index, cases.size,
-            requirePreview = automaticRecovery && cases[index].id != state.failedPhotoRecovery,
-            onStep = { automaticRecovery = false; recoveryIndex = index + it },
-            onDismiss = { recoveryOpen = false },
-            onOpen = { case ->
-                recoveryOpen = false
-                when (case) {
-                    is PhotoRecoveryCase.Camera -> state.previewCapture(case.id)
-                    is PhotoRecoveryCase.Import -> state.previewImport(case.candidate)
-                    is PhotoRecoveryCase.Saved -> state.showConfirmedRecovery(case.id)
-                }
-            },
-        )
+    LaunchedEffect(recoveryOpen, noReview, enabled, cases, listStatus, state.newPhotoFailed) {
+        if (recoveryOpen && noReview && enabled && listStatus == PhotoListStatus.READY && !state.newPhotoFailed) {
+            val index = recoveryPageIndex(cases, null, recoveryIndex)
+            if (index < 0) recoveryOpen = false
+            else {
+                recoveryIndex = index
+                openCase(cases[index])
+            }
+        }
     }
 
     if (noReview && (!recoveryOpen || cases.isEmpty())) {
@@ -229,6 +241,25 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val capture = state.cameraPreviewId
     val pendingId = capture ?: state.importCandidate?.photoId
     pendingId?.let { id ->
+        val recoveryPage = if (recoveryOpen && cases.any { it.id == id })
+            recoveryPageIndex(cases, id, recoveryIndex) else -1
+        val pager = if (recoveryPage >= 0) key(id, cases) {
+            rememberPagerState(initialPage = recoveryPage) { cases.size }
+        } else null
+        val reviewEnabled = enabled && (pager == null ||
+            (!pager.isScrollInProgress && cases.getOrNull(pager.settledPage)?.id == id))
+        LaunchedEffect(pager, pager?.settledPage, pager?.isScrollInProgress, enabled) {
+            if (pager != null && enabled && !pager.isScrollInProgress) {
+                val target = cases.getOrNull(pager.settledPage)
+                if (target != null && target.id != id) {
+                    // Switching pages only defers the current review; it never
+                    // confirms or discards it. Load just the newly selected case.
+                    recoveryIndex = pager.settledPage
+                    state.deferImport()
+                    openCase(target)
+                }
+            }
+        }
         val discardSource = state.selectedCaptureDigest != null
         val discardLabel = when {
             discardSource -> R.string.camera_discard_selected
@@ -267,8 +298,9 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             )
         } else {
             val shown = state.importPreview
-            val ordinary = state.ordinaryCameraReview && !state.retryingPhotoConfirmation
-            val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinary ||
+            val ordinaryCamera = state.ordinaryCameraReview && !state.retryingPhotoConfirmation
+            val ordinary = ordinaryCamera && !recoveryOpen
+            val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinaryCamera ||
                 (capture == null && !state.recoveringConfirmedPhoto && (shown != null || state.canDiscardFailedImport)))
             val confirmLabel = if (state.selectedCaptureSource != null) {
                 R.string.camera_recovery_save
@@ -276,20 +308,46 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             else if (capture != null) R.string.camera_confirm else R.string.import_confirm
             PhotoReviewDialog(
                 bitmap = shown?.bitmap,
-                showQuality = capture != null && shown != null && !shown.sourceDamaged &&
+                showQuality = !recoveryOpen && capture != null && shown != null && !shown.sourceDamaged &&
                     !state.recoveringConfirmedPhoto && state.captureSources.isEmpty() &&
                     state.selectedCaptureSource == null,
                 onDismissRequest = {
-                    if (enabled) {
-                        if (ordinary) confirmDiscard = true else state.deferImport()
+                    if (reviewEnabled) {
+                        if (ordinary) confirmDiscard = true
+                        else {
+                            recoveryOpen = false
+                            state.deferImport()
+                        }
                     }
                 },
+                imageContent = if (pager != null) { modifier ->
+                    HorizontalPager(
+                        state = pager,
+                        modifier = modifier,
+                        userScrollEnabled = enabled && cases.size > 1,
+                        key = { cases[it].id.name },
+                    ) { page ->
+                        val pageCase = cases.getOrNull(page)
+                        if (pageCase?.id == id && shown?.bitmap != null) {
+                            ZoomableReviewImage(shown.bitmap, Modifier.fillMaxSize(), inPager = true)
+                        } else {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(stringResource(if (pageCase?.id == id && !state.importBusy)
+                                    R.string.photo_recovery_preview_unavailable else R.string.import_working))
+                            }
+                        }
+                    }
+                } else null,
                 title = {
                     Text(stringResource(when {
+                        recoveryOpen -> R.string.photo_recovery_heading
                         state.recoveringConfirmedPhoto -> R.string.camera_recovery_open_sources
                         capture != null -> R.string.camera_preview
                         else -> R.string.import_preview
                     }))
+                    if (recoveryPage >= 0) {
+                        Text(stringResource(R.string.photo_recovery_position, recoveryPage + 1, cases.size))
+                    }
                 },
                 details = {
                     Column {
@@ -312,11 +370,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                                     is CaptureSource.Camera -> stringResource(R.string.camera_recovery_output)
                                     is CaptureSource.Stage -> stringResource(R.string.camera_recovery_stage, ++stageIndex)
                                 }
-                                TextButton(onClick = { state.previewCaptureSource(source) }, enabled = enabled) { Text(label) }
+                                TextButton(onClick = { state.previewCaptureSource(source) }, enabled = reviewEnabled) { Text(label) }
                             }
                         }
                         if (state.recoveringConfirmedPhoto && state.captureSources.isNotEmpty()) {
-                            TextButton(onClick = state::openConfirmedRecovery, enabled = enabled) {
+                            TextButton(onClick = state::openConfirmedRecovery, enabled = reviewEnabled) {
                                 Text(stringResource(R.string.camera_recovery_open_original))
                             }
                         }
@@ -324,13 +382,16 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 },
                 retake = if (ordinary) ReviewAction(R.string.camera_retake,
                     enabled && state.captureInFlight == null, onCapture) else null,
-                discard = if (canDiscard) ReviewAction(discardLabel, enabled) { confirmDiscard = true } else null,
-                confirm = ReviewAction(confirmLabel, enabled && shown != null && !shown.sourceDamaged) {
+                discard = if (canDiscard) ReviewAction(discardLabel, reviewEnabled) { confirmDiscard = true } else null,
+                confirm = ReviewAction(confirmLabel, reviewEnabled && shown != null && !shown.sourceDamaged) {
                     if (shown != null && !shown.sourceDamaged) {
                         state.confirmImport(shown.candidate, PhotoConfirmation.EXPLICIT)
                     }
                 },
-                later = if (ordinary) null else ReviewAction(R.string.photo_list_close, enabled, state::deferImport),
+                later = if (ordinary) null else ReviewAction(R.string.photo_list_close, reviewEnabled) {
+                    recoveryOpen = false
+                    state.deferImport()
+                },
             )
         }
     } ?: state.importDiagnostic?.let { code ->
@@ -358,153 +419,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     }
 }
 
-
-@Composable
-private fun PhotoRecoveryDialog(
-    state: PhotoEditorState,
-    case: PhotoRecoveryCase,
-    index: Int,
-    count: Int,
-    requirePreview: Boolean,
-    onStep: (Int) -> Unit,
-    onDismiss: () -> Unit,
-    onOpen: (PhotoRecoveryCase) -> Unit,
-) {
-    var preview by remember(case) { mutableStateOf<PhotoRecoveryPreview<Bitmap>?>(null) }
-    var loading by remember(case) { mutableStateOf(true) }
-    var approvedDiscard by remember(case) { mutableStateOf<ImportCandidate?>(null) }
-    val confirmingDiscard = approvedDiscard != null
-    val enabled = !state.importBusy && !state.openingPhoto
-    LaunchedEffect(case) {
-        preview = state.recoveryPreview(case)
-        loading = false
-    }
-    // An automatic offer is not a technical inspection dialog. Keep all cases
-    // available on request, but do not interrupt the user for a missing thumbnail.
-    LaunchedEffect(requirePreview, loading, preview) {
-        if (requirePreview && !loading && preview == null) onDismiss()
-    }
-    if (requirePreview && (loading || preview == null)) return
-    val title = when (case) {
-        is PhotoRecoveryCase.Camera -> R.string.camera_interrupted
-        is PhotoRecoveryCase.Import -> R.string.import_preview
-        is PhotoRecoveryCase.Saved -> R.string.camera_recovery_open_sources
-    }
-    val candidate = preview?.discardCandidate
-    if (confirmingDiscard) {
-        val selected = candidate?.takeIf { it == approvedDiscard }
-        AlertDialog(
-            onDismissRequest = { if (enabled) approvedDiscard = null },
-            title = { Text(stringResource(R.string.camera_discard_title)) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.camera_discard_warning))
-                    DiscardOperationStatus(state)
-                }
-            },
-            confirmButton = {
-                ReviewPill(ReviewAction(R.string.camera_discard_interrupted, enabled && selected != null) {
-                    // A successful refresh removes this case; failure keeps the confirmation open.
-                    if (selected != null && case is PhotoRecoveryCase.Camera) state.discardInterruptedCapture(case, selected)
-                }, Modifier, destructive = true)
-            },
-            dismissButton = {
-                ReviewPill(ReviewAction(R.string.cancel_value, enabled) { approvedDiscard = null }, Modifier)
-            },
-        )
-        return
-    }
-
-    val heading: @Composable () -> Unit = {
-        Text(stringResource(title), style = MaterialTheme.typography.titleLarge)
-        if (count > 1) {
-            Text(stringResource(R.string.photo_recovery_position, index + 1, count),
-                style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-    val thumbnail: @Composable (Modifier) -> Unit = { modifier ->
-        Box(modifier, contentAlignment = Alignment.Center) {
-            val image = preview?.image
-            when {
-                image != null -> Image(image.asImageBitmap(), stringResource(title),
-                    Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                loading -> Text(stringResource(R.string.import_working))
-                else -> Text(stringResource(R.string.photo_recovery_preview_unavailable))
-            }
-        }
-    }
-    val actions: @Composable () -> Unit = {
-        if (preview?.sourceDamaged == true) {
-            Text(stringResource(R.string.import_damage_warning), color = MaterialTheme.colorScheme.error)
-        }
-        state.importDiagnostic?.let {
-            Text(stringResource(R.string.document_storage_diagnostic, it),
-                color = MaterialTheme.colorScheme.error)
-        }
-        if (count > 1) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReviewPill(ReviewAction(R.string.photo_recovery_previous, enabled && index > 0) { onStep(-1) },
-                    Modifier.weight(1f))
-                ReviewPill(ReviewAction(R.string.photo_recovery_next, enabled && index + 1 < count) { onStep(1) },
-                    Modifier.weight(1f))
-            }
-        }
-        ReviewPill(ReviewAction(
-            if (case is PhotoRecoveryCase.Saved || (!loading && preview == null))
-                R.string.photo_recovery_inspect else R.string.camera_show_interrupted,
-            enabled,
-        ) { onOpen(case) }, Modifier.fillMaxWidth(), primary = true)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (candidate != null && case is PhotoRecoveryCase.Camera) {
-                ReviewPill(ReviewAction(R.string.camera_discard_interrupted, enabled) { approvedDiscard = candidate },
-                    Modifier.weight(1f))
-            }
-            ReviewPill(ReviewAction(R.string.photo_list_close, enabled, onDismiss), Modifier.weight(1f))
-        }
-    }
-
-    Dialog(
-        onDismissRequest = { if (enabled) onDismiss() },
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Surface(
-            Modifier.widthIn(max = 760.dp).fillMaxWidth(0.94f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
-                if (maxWidth > maxHeight && maxWidth >= 500.dp) {
-                    val panelWidth = minOf(320.dp, maxWidth * 0.45f)
-                    val dialogHeight = minOf(420.dp, maxHeight)
-                    Row(Modifier.fillMaxWidth().height(dialogHeight),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        thumbnail(Modifier.weight(1f).fillMaxHeight())
-                        Column(
-                            Modifier.width(panelWidth).fillMaxHeight().verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            heading()
-                            actions()
-                        }
-                    }
-                } else {
-                    val imageHeight = minOf(400.dp, maxHeight * 0.50f)
-                    Column(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        heading()
-                        thumbnail(Modifier.fillMaxWidth().height(imageHeight))
-                        actions()
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun PhotoListDialog(title: Int, onDismiss: () -> Unit, content: LazyListScope.() -> Unit) {
@@ -577,7 +491,13 @@ private fun PhotoReviewDialog(
     discard: ReviewAction?,
     confirm: ReviewAction,
     later: ReviewAction?,
+    imageContent: (@Composable (Modifier) -> Unit)? = null,
 ) {
+    val hasImage = bitmap != null || imageContent != null
+    val image: @Composable (Modifier) -> Unit = { modifier ->
+        if (imageContent != null) imageContent(modifier)
+        else if (bitmap != null) ZoomableReviewImage(bitmap, modifier)
+    }
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(
@@ -589,11 +509,11 @@ private fun PhotoReviewDialog(
         PhotoReviewFullscreenEffect()
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
-                if (maxWidth > maxHeight && bitmap != null) {
+                if (maxWidth > maxHeight && hasImage) {
                     // Evaluate BoxWithConstraints values before entering RowScope.
                     val controlsWidth = minOf(180.dp, maxWidth * 0.30f)
                     Row(Modifier.fillMaxSize()) {
-                        ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxHeight())
+                        image(Modifier.weight(1f).fillMaxHeight())
                         Column(
                             Modifier.width(controlsWidth).fillMaxHeight()
                                 .verticalScroll(rememberScrollState()).padding(8.dp),
@@ -611,11 +531,11 @@ private fun PhotoReviewDialog(
                 } else {
                     val detailsLimit = maxHeight * 0.48f
                     Column(Modifier.fillMaxSize()) {
-                        if (bitmap != null) {
-                            ZoomableReviewImage(bitmap, Modifier.weight(1f).fillMaxWidth())
+                        if (hasImage) {
+                            image(Modifier.weight(1f).fillMaxWidth())
                         }
                         Column(
-                            (if (bitmap != null) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
+                            (if (hasImage) Modifier.fillMaxWidth().heightIn(max = detailsLimit)
                             else Modifier.weight(1f).fillMaxWidth())
                                 .verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -683,28 +603,36 @@ private fun ReviewPill(
 }
 
 @Composable
-private fun ZoomableReviewImage(bitmap: Bitmap, modifier: Modifier) {
+private fun ZoomableReviewImage(bitmap: Bitmap, modifier: Modifier, inPager: Boolean = false) {
     BoxWithConstraints(modifier.clipToBounds(), contentAlignment = Alignment.Center) {
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
         val fit = minOf(width / bitmap.width, height / bitmap.height)
         var scale by remember(bitmap, width, height) { mutableStateOf(1f) }
         var offset by remember(bitmap, width, height) { mutableStateOf(Offset.Zero) }
+        fun transform(centroid: Offset, pan: Offset, zoom: Float) {
+            val next = (scale * zoom).coerceIn(1f, 5f)
+            val center = Offset(width / 2f, height / 2f)
+            val anchor = if (centroid.isSpecified) centroid else center
+            val moved = (offset + center - anchor) * (next / scale) + anchor - center + pan
+            val maxX = ((bitmap.width * fit * next - width) / 2f).coerceAtLeast(0f)
+            val maxY = ((bitmap.height * fit * next - height) / 2f).coerceAtLeast(0f)
+            offset = Offset(moved.x.coerceIn(-maxX, maxX), moved.y.coerceIn(-maxY, maxY))
+            scale = next
+        }
+        val gestures = if (inPager) {
+            val transformState = rememberTransformableState { centroid, zoom, pan, _ ->
+                transform(centroid, pan, zoom)
+            }
+            Modifier.transformable(transformState, canPan = { scale > 1f })
+        } else Modifier.pointerInput(bitmap, width, height) {
+            detectTransformGestures { centroid, pan, zoom, _ -> transform(centroid, pan, zoom) }
+        }
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = stringResource(R.string.camera_preview),
             modifier = Modifier.fillMaxSize()
-                .pointerInput(bitmap, width, height) {
-                    detectTransformGestures { centroid, pan, zoom, _ ->
-                        val next = (scale * zoom).coerceIn(1f, 5f)
-                        val center = Offset(width / 2f, height / 2f)
-                        val moved = (offset + center - centroid) * (next / scale) + centroid - center + pan
-                        val maxX = ((bitmap.width * fit * next - width) / 2f).coerceAtLeast(0f)
-                        val maxY = ((bitmap.height * fit * next - height) / 2f).coerceAtLeast(0f)
-                        offset = Offset(moved.x.coerceIn(-maxX, maxX), moved.y.coerceIn(-maxY, maxY))
-                        scale = next
-                    }
-                }
+                .then(gestures)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
