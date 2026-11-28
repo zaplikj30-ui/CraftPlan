@@ -343,7 +343,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         diagnostics.photoListStage(PhotoListDiagnosticStage.RECOVERY_PREVIEW_START)
         try {
             val result = withContext(Dispatchers.IO) {
-                storage.imports.inspectRecovery(case, { revokeCameraOutput(getApplication(), it) }, ::decodeRecoveryPreview)
+                storage.imports.inspectRecovery(case, { revokeCameraOutput(getApplication(), it) }) { copy ->
+                    decodeRecoveryPreview(copy, allowPartial = case is PhotoRecoveryCase.Saved)
+                }
             }
             return if (confirmationAttempts.any { it.photoId == case.id }) result?.copy(discardCandidate = null) else result
         } catch (error: CancellationException) {
@@ -635,7 +637,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun confirmImport(displayed: ImportCandidate, confirmation: PhotoConfirmation) {
-        val preview = importPreview?.takeIf { it.candidate == displayed } ?: return
+        val preview = importPreview?.takeIf { it.candidate == displayed && !it.sourceDamaged } ?: return
         require(confirmation != PhotoConfirmation.AUTOMATIC)
         val source = selectedCaptureSource
         runImport(StoragePhase.REVISION_CONFIRM) { saveConfirmedPreview(preview, confirmation, source) }

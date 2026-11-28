@@ -137,8 +137,8 @@ class PhotoImportTest {
         assertFalse(CameraResultMode.CRAFTPLAN_PREVIEW.confirmsAutomatically(true, false))
         assertFalse(PhotoConfirmation.AUTOMATIC.permits(true))
         assertFalse(PhotoConfirmation.EXPLICIT.permits(true))
-        assertTrue(PhotoConfirmation.EXPLICIT_DAMAGED.permits(true))
-        assertFalse(PhotoConfirmation.EXPLICIT_DAMAGED.permits(false))
+        assertTrue(PhotoConfirmation.EXPLICIT.permits(false))
+        assertTrue(PhotoConfirmation.AUTOMATIC.permits(false))
     }
 
     @Test
@@ -916,11 +916,15 @@ class PhotoImportTest {
     }
 
     @Test
-    fun partialPolicyAllowsOnlyDecoderReportedContentDamage() {
-        assertEquals(true, canShowPartialJpeg(DecodeException.SOURCE_INCOMPLETE))
-        assertEquals(true, canShowPartialJpeg(DecodeException.SOURCE_MALFORMED_DATA))
-        assertFalse(canShowPartialJpeg(DecodeException.SOURCE_EXCEPTION))
-        assertFalse(canShowPartialJpeg(Int.MAX_VALUE))
+    fun partialPolicyRejectsNewImagesAndPreservesLegacyReadCompatibility() {
+        for (error in listOf(DecodeException.SOURCE_INCOMPLETE, DecodeException.SOURCE_MALFORMED_DATA,
+            DecodeException.SOURCE_EXCEPTION, Int.MAX_VALUE)) {
+            assertFalse(canShowPartialJpeg(error))
+        }
+        assertTrue(canShowPartialJpeg(DecodeException.SOURCE_INCOMPLETE, allowPartial = true))
+        assertTrue(canShowPartialJpeg(DecodeException.SOURCE_MALFORMED_DATA, allowPartial = true))
+        assertFalse(canShowPartialJpeg(DecodeException.SOURCE_EXCEPTION, allowPartial = true))
+        assertFalse(canShowPartialJpeg(Int.MAX_VALUE, allowPartial = true))
     }
 
     @Test

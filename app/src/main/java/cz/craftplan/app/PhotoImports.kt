@@ -13,9 +13,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 internal enum class PhotoConfirmation {
-    AUTOMATIC, EXPLICIT, EXPLICIT_DAMAGED;
+    AUTOMATIC, EXPLICIT;
 
-    fun permits(sourceDamaged: Boolean): Boolean = sourceDamaged == (this == EXPLICIT_DAMAGED)
+    fun permits(sourceDamaged: Boolean): Boolean = !sourceDamaged
 }
 
 internal enum class CameraResultMode {

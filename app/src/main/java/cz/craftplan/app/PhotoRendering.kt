@@ -41,6 +41,7 @@ internal enum class ImportRejection {
 internal class ImportValidationFailure(
     val reason: ImportRejection,
     val decoderConfirmedMalformed: Boolean = false,
+    val decoderConfirmedIncomplete: Boolean = false,
 ) : IllegalArgumentException()
 
 private data class DecodedJpeg(val bitmap: Bitmap, val partial: Boolean)
@@ -57,16 +58,16 @@ internal fun previewJpeg(
         if (verifyMalformedHeader && failure.reason == ImportRejection.JPEG_DECODE_MALFORMED &&
             bytes.size >= 2 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte()
         ) {
-            // Accept partial images for this probe too; a returned bitmap must never
-            // turn into permission to delete the source. Raw bounds are still required.
+            // The same strict decoder also handles a failed header probe.
+            // A complete result is not proof of corruption; raw bounds remain required.
             decodeJpeg(bytes, null, maximumEdge = 768).bitmap.recycle()
         }
         throw failure
     }
     require(photo.id == candidate.photoId && photo.sha256 == candidate.digest && photo.size == bytes.size)
     val decoded = if (photo.anchorMapVersion == 1) {
-        // A resumed legacy import can still need approval for partial content.
-        // Keep its catalogued orientation and use the native decode only as a probe.
+        // A legacy candidate must pass the same admission policy; keep its
+        // catalogued orientation and use native decode as the validation probe.
         val probe = decodeJpeg(bytes, photo, minimumSample = 8)
         probe.bitmap.recycle()
         DecodedJpeg(decodeLegacyPhoto(bytes, photo), probe.partial)
@@ -74,8 +75,9 @@ internal fun previewJpeg(
     return ImportPreview(candidate, photo, decoded.bitmap, decoded.partial)
 }
 
-internal fun decodeRecoveryPreview(copy: CaptureCopy): RecoveryImage<Bitmap> {
-    val decoded = decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes), maximumEdge = 768)
+internal fun decodeRecoveryPreview(copy: CaptureCopy, allowPartial: Boolean = false): RecoveryImage<Bitmap> {
+    val decoded = decodeJpeg(copy.bytes, inspectJpeg(copy.candidate, copy.bytes),
+        maximumEdge = 768, allowPartial = allowPartial)
     return RecoveryImage(decoded.bitmap, decoded.partial)
 }
 
@@ -96,7 +98,9 @@ private fun inspectJpeg(candidate: ImportCandidate, bytes: ByteArray): StoredPho
 }
 
 internal fun decodePhoto(bytes: ByteArray, photo: StoredPhoto): Bitmap =
-    if (photo.anchorMapVersion == 1) decodeLegacyPhoto(bytes, photo) else decodeJpeg(bytes, photo).bitmap
+    // Older versions accepted damaged images; preserve access to existing work.
+    if (photo.anchorMapVersion == 1) decodeLegacyPhoto(bytes, photo)
+    else decodeJpeg(bytes, photo, allowPartial = true).bitmap
 
 /** Maps extents between the raw JPEG axes and the canonical editor axes in either direction. */
 internal fun photoDimensions(width: Int, height: Int, orientation: Int): Pair<Int, Int> {
@@ -104,13 +108,14 @@ internal fun photoDimensions(width: Int, height: Int, orientation: Int): Pair<In
     return if (orientation >= 5) height to width else width to height
 }
 
-/** Source errors are not consent to keep a partially decoded image. */
-internal fun canShowPartialJpeg(error: Int): Boolean =
-    error == ImageDecoder.DecodeException.SOURCE_INCOMPLETE ||
-        error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA
+/** Partial decoding is a compatibility path for already-published work only. */
+internal fun canShowPartialJpeg(error: Int, allowPartial: Boolean = false): Boolean =
+    allowPartial && (error == ImageDecoder.DecodeException.SOURCE_INCOMPLETE ||
+        error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA)
 
 private fun decodeJpeg(
     bytes: ByteArray, photo: StoredPhoto?, minimumSample: Int = 1, maximumEdge: Int? = null,
+    allowPartial: Boolean = false,
 ): DecodedJpeg {
     val expectedSize = photo?.let { photoDimensions(it.width, it.height, it.storedOrientation) }
     var partial = false
@@ -135,7 +140,7 @@ private fun decodeJpeg(
                 decoder.setTargetSampleSize(maxOf(minimumSample, jpegSampleSize(width, height)))
             }
             decoder.setOnPartialImageListener { error ->
-                canShowPartialJpeg(error.error).also { partial = it }
+                canShowPartialJpeg(error.error, allowPartial).also { partial = it }
             }
         }
     } catch (error: ImageDecoder.DecodeException) {
@@ -145,7 +150,8 @@ private fun decodeJpeg(
             else -> ImportRejection.JPEG_DECODE_FAILED
         }
         throw ImportValidationFailure(reason,
-            decoderConfirmedMalformed = error.error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA)
+            decoderConfirmedMalformed = error.error == ImageDecoder.DecodeException.SOURCE_MALFORMED_DATA,
+            decoderConfirmedIncomplete = error.error == ImageDecoder.DecodeException.SOURCE_INCOMPLETE)
     }
     return DecodedJpeg(bitmap, partial)
 }

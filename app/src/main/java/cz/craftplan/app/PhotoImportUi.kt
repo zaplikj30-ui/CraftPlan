@@ -273,10 +273,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinary ||
                 (capture == null && !state.recoveringConfirmedPhoto && (shown != null || state.canDiscardFailedImport)))
             val confirmLabel = if (state.selectedCaptureSource != null) {
-                if (shown?.sourceDamaged == true) R.string.camera_recovery_save_damaged
-                else R.string.camera_recovery_save
-            } else if (shown?.sourceDamaged == true) {
-                R.string.import_confirm_damaged
+                R.string.camera_recovery_save
             } else if (state.retryingPhotoConfirmation) R.string.document_retry
             else if (capture != null) R.string.camera_confirm else R.string.import_confirm
             PhotoReviewDialog(
@@ -330,11 +327,9 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 retake = if (ordinary) ReviewAction(R.string.camera_retake,
                     enabled && state.captureInFlight == null, onCapture) else null,
                 discard = if (canDiscard) ReviewAction(discardLabel, enabled) { confirmDiscard = true } else null,
-                confirm = ReviewAction(confirmLabel, enabled && shown != null) {
-                    if (shown != null) {
-                        val consent = if (shown.sourceDamaged) PhotoConfirmation.EXPLICIT_DAMAGED
-                            else PhotoConfirmation.EXPLICIT
-                        state.confirmImport(shown.candidate, consent)
+                confirm = ReviewAction(confirmLabel, enabled && shown != null && !shown.sourceDamaged) {
+                    if (shown != null && !shown.sourceDamaged) {
+                        state.confirmImport(shown.candidate, PhotoConfirmation.EXPLICIT)
                     }
                 },
                 later = if (ordinary) null else ReviewAction(R.string.photo_list_close, enabled, state::deferImport),
