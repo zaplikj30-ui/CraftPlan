@@ -72,6 +72,22 @@ internal fun PhotoList.automaticRecoveryIndex(cases: List<PhotoRecoveryCase>, fa
     return cases.indexOfFirst { it.id !in emptyCaptureOnly }
 }
 
+/** One automatic offer per editor session, independent of the menu's composition.
+ * Explicitly deferred work remains in the normal recovery list. */
+internal class AutomaticRecoveryOffer {
+    private var handled = false
+
+    fun suppress() {
+        handled = true
+    }
+
+    fun takeIndex(photos: PhotoList, cases: List<PhotoRecoveryCase>, failed: PhotoId?): Int {
+        if (handled || cases.isEmpty()) return -1
+        suppress()
+        return photos.automaticRecoveryIndex(cases, failed)
+    }
+}
+
 internal data class RecoveryImage<T>(val image: T, val sourceDamaged: Boolean)
 
 internal data class PhotoRecoveryPreview<T>(

@@ -202,7 +202,15 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     var newPhotoFailed by mutableStateOf(false)
         private set
 
+    private val automaticRecoveryOffer = AutomaticRecoveryOffer()
+
+    fun suppressAutomaticRecovery() = automaticRecoveryOffer.suppress()
+
+    fun takeAutomaticRecoveryIndex(cases: List<PhotoRecoveryCase>): Int =
+        automaticRecoveryOffer.takeIndex(importedPhotos, cases, failedPhotoRecovery)
+
     fun dismissNewPhotoFailure() {
+        suppressAutomaticRecovery()
         newPhotoFailed = false
         importDiagnostic = null
     }
@@ -633,6 +641,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     fun deferImport() {
         if (importBusy) return
+        // Consume the automatic offer before clearing the review. The pending
+        // candidate is still available manually and on the next fresh session.
+        suppressAutomaticRecovery()
         clearImportPreview()
         importDiagnostic = null
     }

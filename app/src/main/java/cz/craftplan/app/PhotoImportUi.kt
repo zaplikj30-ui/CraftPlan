@@ -113,7 +113,6 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val technicalCaptures = if (BuildConfig.ENABLE_STRESS_TOOLS && state.diagnosticsEnabled)
         state.importedPhotos.emptyTechnicalCaptures(state.captureInFlight, state.failedPhotoRecovery) else emptyList()
     var recoveryOpen by rememberSaveable { mutableStateOf(false) }
-    var recoveryOffered by rememberSaveable { mutableStateOf(false) }
     var automaticRecovery by rememberSaveable { mutableStateOf(false) }
     var recoveryIndex by rememberSaveable { mutableStateOf(0) }
     var listPage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -136,7 +135,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             else stringResource(R.string.photo_list_saved_title))
     }
     if (cases.isNotEmpty() && listStatus == PhotoListStatus.READY) {
-        TextButton(onClick = { recoveryOffered = true; automaticRecovery = false; recoveryOpen = true }, enabled = listEnabled) {
+        TextButton(onClick = { state.suppressAutomaticRecovery(); automaticRecovery = false; recoveryOpen = true }, enabled = listEnabled) {
             Text(stringResource(R.string.photo_recovery_continue, cases.size))
         }
     }
@@ -156,14 +155,13 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     val canOffer = noReview && !state.newPhotoFailed && listPage == null && listEnabled && listStatus == PhotoListStatus.READY
     LaunchedEffect(state.newPhotoFailed) {
         if (state.newPhotoFailed) {
-            recoveryOffered = true
+            state.suppressAutomaticRecovery()
             recoveryOpen = false
         }
     }
     LaunchedEffect(canOffer, cases) {
-        if (canOffer && cases.isNotEmpty() && !recoveryOffered) {
-            recoveryOffered = true
-            val index = state.importedPhotos.automaticRecoveryIndex(cases, state.failedPhotoRecovery)
+        if (canOffer) {
+            val index = state.takeAutomaticRecoveryIndex(cases)
             if (index >= 0) {
                 recoveryIndex = index
                 automaticRecovery = true

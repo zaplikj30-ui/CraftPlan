@@ -178,6 +178,29 @@ class PhotoImportTest {
     }
 
     @Test
+    fun automaticRecoveryOfferDoesNotReopenDeferredImportInSameSession() {
+        val candidate = ImportCandidate(PhotoId(UUID.randomUUID().toString()), "a".repeat(64))
+        val empty = PhotoList(emptyList(), emptyList())
+        val pending = empty.copy(pending = listOf(candidate))
+        val cases = pending.recoveryCases(null, null)
+        val session = AutomaticRecoveryOffer()
+        assertEquals(-1, session.takeIndex(empty, emptyList(), null))
+
+        // Closing a valid review consumes the offer before the menu reappears.
+        session.suppress()
+        assertEquals(-1, session.takeIndex(pending, cases, null))
+        assertEquals(listOf(PhotoRecoveryCase.Import(candidate)), pending.recoveryCases(null, null))
+        // Recomposition, returning from the editor, and refresh do not reset it.
+        assertEquals(-1, session.takeIndex(empty, emptyList(), null))
+        assertEquals(-1, session.takeIndex(pending, cases, null))
+
+        // A new ViewModel session still offers genuine interrupted work once.
+        val restarted = AutomaticRecoveryOffer()
+        assertEquals(0, restarted.takeIndex(pending, cases, null))
+        assertEquals(-1, restarted.takeIndex(pending, cases, null))
+    }
+
+    @Test
     fun recoveryIndexKeepsAllSourcesAndDecodesOnlyTheSelectedCase() = runBlocking {
         val dir = folder.newFolder()
         val db = TestDocumentTransactions()
