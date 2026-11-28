@@ -40,7 +40,7 @@
     <string name="photo_recovery_position">%1$d z %2$d</string>
     <string name="photo_recovery_previous">Předchozí</string>
     <string name="photo_recovery_next">Další</string>
-    <string name="photo_recovery_preview_unavailable">Zmenšený náhled není dostupný. Zdroj lze zkontrolovat samostatně.</string>
+    <string name="photo_recovery_preview_unavailable">Náhled fotografie není dostupný.</string>
     <string name="photo_recovery_inspect">Zkontrolovat zdroj</string>
     <string name="camera_interrupted">Nedokončené fotografování</string>
     <string name="camera_show_interrupted">Zobrazit snímek</string>
