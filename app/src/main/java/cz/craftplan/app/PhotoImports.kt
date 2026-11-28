@@ -79,6 +79,13 @@ internal fun recoveryPageIndex(cases: List<PhotoRecoveryCase>, selected: PhotoId
     return if (index >= 0) index else fallback.coerceIn(cases.indices)
 }
 
+/** One optional display-only neighbour; no probing of external camera writers. */
+internal fun recoveryPrefetchCase(cases: List<PhotoRecoveryCase>, selected: PhotoId): PhotoRecoveryCase.Import? {
+    val index = cases.indexOfFirst { it.id == selected }
+    if (index < 0) return null
+    return (cases.getOrNull(index + 1) ?: cases.getOrNull(index - 1)) as? PhotoRecoveryCase.Import
+}
+
 /** One automatic offer per editor session, independent of the menu's composition.
  * Explicitly deferred work remains in the normal recovery list. */
 internal class AutomaticRecoveryOffer {

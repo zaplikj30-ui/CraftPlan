@@ -246,6 +246,22 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     if (state.cameraReviewHidden) return
     val capture = state.cameraPreviewId
     val activeReviewId = capture ?: state.importCandidate?.photoId
+    // A single, display-only thumbnail. It is not a validated ImportPreview
+    // and cannot be used for confirmation or discard. Closing recovery drops it.
+    var prefetched by remember(recoveryOpen) {
+        mutableStateOf<Pair<PhotoRecoveryCase.Import, Bitmap>?>(null)
+    }
+    LaunchedEffect(recoveryOpen, activeReviewId, enabled, cases, state.importPreview?.candidate) {
+        if (!recoveryOpen || !enabled || activeReviewId == null) return@LaunchedEffect
+        val current = state.importPreview
+        val next = if (current != null) recoveryPrefetchCase(cases, activeReviewId) else null
+        if (prefetched?.first == next) return@LaunchedEffect
+        prefetched = null
+        if (next != null) {
+            val result = state.recoveryPreview(next)
+            if (result != null && !result.sourceDamaged) prefetched = next to result.image
+        }
+    }
     // Keep the same full-screen dialog mounted while the selected case loads or
     // a completed discard refreshes the list. Never enable actions for a placeholder.
     val pendingId = activeReviewId ?: if (recoveryOpen && !state.newPhotoFailed)
@@ -347,8 +363,14 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         key = { cases[it].id.name },
                     ) { page ->
                         val pageCase = cases.getOrNull(page)
+                        val thumbnail = prefetched?.takeIf {
+                            it.first == pageCase && (it.first.id != activeReviewId || state.importBusy)
+                        }?.second
                         if (pageCase?.id == id && shown?.bitmap != null) {
                             ZoomableReviewImage(shown.bitmap, Modifier.fillMaxSize(), inPager = true)
+                        } else if (thumbnail != null) {
+                            Image(thumbnail.asImageBitmap(), stringResource(R.string.camera_preview),
+                                Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                         } else {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(stringResource(if (pageCase?.id == id && activeReviewId == id && !state.importBusy)

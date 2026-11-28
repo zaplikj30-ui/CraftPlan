@@ -191,6 +191,23 @@ class PhotoImportTest {
     }
 
     @Test
+    fun recoveryPrefetchSelectsAtMostOneAdjacentImportAndNeverWraps() {
+        val first = PhotoRecoveryCase.Import(ImportCandidate(PhotoId(UUID.randomUUID().toString()), "a".repeat(64)))
+        val second = PhotoRecoveryCase.Import(ImportCandidate(PhotoId(UUID.randomUUID().toString()), "b".repeat(64)))
+        val third = PhotoRecoveryCase.Import(ImportCandidate(PhotoId(UUID.randomUUID().toString()), "c".repeat(64)))
+        val camera = PhotoRecoveryCase.Camera(PhotoId(UUID.randomUUID().toString()))
+        val saved = PhotoRecoveryCase.Saved(PhotoId(UUID.randomUUID().toString()))
+        val cases = listOf(first, second, third)
+        assertEquals(second, recoveryPrefetchCase(cases, first.id))
+        assertEquals(third, recoveryPrefetchCase(cases, second.id))
+        assertEquals(second, recoveryPrefetchCase(cases, third.id))
+        assertNull(recoveryPrefetchCase(listOf(first), first.id))
+        assertNull(recoveryPrefetchCase(cases, camera.id))
+        assertNull(recoveryPrefetchCase(listOf(first, camera, third), first.id))
+        assertNull(recoveryPrefetchCase(listOf(first, saved), first.id))
+    }
+
+    @Test
     fun automaticRecoveryOfferDoesNotReopenDeferredImportInSameSession() {
         val candidate = ImportCandidate(PhotoId(UUID.randomUUID().toString()), "a".repeat(64))
         val empty = PhotoList(emptyList(), emptyList())
