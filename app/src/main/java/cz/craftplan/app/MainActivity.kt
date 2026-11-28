@@ -384,14 +384,13 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     fun receivePhoto(uri: Uri) {
         if (importCandidate != null || cameraPreviewId != null || importBusy || openingPhoto || photo != null) return
-        val optimizedCapacity = BuildConfig.ENABLE_STRESS_TOOLS && optimizedImportCapacity
-        val timing = diagnostics.beginPhotoImportTiming(optimizedCapacity)
+        val timing = diagnostics.beginPhotoImportTiming()
         runImport(StoragePhase.IMPORT_STAGE, timing = timing) {
             try {
                 val candidate = withContext(Dispatchers.IO) {
                     val resolver = getApplication<Application>().contentResolver
                     require(uri.scheme == ContentResolver.SCHEME_CONTENT)
-                    timing.measure(PhotoImportDiagnosticStage.CAPACITY) { checkImportCapacity(resolver, uri, timing, optimizedCapacity) }
+                    timing.measure(PhotoImportDiagnosticStage.CAPACITY) { checkImportCapacity(resolver, uri, timing) }
                     val input = timing.measure(PhotoImportDiagnosticStage.SOURCE_OPEN) {
                         resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
                     }
@@ -415,7 +414,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     // The provider may not know the length, or the system capacity query can fail.
     // In that case the bounded stream and actual write remain the authority.
     private fun checkImportCapacity(
-        resolver: ContentResolver, uri: Uri, timing: PhotoImportTiming?, optimizedCapacity: Boolean,
+        resolver: ContentResolver, uri: Uri, timing: PhotoImportTiming?,
     ) {
         val knownSize = try {
             timing.measure(PhotoImportDiagnosticStage.CAPACITY_SOURCE_SIZE) {
@@ -430,19 +429,17 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             null
         }
         if (knownSize == null || knownSize <= 0L || knownSize > MAX_PHOTO_BYTES.toLong()) return
-        if (optimizedCapacity) {
-            val fastAvailable = try {
-                timing.measure(PhotoImportDiagnosticStage.CAPACITY_STATFS) {
-                    StatFs(getApplication<Application>().filesDir.absolutePath).availableBytes
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                null
+        val fastAvailable = try {
+            timing.measure(PhotoImportDiagnosticStage.CAPACITY_STATFS) {
+                StatFs(getApplication<Application>().filesDir.absolutePath).availableBytes
             }
-            if (canSkipDetailedImportCapacity(knownSize, fastAvailable)) return
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
         }
-        // A always uses the existing query; B falls back on low/unknown available space.
+        if (canSkipDetailedImportCapacity(knownSize, fastAvailable)) return
+        // Fall back to the detailed query on low/unknown available space.
         val available = try {
             val app = getApplication<Application>()
             val manager = app.getSystemService(StorageManager::class.java) ?: return
@@ -857,15 +854,6 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     val diagnostics = EditorDiagnostics()
     var diagnosticGripBounds: DiagnosticGripBounds? = null
     var diagnosticSharedGripBounds: DiagnosticGripBounds? = null
-    var optimizedImportCapacity by mutableStateOf(false)
-        private set
-
-    fun toggleImportCapacityMode() {
-        if (BuildConfig.ENABLE_STRESS_TOOLS && !importBusy && !openingPhoto && photo == null) {
-            optimizedImportCapacity = !optimizedImportCapacity
-        }
-    }
-
     var diagnosticsEnabled by mutableStateOf(false)
         private set
     var diagnosticsRecording by mutableStateOf(false)

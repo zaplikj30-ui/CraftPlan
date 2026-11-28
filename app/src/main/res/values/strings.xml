@@ -174,8 +174,6 @@
     <string name="installed_local_version">Verze %1$s · místní sestavení</string>
     <string name="diagnostic_timer">Záznam · %1$d s</string>
     <string name="diagnostic_menu">Diagnostika</string>
-    <string name="diagnostic_capacity_a">Kapacita: A – podrobná (přepnout)</string>
-    <string name="diagnostic_capacity_b">Kapacita: B – rychlá (přepnout)</string>
     <string name="diagnostic_enable">Zapnout diagnostiku</string>
     <string name="diagnostic_disable">Vypnout diagnostiku</string>
     <string name="diagnostic_start">Zahájit záznam</string>

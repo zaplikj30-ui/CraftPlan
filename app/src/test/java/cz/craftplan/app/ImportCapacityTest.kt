@@ -8,7 +8,7 @@ class ImportCapacityTest {
     @Test
     fun fastPathRequiresKnownValidSizeAndHeadroom() {
         val max = MAX_PHOTO_BYTES.toLong()
-        val reserve = IMPORT_CAPACITY_TEST_HEADROOM_BYTES
+        val reserve = IMPORT_CAPACITY_HEADROOM_BYTES
         assertFalse(canSkipDetailedImportCapacity(0, Long.MAX_VALUE))
         assertFalse(canSkipDetailedImportCapacity(-1, Long.MAX_VALUE))
         assertFalse(canSkipDetailedImportCapacity(max + 1, Long.MAX_VALUE))
