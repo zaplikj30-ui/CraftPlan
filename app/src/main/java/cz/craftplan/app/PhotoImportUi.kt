@@ -26,10 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -182,9 +180,17 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             val case = cases.getOrNull(index)
             // Preserve the startup rule: do not automatically interrupt for an
             // unreadable source. Explicit recovery remains available for all cases.
-            if (case != null && (case.id == state.failedPhotoRecovery || state.recoveryPreview(case) != null)) {
-                recoveryIndex = index
-                recoveryOpen = true
+            if (case != null) {
+                val available = case.id == state.failedPhotoRecovery ||
+                    state.recoveryPreview(case)?.let {
+                        // Only a startup eligibility probe, not a second displayed preview.
+                        it.image.recycle()
+                        true
+                    } == true
+                if (available) {
+                    recoveryIndex = index
+                    recoveryOpen = true
+                }
             }
         }
     }
@@ -239,17 +245,21 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
     if (state.importBusy) Text(stringResource(R.string.import_working))
     if (state.cameraReviewHidden) return
     val capture = state.cameraPreviewId
-    val pendingId = capture ?: state.importCandidate?.photoId
+    val activeReviewId = capture ?: state.importCandidate?.photoId
+    // Keep the same full-screen dialog mounted while the selected case loads or
+    // a completed discard refreshes the list. Never enable actions for a placeholder.
+    val pendingId = activeReviewId ?: if (recoveryOpen && !state.newPhotoFailed)
+        cases.getOrNull(recoveryPageIndex(cases, null, recoveryIndex))?.id else null
     pendingId?.let { id ->
         val recoveryPage = if (recoveryOpen && cases.any { it.id == id })
             recoveryPageIndex(cases, id, recoveryIndex) else -1
         val pager = if (recoveryPage >= 0) key(id, cases) {
             rememberPagerState(initialPage = recoveryPage) { cases.size }
         } else null
-        val reviewEnabled = enabled && (pager == null ||
+        val reviewEnabled = enabled && activeReviewId == id && (pager == null ||
             (!pager.isScrollInProgress && cases.getOrNull(pager.settledPage)?.id == id))
-        LaunchedEffect(pager, pager?.settledPage, pager?.isScrollInProgress, enabled) {
-            if (pager != null && enabled && !pager.isScrollInProgress) {
+        LaunchedEffect(pager, pager?.settledPage, pager?.isScrollInProgress, enabled, activeReviewId) {
+            if (pager != null && enabled && activeReviewId == id && !pager.isScrollInProgress) {
                 val target = cases.getOrNull(pager.settledPage)
                 if (target != null && target.id != id) {
                     // Switching pages only defers the current review; it never
@@ -257,10 +267,15 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     recoveryIndex = pager.settledPage
                     state.deferImport()
                     openCase(target)
+                } else if (target?.id == id) {
+                    recoveryIndex = pager.settledPage
                 }
             }
         }
-        val discardSource = state.selectedCaptureDigest != null
+        val displayedSource = state.selectedCaptureSource
+        val displayedDigest = state.selectedCaptureDigest
+        val displayedCandidate = state.importCandidate
+        val discardSource = displayedSource != null && displayedDigest != null
         val discardLabel = when {
             discardSource -> R.string.camera_discard_selected
             capture == null -> R.string.import_discard
@@ -283,10 +298,14 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     }
                 },
                 confirmButton = {
-                    val action = ReviewAction(discardLabel, enabled) {
-                        // Stay in confirmation until the selected draft/source actually disappears.
-                        // A failed operation leaves the same action available for retry or cancel.
-                        if (discardSource) state.discardSelectedCaptureSource() else state.discardImport()
+                    val action = ReviewAction(discardLabel, reviewEnabled) {
+                        // Bind the destructive action to the candidate/source displayed
+                        // when the user made the decision, even if a callback arrives late.
+                        if (discardSource && displayedSource != null && displayedDigest != null) {
+                            state.discardSelectedCaptureSource(displayedSource, displayedDigest)
+                        } else if (!discardSource && displayedCandidate != null) {
+                            state.discardImport(displayedCandidate)
+                        }
                     }
                     if (!discardSource) ReviewPill(action, Modifier, destructive = true)
                     else ReviewTextAction(action)
@@ -297,7 +316,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 },
             )
         } else {
-            val shown = state.importPreview
+            val shown = state.importPreview?.takeIf { activeReviewId == id }
             val ordinaryCamera = state.ordinaryCameraReview && !state.retryingPhotoConfirmation
             val ordinary = ordinaryCamera && !recoveryOpen
             val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinaryCamera ||
@@ -324,7 +343,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     HorizontalPager(
                         state = pager,
                         modifier = modifier,
-                        userScrollEnabled = enabled && cases.size > 1,
+                        userScrollEnabled = enabled && activeReviewId == id && cases.size > 1,
                         key = { cases[it].id.name },
                     ) { page ->
                         val pageCase = cases.getOrNull(page)
@@ -332,7 +351,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             ZoomableReviewImage(shown.bitmap, Modifier.fillMaxSize(), inPager = true)
                         } else {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(stringResource(if (pageCase?.id == id && !state.importBusy)
+                                Text(stringResource(if (pageCase?.id == id && activeReviewId == id && !state.importBusy)
                                     R.string.photo_recovery_preview_unavailable else R.string.import_working))
                             }
                         }

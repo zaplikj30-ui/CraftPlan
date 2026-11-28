@@ -563,10 +563,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun discardSelectedCaptureSource() {
-        val source = selectedCaptureSource ?: return
-        val digest = selectedCaptureDigest ?: return
-        if (source.photoId == captureInFlight) return
+    fun discardSelectedCaptureSource(source: CaptureSource, digest: String) {
+        if (source != selectedCaptureSource || digest != selectedCaptureDigest ||
+            source.photoId != cameraPreviewId || source.photoId == captureInFlight) return
         runImport(StoragePhase.CAMERA_CAPTURE) {
             captureSources = withContext(Dispatchers.IO) {
                 if (source is CaptureSource.Camera) revokeCameraOutput(getApplication(), source.photoId)
@@ -677,10 +676,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         enterEditor(document, preview.bitmap)
     }
 
-    fun discardImport() {
-        if (recoveringConfirmedPhoto || retryingPhotoConfirmation) return
+    fun discardImport(candidate: ImportCandidate) {
+        if (candidate != importCandidate || recoveringConfirmedPhoto || retryingPhotoConfirmation) return
         val capture = cameraPreviewId
-        val candidate = importCandidate ?: return
         if (capture != null && !ordinaryCameraReview) return
         if (capture == null && importPreview == null && !canDiscardFailedImport) return
         runImport(if (capture == null) StoragePhase.IMPORT_STAGE else StoragePhase.CAMERA_CAPTURE) {

@@ -37,7 +37,7 @@
     <string name="photo_technical_title">Prázdné technické pokusy</string>
     <string name="photo_technical_attempt">Zkontrolovat pokus %1$d</string>
     <string name="photo_recovery_heading">Dokončit obnovu</string>
-    <string name="photo_recovery_position">Případ %1$d z %2$d</string>
+    <string name="photo_recovery_position">%1$d z %2$d</string>
     <string name="photo_recovery_previous">Předchozí</string>
     <string name="photo_recovery_next">Další</string>
     <string name="photo_recovery_preview_unavailable">Zmenšený náhled není dostupný. Zdroj lze zkontrolovat samostatně.</string>
