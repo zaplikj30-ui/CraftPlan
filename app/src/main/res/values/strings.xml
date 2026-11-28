@@ -60,7 +60,6 @@
     <string name="camera_recovery_output">Náhled výstupu fotoaparátu</string>
     <string name="camera_recovery_stage">Náhled pracovní kopie %1$d</string>
     <string name="camera_recovery_save">Zachránit jako novou fotografii</string>
-    <string name="camera_recovery_save_damaged">Zachránit poškozený snímek jako novou fotografii</string>
     <string name="camera_failed">Snímek ze systémového fotoaparátu se nepodařilo převzít.</string>
     <string name="import_photo">Importovat fotografii JPEG</string>
     <string name="import_resume">Rozpracovaná fotografie %1$d (import)</string>
@@ -69,8 +68,7 @@
     <string name="import_preview">Náhled importu · Plná</string>
     <string name="import_discard">Zahodit import</string>
     <string name="import_discard_warning">Odstraní se pouze rozpracovaný import. Zdrojový soubor zůstane beze změny.</string>
-    <string name="import_damage_warning">Soubor je poškozený nebo neúplný. Část fotografie může chybět nebo se zobrazit nesprávně. Pokud import potvrdíš, uloží se původní soubor.</string>
-    <string name="import_confirm_damaged">Přesto importovat</string>
+    <string name="import_damage_warning">Soubor je poškozený nebo neúplný. Část fotografie může chybět nebo se zobrazit nesprávně.</string>
     <string name="import_confirm">Potvrdit import</string>
     <string name="import_later">Později</string>
     <string name="import_failed">Import se nepodařilo dokončit.</string>

@@ -48,13 +48,14 @@ class PhotoImportTest {
         val candidate = imports.receive(payload.inputStream())
         fun failure(reason: ImportRejection, malformed: Boolean = false, incomplete: Boolean = false) =
             StorageFailure(StoragePhase.IMPORT_PREVIEW, ImportValidationFailure(reason, malformed, incomplete))
-        val header = failure(ImportRejection.JPEG_DECODE_MALFORMED)
+        val header = failure(ImportRejection.JPEG_HEADER_INVALID)
         val malformed = failure(ImportRejection.JPEG_DECODE_MALFORMED, malformed = true)
         val truncated = failure(ImportRejection.JPEG_TRUNCATED, incomplete = true)
         assertFalse(imports.rejectInvalidPreview(candidate, header))
         for (error in listOf(
             failure(ImportRejection.PHOTO_PIXEL_LIMIT),
             failure(ImportRejection.JPEG_TRUNCATED),
+            failure(ImportRejection.JPEG_DECODE_MALFORMED),
             failure(ImportRejection.JPEG_DECODE_FAILED),
             failure(ImportRejection.JPEG_METADATA_INVALID),
             StorageFailure(StoragePhase.IMPORT_PREVIEW, IOException()),

@@ -323,11 +323,13 @@ internal class PhotoImports(
         head(id.documentId) != null || hasRevisions(id.documentId) || catalog.exists(id.name)
     }
 
-    suspend fun preview(candidate: ImportCandidate): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
+    suspend fun preview(
+        candidate: ImportCandidate, newExternalImport: Boolean = false,
+    ): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
         val bytes = staging.read(candidate)
         // Earlier versions could write the catalog before finishing the first revision.
         val existing = transactions.read { catalogPhoto(candidate.photoId) }
-        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = true)
+        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = !newExternalImport)
     }
 
     suspend fun confirmPreview(
@@ -429,7 +431,7 @@ internal class PhotoImports(
         val contentDamage = (failure.reason == ImportRejection.JPEG_DECODE_MALFORMED &&
             failure.decoderConfirmedMalformed) ||
             (failure.reason == ImportRejection.JPEG_TRUNCATED && failure.decoderConfirmedIncomplete)
-        val refusedExternal = freshExternal && (failure.reason == ImportRejection.JPEG_DECODE_MALFORMED ||
+        val refusedExternal = freshExternal && (failure.reason == ImportRejection.JPEG_HEADER_INVALID ||
             failure.reason == ImportRejection.JPEG_SIGNATURE)
         if (!contentDamage && !refusedExternal) return false
         if (hasConfirmationEvidence(candidate.photoId)) return false

@@ -35,7 +35,7 @@ internal fun sourceOrientation(tag: String?): Int? =
 
 internal enum class ImportRejection {
     CAMERA_OUTPUT_EMPTY, CAMERA_OUTPUT_CHANGED, CAMERA_SOURCE_PROTECTED, PHOTO_SIZE_LIMIT, PHOTO_PIXEL_LIMIT, STAGED_INTEGRITY, JPEG_SIGNATURE, JPEG_TRUNCATED,
-    JPEG_DECODE_MALFORMED, JPEG_DECODE_FAILED, JPEG_METADATA_INVALID,
+    JPEG_HEADER_INVALID, JPEG_DECODE_MALFORMED, JPEG_DECODE_FAILED, JPEG_METADATA_INVALID,
 }
 
 internal class ImportValidationFailure(
@@ -53,9 +53,9 @@ internal fun previewJpeg(
     val photo = existing ?: try {
         inspectJpeg(candidate, bytes)
     } catch (failure: ImportValidationFailure) {
-        // A failed BitmapFactory bounds probe is not proof of a malformed source.
-        // For a fresh, fully staged JPEG only, let ImageDecoder independently check it.
-        if (verifyMalformedHeader && failure.reason == ImportRejection.JPEG_DECODE_MALFORMED &&
+        // A failed bounds probe is an admission failure, not proof of source damage.
+        // For a possibly irreplaceable camera/recovery source, independently check it.
+        if (verifyMalformedHeader && failure.reason == ImportRejection.JPEG_HEADER_INVALID &&
             bytes.size >= 2 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte()
         ) {
             // The same strict decoder also handles a failed header probe.
@@ -190,7 +190,7 @@ private fun jpegBounds(bytes: ByteArray): BitmapFactory.Options {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     if (bounds.outMimeType != "image/jpeg" || bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-        throw ImportValidationFailure(ImportRejection.JPEG_DECODE_MALFORMED)
+        throw ImportValidationFailure(ImportRejection.JPEG_HEADER_INVALID)
     }
     if (bounds.outWidth.toLong() * bounds.outHeight > MAX_PHOTO_PIXELS) {
         throw ImportValidationFailure(ImportRejection.PHOTO_PIXEL_LIMIT)
