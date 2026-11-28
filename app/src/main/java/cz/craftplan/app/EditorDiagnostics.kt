@@ -12,6 +12,30 @@ internal enum class PhotoListDiagnosticStage {
     LIST_LAYOUT, REFRESH_FAILED, REFRESH_CANCELED, RECOVERY_PREVIEW_START, RECOVERY_PREVIEW_END,
 }
 
+internal enum class PhotoImportDiagnosticStage {
+    REFRESH_WAIT, CAPACITY, SOURCE_OPEN, RECEIVE_TOTAL, STAGE_STREAM, STAGE_FILE_SYNC,
+    STAGE_VERIFY, STAGE_RENAME, STAGE_DIRECTORY_SYNC, PREVIEW_TOTAL, PREVIEW_READ_VERIFY,
+    CATALOG_LOOKUP, DECODE, CONFIRMATION_EVIDENCE, LIST_REFRESH,
+}
+
+/** One import, one sequential coroutine. Collect timings on IO, publish only on Main. */
+internal class PhotoImportTiming(val session: Any, val now: () -> Long) {
+    val started = now()
+    data class Sample(val stage: PhotoImportDiagnosticStage, val elapsedNs: Long, val completed: Boolean)
+    val samples = mutableListOf<Sample>()
+}
+
+internal inline fun <T> PhotoImportTiming?.measure(stage: PhotoImportDiagnosticStage, block: () -> T): T {
+    if (this == null) return block()
+    val start = now()
+    var completed = false
+    try {
+        return block().also { completed = true }
+    } finally {
+        samples.add(PhotoImportTiming.Sample(stage, (now() - start).coerceAtLeast(0), completed))
+    }
+}
+
 internal enum class DiagnosticResult { START, APPLIED, UNCHANGED, MISSED, REJECTED, CANCELED }
 internal enum class CalculationInputSource { FIELD, NATIVE_FIELD, KEYPAD, INK }
 internal enum class CalculationInputDecision { CALCULATE, EDIT, UNCHANGED, INK_BLOCKED, LIMIT_BLOCKED, ECHO_IGNORED }
@@ -234,6 +258,21 @@ internal class EditorDiagnostics(
             " elapsed_ns=${elapsedNs ?: "NA"} count=${count ?: "NA"} pending=${pending ?: "NA"}")
     }
 
+    fun beginPhotoImportTiming(): PhotoImportTiming? {
+        val time = recordingTime() ?: return null
+        append(time, "photo_import START")
+        return PhotoImportTiming(sessionIdentity, now)
+    }
+
+    fun finishPhotoImportTiming(timing: PhotoImportTiming?, completed: Boolean) {
+        if (timing == null || timing.session !== sessionIdentity) return
+        val time = recordingTime() ?: return
+        for (sample in timing.samples) {
+            append(time, "photo_import ${sample.stage.name} elapsed_ns=${sample.elapsedNs} completed=${sample.completed}")
+        }
+        append(time, "photo_import END elapsed_ns=${(now() - timing.started).coerceAtLeast(0)} completed=$completed")
+    }
+
     // Only structural metadata, never the entered text, operands or results.
     fun calculationInput(
         field: DimensionField, source: CalculationInputSource, systemInput: Boolean,
@@ -444,6 +483,7 @@ internal class EditorDiagnostics(
         appendLine("pen_shape: bounded sampled stroke geometry in dp; dx/dy signed, angle from right toward down, bend=max perpendicular distance to endpoint line; NA for zero chord. ink_candidates: 1-based first ranks of allowlisted single-symbol classes after trimming spaces, context length and last character/non-space class, no raw text; join by sample_end_uptime_ms (last retained point, not necessarily UP) and field, strokes is batch size.")
         appendLine("calculation_input: NATIVE_FIELD=BasicTextField callback (not proof of IME origin), FIELD=explicit field menu/pen action, KEYPAD=custom keys, INK=recognized handwriting; ECHO_IGNORED=exact duplicate before calculated state publication; system_input=system input permitted for that field. Tail is an allowlisted category after trimming ASCII spaces; lengths/counts only, no text. calculation_result records the actual draft calculation and field update; subsequent inputs may show a shorter prefix or other replacement, not proof of IME intent.")
         appendLine("photo_list: monotonic session timestamps, elapsed_ns includes dispatcher wait and IO; RECOVERY_END count=verified offers, LIST_END count=confirmed entries, pending=unconfirmed entries including active attempt; layout is Compose placement, not display presentation; counts only, no IDs or media.")
+        appendLine("photo_import: external selection callback to review ready/failure, monotonic durations; samples published at operation end, completed=false on interrupted/failed phase. RECEIVE_TOTAL/PREVIEW_TOTAL/END include nested phases, do not add them together. Not frame presentation or external picker time. No URI, IDs, paths, metadata or image contents.")
         appendLine("canvas timings=elapsed onDraw on UI thread; drawn=dimension draw commands issued, including full drag previews; visible candidates=scene dimensions or their edits inside conservative viewport bounds; process memory=PSS estimate")
         for (event in events) appendLine("${event.ms}\t${event.body}")
     }

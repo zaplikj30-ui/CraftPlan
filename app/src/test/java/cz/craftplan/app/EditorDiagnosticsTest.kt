@@ -31,6 +31,34 @@ class EditorDiagnosticsTest {
     }
 
     @Test
+    fun importTimingIsLimitedToCurrentSessionAndRecordsCompletedAndFailedPhases() {
+        var now = 0L
+        val recorder = EditorDiagnostics(now = { now })
+        assertEquals(null, recorder.beginPhotoImportTiming())
+        recorder.start()
+        val old = recorder.beginPhotoImportTiming()
+        recorder.start()
+        recorder.finishPhotoImportTiming(old, true)
+        val timing = recorder.beginPhotoImportTiming()
+        assertEquals(7, timing.measure(PhotoImportDiagnosticStage.STAGE_STREAM) { now += 20_000_000; 7 })
+        try {
+            timing.measure(PhotoImportDiagnosticStage.DECODE) {
+                now += 30_000_000
+                throw IllegalStateException("private marker")
+            }
+        } catch (_: IllegalStateException) { }
+        recorder.finishPhotoImportTiming(timing, false)
+        recorder.stop()
+        recorder.finishPhotoImportTiming(timing, true)
+        val report = recorder.export("local", null, "test", 36)
+        assertEquals(4, report.lineSequence().count { it.contains("\tphoto_import ") })
+        assertTrue(report.contains("STAGE_STREAM elapsed_ns=20000000 completed=true"))
+        assertTrue(report.contains("DECODE elapsed_ns=30000000 completed=false"))
+        assertTrue(report.contains("END elapsed_ns=50000000 completed=false"))
+        assertFalse(report.contains("private marker"))
+    }
+
+    @Test
     fun nativeImeOpenRecordsActualInsetsOnlyDuringRecording() {
         val recorder = EditorDiagnostics(now = { 0L })
         recorder.nativeImeOpen(DimensionField.VALUE, 1, true, false, false, 0, null, null)

@@ -378,17 +378,24 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
     }
 
     fun receivePhoto(uri: Uri) {
-        if (importCandidate != null || cameraPreviewId != null) return
-        runImport(StoragePhase.IMPORT_STAGE) {
+        if (importCandidate != null || cameraPreviewId != null || importBusy || openingPhoto || photo != null) return
+        val timing = diagnostics.beginPhotoImportTiming()
+        runImport(StoragePhase.IMPORT_STAGE, timing = timing) {
             try {
                 val candidate = withContext(Dispatchers.IO) {
                     val resolver = getApplication<Application>().contentResolver
                     require(uri.scheme == ContentResolver.SCHEME_CONTENT)
-                    checkImportCapacity(resolver, uri)
-                    val input = resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
-                    input.use { storage.imports.receive(it) }
+                    timing.measure(PhotoImportDiagnosticStage.CAPACITY) { checkImportCapacity(resolver, uri) }
+                    val input = timing.measure(PhotoImportDiagnosticStage.SOURCE_OPEN) {
+                        resolver.openInputStream(uri) ?: throw IOException("Photo is unavailable")
+                    }
+                    timing.measure(PhotoImportDiagnosticStage.RECEIVE_TOTAL) {
+                        input.use { storage.imports.receive(it, timing) }
+                    }
                 }
-                loadPreview(candidate, newExternalImport = true)
+                timing.measure(PhotoImportDiagnosticStage.PREVIEW_TOTAL) {
+                    loadPreview(candidate, newExternalImport = true, timing = timing)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -588,6 +595,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
 
     private suspend fun loadPreview(
         candidate: ImportCandidate, newExternalImport: Boolean = false, completedCamera: Boolean = false,
+        timing: PhotoImportTiming? = null,
     ) {
         importCandidate = candidate
         importPreview = null
@@ -600,7 +608,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
             withContext(Dispatchers.IO) {
                 val imports = storage.imports
                 val preview = try {
-                    imports.preview(candidate, newExternalImport = newExternalImport)
+                    imports.preview(candidate, newExternalImport = newExternalImport, timing = timing)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
@@ -610,7 +618,9 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                     }
                     throw error
                 }
-                preview to imports.hasConfirmationEvidence(candidate.photoId)
+                preview to timing.measure(PhotoImportDiagnosticStage.CONFIRMATION_EVIDENCE) {
+                    imports.hasConfirmationEvidence(candidate.photoId)
+                }
             }
         } catch (error: CancellationException) {
             throw error
@@ -692,7 +702,10 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         }
     }
 
-    private fun runImport(phase: StoragePhase, after: () -> Unit = {}, action: suspend () -> Unit) {
+    private fun runImport(
+        phase: StoragePhase, after: () -> Unit = {}, timing: PhotoImportTiming? = null,
+        action: suspend () -> Unit,
+    ) {
         if (importBusy || openingPhoto || photo != null) return
         val refresh = importRefresh
         refresh?.cancel()
@@ -700,18 +713,22 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
         importDiagnostic = null
         newPhotoFailed = false
         viewModelScope.launch {
+            var completed = false
             try {
                 // A canceled startup scan may still be leaving a blocking filesystem call.
                 // Wait before creating a new camera output it could otherwise discover.
-                refresh?.join()
+                timing.measure(PhotoImportDiagnosticStage.REFRESH_WAIT) { refresh?.join() }
                 action()
+                completed = true
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 importDiagnostic = storageFailureCode(error, phase)
             } finally {
+                var listCompleted = false
                 try {
-                    readPhotoList()
+                    timing.measure(PhotoImportDiagnosticStage.LIST_REFRESH) { readPhotoList() }
+                    listCompleted = true
                 } catch (error: CancellationException) {
                     diagnostics.photoListStage(PhotoListDiagnosticStage.REFRESH_CANCELED)
                     throw error
@@ -721,6 +738,7 @@ internal class PhotoEditorState(application: Application) : AndroidViewModel(app
                     if (importDiagnostic == null) importDiagnostic = storageFailureCode(error, StoragePhase.OPEN)
                 } finally {
                     importBusy = false
+                    diagnostics.finishPhotoImportTiming(timing, completed && listCompleted)
                 }
             }
             after()

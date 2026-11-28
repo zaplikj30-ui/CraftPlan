@@ -147,9 +147,8 @@ internal class PhotoImports(
             pendingCaptures, confirmed.filter { it in recoveryIds }, emptyCaptureOnly)
     }
 
-    fun receive(input: InputStream): ImportCandidate = storagePhase(StoragePhase.IMPORT_STAGE) {
-        staging.receive(input)
-    }
+    fun receive(input: InputStream, timing: PhotoImportTiming? = null): ImportCandidate =
+        storagePhase(StoragePhase.IMPORT_STAGE) { staging.receive(input, timing = timing) }
 
     fun beginCapture(): PhotoId = storagePhase(StoragePhase.CAMERA_CAPTURE) { captures.begin() }
 
@@ -354,12 +353,16 @@ internal class PhotoImports(
     }
 
     suspend fun preview(
-        candidate: ImportCandidate, newExternalImport: Boolean = false,
+        candidate: ImportCandidate, newExternalImport: Boolean = false, timing: PhotoImportTiming? = null,
     ): ImportPreview = storagePhase(StoragePhase.IMPORT_PREVIEW) {
-        val bytes = staging.read(candidate)
+        val bytes = timing.measure(PhotoImportDiagnosticStage.PREVIEW_READ_VERIFY) { staging.read(candidate) }
         // Earlier versions could write the catalog before finishing the first revision.
-        val existing = transactions.read { catalogPhoto(candidate.photoId) }
-        previewJpeg(candidate, bytes, existing, verifyMalformedHeader = !newExternalImport)
+        val existing = timing.measure(PhotoImportDiagnosticStage.CATALOG_LOOKUP) {
+            transactions.read { catalogPhoto(candidate.photoId) }
+        }
+        timing.measure(PhotoImportDiagnosticStage.DECODE) {
+            previewJpeg(candidate, bytes, existing, verifyMalformedHeader = !newExternalImport)
+        }
     }
 
     suspend fun confirmPreview(

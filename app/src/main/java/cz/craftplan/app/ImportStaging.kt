@@ -25,34 +25,37 @@ internal class ImportStaging(
     fun receive(
         input: InputStream,
         photoId: PhotoId = PhotoId(UUID.randomUUID().toString()),
+        timing: PhotoImportTiming? = null,
         beforePublish: (ImportCandidate) -> Unit = {},
     ): ImportCandidate {
         val tmp = Files.createTempFile(directory.toPath(), ".import-", ".part").toFile()
         try {
             val digest = MessageDigest.getInstance("SHA-256")
             FileOutputStream(tmp).use { output ->
-                val buffer = ByteArray(64 * 1024)
-                var size = 0
-                while (true) {
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    check(count > 0) { "Photo stream stopped making progress" }
-                    size += count
-                    if (size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
-                    digest.update(buffer, 0, count)
-                    output.write(buffer, 0, count)
+                timing.measure(PhotoImportDiagnosticStage.STAGE_STREAM) {
+                    val buffer = ByteArray(64 * 1024)
+                    var size = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        check(count > 0) { "Photo stream stopped making progress" }
+                        size += count
+                        if (size > MAX_PHOTO_BYTES) throw ImportValidationFailure(ImportRejection.PHOTO_SIZE_LIMIT)
+                        digest.update(buffer, 0, count)
+                        output.write(buffer, 0, count)
+                    }
                 }
-                output.fd.sync()
+                timing.measure(PhotoImportDiagnosticStage.STAGE_FILE_SYNC) { output.fd.sync() }
             }
             val candidate = ImportCandidate(
                 photoId, digest.digest().joinToString("") { "%02x".format(it) },
             )
-            readVerified(tmp, candidate)
+            timing.measure(PhotoImportDiagnosticStage.STAGE_VERIFY) { readVerified(tmp, candidate) }
             beforePublish(candidate)
             val ready = File(directory, candidate.fileName)
             check(Files.notExists(ready.toPath(), LinkOption.NOFOLLOW_LINKS))
-            rename(tmp, ready)
-            syncDirectory(directory)
+            timing.measure(PhotoImportDiagnosticStage.STAGE_RENAME) { rename(tmp, ready) }
+            timing.measure(PhotoImportDiagnosticStage.STAGE_DIRECTORY_SYNC) { syncDirectory(directory) }
             return candidate
         } finally {
             tmp.delete()
