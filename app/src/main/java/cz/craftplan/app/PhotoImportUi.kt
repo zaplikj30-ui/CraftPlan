@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.graphics.Bitmap
+import android.widget.Toast
 import android.view.ViewTreeObserver
 import android.view.WindowInsets as AndroidWindowInsets
 import android.view.WindowInsetsController
@@ -36,6 +37,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -62,6 +64,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.asImageBitmap
@@ -262,8 +265,13 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             if (result != null && !result.sourceDamaged) prefetched = next to result.image
         }
     }
+    var switchingImport by remember(recoveryOpen) { mutableStateOf<ImportCandidate?>(null) }
+    LaunchedEffect(enabled, activeReviewId, state.newPhotoFailed) {
+        if (enabled || state.newPhotoFailed) switchingImport = null
+    }
+    val context = LocalContext.current
     // Keep the same full-screen dialog mounted while the selected case loads or
-    // a completed discard refreshes the list. Never enable actions for a placeholder.
+    // a completed discard refreshes the list. Placeholders never authorize actions.
     val pendingId = activeReviewId ?: if (recoveryOpen && !state.newPhotoFailed)
         cases.getOrNull(recoveryPageIndex(cases, null, recoveryIndex))?.id else null
     pendingId?.let { id ->
@@ -272,8 +280,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         val pager = if (recoveryPage >= 0) key(id, cases) {
             rememberPagerState(initialPage = recoveryPage) { cases.size }
         } else null
-        val reviewEnabled = enabled && activeReviewId == id && (pager == null ||
-            (!pager.isScrollInProgress && cases.getOrNull(pager.settledPage)?.id == id))
+        fun reviewReady(): Boolean =
+            !state.importBusy && !state.openingPhoto &&
+                (state.cameraPreviewId ?: state.importCandidate?.photoId) == id &&
+                (pager == null || (!pager.isScrollInProgress && cases.getOrNull(pager.settledPage)?.id == id))
+        val reviewEnabled = reviewReady()
         LaunchedEffect(pager, pager?.settledPage, pager?.isScrollInProgress, enabled, activeReviewId) {
             if (pager != null && enabled && activeReviewId == id && !pager.isScrollInProgress) {
                 val target = cases.getOrNull(pager.settledPage)
@@ -281,6 +292,11 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                     // Switching pages only defers the current review; it never
                     // confirms or discards it. Load just the newly selected case.
                     recoveryIndex = pager.settledPage
+                    // Preserve the ordinary import panel, not permissions from the old page.
+                    switchingImport = (target as? PhotoRecoveryCase.Import)?.candidate?.takeIf {
+                        cases.getOrNull(recoveryPage) is PhotoRecoveryCase.Import &&
+                            state.importPreview != null && !state.retryingPhotoConfirmation
+                    }
                     state.deferImport()
                     openCase(target)
                 } else if (target?.id == id) {
@@ -337,6 +353,19 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
             val ordinary = ordinaryCamera && !recoveryOpen
             val canDiscard = !state.retryingPhotoConfirmation && (discardSource || ordinaryCamera ||
                 (capture == null && !state.recoveringConfirmedPhoto && (shown != null || state.canDiscardFailedImport)))
+            val ordinaryImport = recoveryPage >= 0 && cases.getOrNull(recoveryPage) is PhotoRecoveryCase.Import
+            val pagingImport = ordinaryImport && !enabled &&
+                switchingImport == (cases.getOrNull(recoveryPage) as? PhotoRecoveryCase.Import)?.candidate
+            val stableImportPanel = ordinaryImport && !state.retryingPhotoConfirmation &&
+                ((enabled && shown != null && !shown.sourceDamaged) || pagingImport)
+            // While paging, a tap gives immediate feedback instead of silently failing.
+            // Never queue an action or borrow the previous image's permissions.
+            fun reviewAction(label: Int, permitted: Boolean, action: () -> Unit): ReviewAction =
+                ReviewAction(label, permitted || stableImportPanel) {
+                    if (permitted && reviewReady()) action()
+                    else if (stableImportPanel || !reviewReady()) Toast.makeText(context.applicationContext,
+                        R.string.import_working, Toast.LENGTH_SHORT).show()
+                }
             val confirmLabel = if (state.selectedCaptureSource != null) {
                 R.string.camera_recovery_save
             } else if (state.retryingPhotoConfirmation) R.string.document_retry
@@ -353,6 +382,8 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             recoveryOpen = false
                             state.deferImport()
                         }
+                    } else if (stableImportPanel) {
+                        Toast.makeText(context.applicationContext, R.string.import_working, Toast.LENGTH_SHORT).show()
                     }
                 },
                 imageContent = if (pager != null) { modifier ->
@@ -366,15 +397,17 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                         val thumbnail = prefetched?.takeIf {
                             it.first == pageCase && (it.first.id != activeReviewId || state.importBusy)
                         }?.second
-                        if (pageCase?.id == id && shown?.bitmap != null) {
-                            ZoomableReviewImage(shown.bitmap, Modifier.fillMaxSize(), inPager = true)
-                        } else if (thumbnail != null) {
-                            Image(thumbnail.asImageBitmap(), stringResource(R.string.camera_preview),
-                                Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                        } else {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(stringResource(if (pageCase?.id == id && activeReviewId == id && !state.importBusy)
-                                    R.string.photo_recovery_preview_unavailable else R.string.import_working))
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            if (pageCase?.id == id && shown?.bitmap != null) {
+                                ZoomableReviewImage(shown.bitmap, Modifier.fillMaxSize(), inPager = true)
+                            } else if (thumbnail != null) {
+                                Image(thumbnail.asImageBitmap(), stringResource(R.string.camera_preview),
+                                    Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                            } else if (pageCase?.id == id && activeReviewId == id && !state.importBusy) {
+                                Text(stringResource(R.string.photo_recovery_preview_unavailable))
+                            }
+                            if (pageCase?.id == id && state.importBusy && (shown == null || pagingImport)) {
+                                CircularProgressIndicator()
                             }
                         }
                     }
@@ -396,7 +429,7 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                             Text(stringResource(R.string.import_damage_warning),
                                 color = MaterialTheme.colorScheme.error)
                         }
-                        if (state.importBusy) Text(stringResource(R.string.import_working))
+                        if (state.importBusy && !pagingImport) Text(stringResource(R.string.import_working))
                         state.importDiagnostic?.let {
                             if (shown == null) {
                                 Text(stringResource(if (capture == null) R.string.import_failed else R.string.camera_failed))
@@ -423,13 +456,14 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
                 },
                 retake = if (ordinary) ReviewAction(R.string.camera_retake,
                     enabled && state.captureInFlight == null, onCapture) else null,
-                discard = if (canDiscard) ReviewAction(discardLabel, reviewEnabled) { confirmDiscard = true } else null,
-                confirm = ReviewAction(confirmLabel, reviewEnabled && shown != null && !shown.sourceDamaged) {
+                discard = if (canDiscard || pagingImport)
+                    reviewAction(discardLabel, canDiscard && reviewEnabled) { confirmDiscard = true } else null,
+                confirm = reviewAction(confirmLabel, reviewEnabled && shown != null && !shown.sourceDamaged) {
                     if (shown != null && !shown.sourceDamaged) {
                         state.confirmImport(shown.candidate, PhotoConfirmation.EXPLICIT)
                     }
                 },
-                later = if (ordinary) null else ReviewAction(R.string.photo_list_close, reviewEnabled) {
+                later = if (ordinary) null else reviewAction(R.string.photo_list_close, reviewEnabled) {
                     recoveryOpen = false
                     state.deferImport()
                 },
