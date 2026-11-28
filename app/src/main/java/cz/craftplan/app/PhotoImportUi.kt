@@ -1,6 +1,7 @@
 package cz.craftplan.app
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Bitmap
 import android.widget.Toast
 import android.view.ViewTreeObserver
@@ -112,6 +113,17 @@ internal fun PhotoImportControls(state: PhotoEditorState, onCapture: () -> Unit,
         Text(stringResource(R.string.camera_take_picture))
     }
     CameraPreviewSetting(state, enabled && state.captureInFlight == null)
+    if (BuildConfig.ENABLE_STRESS_TOOLS) {
+        TextButton(
+            onClick = {
+                pickerContext.startActivity(Intent(pickerContext, CameraPreviewActivity::class.java))
+            },
+            enabled = enabled && state.captureInFlight == null &&
+                state.cameraPreviewId == null && state.importCandidate == null,
+        ) {
+            Text(stringResource(R.string.camera_x_test))
+        }
+    }
     if (state.captureInFlight != null) {
         TextButton(onClick = onStopCameraWait, enabled = enabled) {
             Text(stringResource(R.string.camera_stop_waiting))

@@ -1,6 +1,8 @@
 package cz.craftplan.app
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.ContentResolver
 import android.content.SharedPreferences
@@ -11,6 +13,7 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import android.provider.OpenableColumns
 import android.view.Window
+import android.widget.Toast
 import android.view.WindowInsets as AndroidWindowInsets
 import android.view.WindowInsetsController
 import android.view.ViewTreeObserver
@@ -20,6 +23,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -75,6 +79,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withResumed
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -88,6 +94,65 @@ import java.util.UUID
 class MainActivity : ComponentActivity() {
     private val editorState by viewModels<PhotoEditorState>()
     private val systemCamera by lazy { SystemPhotoCamera(this, editorState) }
+    // RAM-only: after Activity recreation do not automatically repeat an old destructive retake.
+    private var pendingCameraPermission: SystemCameraRequest? = null
+    private val systemCameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val request = pendingCameraPermission
+        pendingCameraPermission = null
+        if (granted && request != null) {
+            lifecycleScope.launch {
+                lifecycle.withResumed {
+                    if (!launchSystemPhoto(request)) {
+                        Toast.makeText(this@MainActivity, R.string.camera_permission_retry, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } else {
+            Toast.makeText(this, if (granted) R.string.camera_permission_retry
+                else R.string.camera_permission_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestSystemPhoto() {
+        // Declaring CAMERA for CameraX also makes ACTION_IMAGE_CAPTURE require it.
+        // Do not allocate an attempt or reject a retake before permission is granted.
+        if (pendingCameraPermission != null) return
+        val request = SystemCameraRequest(
+            editorState.importPreview?.candidate.takeIf { editorState.ordinaryCameraReview },
+        )
+        if (!matchesSystemPhotoRequest(request)) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchSystemPhoto(request)
+        } else {
+            pendingCameraPermission = request
+            try {
+                systemCameraPermission.launch(Manifest.permission.CAMERA)
+            } catch (_: Exception) {
+                pendingCameraPermission = null
+                Toast.makeText(this, R.string.camera_permission_denied, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun matchesSystemPhotoRequest(request: SystemCameraRequest): Boolean =
+        !isFinishing && !isDestroyed && editorState.captureInFlight == null &&
+            !editorState.importBusy && !editorState.openingPhoto && editorState.photo == null &&
+            request.matches(
+                editorState.cameraPreviewId, editorState.importCandidate, editorState.importPreview?.candidate,
+                editorState.ordinaryCameraReview, editorState.retryingPhotoConfirmation,
+            )
+
+    private fun launchSystemPhoto(request: SystemCameraRequest): Boolean {
+        if (!matchesSystemPhotoRequest(request)) return false
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, R.string.camera_permission_denied, Toast.LENGTH_SHORT).show()
+            return false
+        }
+        val mode = if (editorState.cameraPreviewEnabled) CameraResultMode.CRAFTPLAN_PREVIEW
+            else CameraResultMode.DIRECT_AFTER_SUCCESS
+        editorState.requestCapture { id -> systemCamera.launch(id, mode) }
+        return true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,11 +166,7 @@ class MainActivity : ComponentActivity() {
             val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
             MaterialTheme(colorScheme = colors) {
                 CraftPlan(
-                    editorState, window, onCapture = {
-                        val mode = if (editorState.cameraPreviewEnabled) CameraResultMode.CRAFTPLAN_PREVIEW
-                            else CameraResultMode.DIRECT_AFTER_SUCCESS
-                        editorState.requestCapture { id -> systemCamera.launch(id, mode) }
-                    },
+                    editorState, window, onCapture = ::requestSystemPhoto,
                     onStopCameraWait = systemCamera::stopWaiting,
                 )
             }

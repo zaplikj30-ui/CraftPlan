@@ -93,6 +93,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
 
+    // Stable CameraX 1.5 series; keep the existing Android 36 build stack.
+    val cameraX = "1.5.3"
+    implementation("androidx.camera:camera-camera2:$cameraX")
+    implementation("androidx.camera:camera-lifecycle:$cameraX")
+    implementation("androidx.camera:camera-view:$cameraX")
+
     implementation("com.google.mlkit:digital-ink-recognition:19.0.0")
 
     implementation("androidx.room:room-runtime:2.8.5")
